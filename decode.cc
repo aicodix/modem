@@ -230,7 +230,7 @@ struct Decoder
 		}
 		return sum / (count * symbol_len/2);
 	}
-	Decoder(value *out, DSP::ReadPCM<value> *pcm, int skip_count) :
+	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
 		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc(0xA8F4)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
@@ -329,8 +329,16 @@ struct Decoder
 			for (int i = 0; i < data_cols; ++i)
 				head[bin(i+data_off)] = fdom[bin(i+data_off)];
 			fwd(fdom, cur += symbol_len+guard_len);
-			for (int i = 0; i < data_cols; ++i)
-				Mod::hard(out+Mod::BITS*(data_cols*j+i), fdom[bin(i+data_off)] / head[bin(i+data_off)]);
+			for (int i = 0; i < data_cols; ++i) {
+				value tmp[Mod::BITS];
+				Mod::hard(tmp, fdom[bin(i+data_off)] / head[bin(i+data_off)]);
+				for (int k = 0; k < Mod::BITS; ++k) {
+					int l = Mod::BITS * (data_cols * j + i) + k;
+					if (l % 8 == 0)
+						out[l/8] = 0;
+					out[l/8] |= (tmp[k] < 0) << (l % 8);
+				}
+			}
 		}
 	}
 };
@@ -359,8 +367,8 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int length = 64800;
-	value *output_data = new value[length];
+	const int length = 64800 / 8;
+	uint8_t *output_data = new uint8_t[length];
 
 	switch (input_file.rate()) {
 	case 8000:
@@ -385,13 +393,8 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
 		return 1;
 	}
-	for (int i = 0, c = 0; i < length; ++i) {
-		c |= (output_data[i] < 0) << (i % 8);
-		if (i % 8 == 7) {
-			output_file.put(c);
-			c = 0;
-		}
-	}
+	for (int i = 0; i < length; ++i)
+		output_file.put(output_data[i]);
 	delete []output_data;
 	return 0;
 }

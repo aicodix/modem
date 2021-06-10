@@ -128,7 +128,7 @@ struct Encoder
 			fdom[bin(i+mls1_off)] *= (1 - 2 * seq4());
 		symbol();
 	}
-	Encoder(DSP::WritePCM<value> *pcm, value *inp, int freq_off, uint64_t call_sign) :
+	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign) :
 		pcm(pcm), crc(0xA8F4), bchenc({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
@@ -146,8 +146,14 @@ struct Encoder
 		meta_data((call_sign << 8) | 2);
 		pilot_block();
 		for (int j = 0; j < data_rows; ++j) {
-			for (int i = 0; i < data_cols; ++i)
-				fdom[bin(i+data_off)] *= Mod::map(inp+Mod::BITS*(data_cols*j+i));
+			for (int i = 0; i < data_cols; ++i) {
+				value tmp[Mod::BITS];
+				for (int k = 0; k < Mod::BITS; ++k) {
+					int l = Mod::BITS * (data_cols * j + i) + k;
+					tmp[k] = 1 - 2 * ((inp[l/8] >> (l % 8)) & 1);
+				}
+				fdom[bin(i+data_off)] *= Mod::map(tmp);
+			}
 			symbol();
 		}
 		schmidl_cox();
@@ -218,13 +224,10 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
 		return 1;
 	}
-	const int length = 64800;
-	value *input_data = new value[length];
-	for (int i = 0, c = 0; i < length; ++i, c >>= 1) {
-		if (i % 8 == 0)
-			c = input_file.get();
-		input_data[i] = 1 - 2 * (c & 1);
-	}
+	const int length = 64800 / 8;
+	uint8_t *input_data = new uint8_t[length];
+	for (int i = 0; i < length; ++i)
+		input_data[i] = input_file.get();
 
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
 	output_file.silence(output_rate);
