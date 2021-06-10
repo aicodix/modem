@@ -154,17 +154,18 @@ struct Decoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
-	static const int data_bits = 64800;
-	static const int data_cols = 432;
-	static const int data_rows = data_bits / data_cols / Mod::BITS;
-	static const int data_off = -216;
+	static const int code_bits = 64800;
+	static const int data_bits = code_bits - 32;
+	static const int code_cols = 432;
+	static const int code_rows = code_bits / code_cols / Mod::BITS;
+	static const int code_off = -216;
 	static const int mls0_off = -126;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
 	static const int mls1_off = -127;
 	static const int mls1_poly = 0b100101011;
-	static const int buffer_len = (data_rows + 8) * (symbol_len + guard_len);
+	static const int buffer_len = (code_rows + 8) * (symbol_len + guard_len);
 	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
@@ -306,8 +307,8 @@ struct Decoder
 		call_sign[9] = 0;
 		std::cerr << "call sign: " << call_sign << std::endl;
 
-		int dis = displacement(buf+symbol_pos-(data_rows+1)*(symbol_len+guard_len), buf+symbol_pos+2*(symbol_len+guard_len));
-		sfo_rad = (dis * Const::TwoPi()) / ((data_rows+3)*(symbol_len+guard_len));
+		int dis = displacement(buf+symbol_pos-(code_rows+1)*(symbol_len+guard_len), buf+symbol_pos+2*(symbol_len+guard_len));
+		sfo_rad = (dis * Const::TwoPi()) / ((code_rows+3)*(symbol_len+guard_len));
 		std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
 		if (dis) {
 			value diff = sfo_rad * (rate / Const::TwoPi());
@@ -325,23 +326,23 @@ struct Decoder
 		for (int i = 0; i < buffer_len; ++i)
 			tdom[i] = resam[i] * osc();
 
-		cmplx *cur = tdom + symbol_pos - (data_rows + 1) * (symbol_len + guard_len);
+		cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
 		fwd(fdom, cur);
-		for (int j = 0; j < data_rows; ++j) {
-			for (int i = 0; i < data_cols; ++i)
-				head[bin(i+data_off)] = fdom[bin(i+data_off)];
+		for (int j = 0; j < code_rows; ++j) {
+			for (int i = 0; i < code_cols; ++i)
+				head[bin(i+code_off)] = fdom[bin(i+code_off)];
 			fwd(fdom, cur += symbol_len+guard_len);
-			for (int i = 0; i < data_cols; ++i) {
+			for (int i = 0; i < code_cols; ++i) {
 				value tmp[Mod::BITS];
-				Mod::hard(tmp, fdom[bin(i+data_off)] / head[bin(i+data_off)]);
+				Mod::hard(tmp, fdom[bin(i+code_off)] / head[bin(i+code_off)]);
 				for (int k = 0; k < Mod::BITS; ++k) {
-					int l = Mod::BITS * (data_cols * j + i) + k;
+					int l = Mod::BITS * (code_cols * j + i) + k;
 					CODE::set_le_bit(out, l, tmp[k] < 0);
 				}
 			}
 		}
 		crc1.reset();
-		for (int i = 0; i < data_bits / 8; ++i)
+		for (int i = 0; i < code_bits / 8; ++i)
 			crc1(out[i]);
 		if (crc1())
 			std::cerr << "payload CRC error." << std::endl;

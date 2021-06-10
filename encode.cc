@@ -26,9 +26,10 @@ struct Encoder
 	typedef PhaseShiftKeying<8, cmplx, value> Mod;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
-	static const int data_bits = 64800;
-	static const int data_cols = 432;
-	static const int data_rows = data_bits / data_cols / Mod::BITS;
+	static const int code_bits = 64800;
+	static const int data_bits = code_bits - 32;
+	static const int code_cols = 432;
+	static const int code_rows = code_bits / code_cols / Mod::BITS;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -43,7 +44,7 @@ struct Encoder
 	cmplx tdom[symbol_len];
 	cmplx guard[guard_len];
 	cmplx papr_min, papr_max;
-	int data_off;
+	int code_off;
 	int mls0_off;
 	int mls1_off;
 
@@ -81,14 +82,14 @@ struct Encoder
 	void pilot_block()
 	{
 		CODE::MLS seq2(mls2_poly);
-		value data_fac = sqrt(value(symbol_len) / value(data_cols));
+		value code_fac = sqrt(value(symbol_len) / value(code_cols));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-		for (int i = data_off; i < data_off + data_cols; ++i) {
+		for (int i = code_off; i < code_off + code_cols; ++i) {
 			value tmp[Mod::BITS];
 			for (int k = 0; k < Mod::BITS; ++k)
 				tmp[k] = 1 - 2 * seq2();
-			fdom[bin(i)] = data_fac * Mod::map(tmp);
+			fdom[bin(i)] = code_fac * Mod::map(tmp);
 		}
 		symbol();
 	}
@@ -139,27 +140,27 @@ struct Encoder
 			0b101011111, 0b111111001, 0b111000011, 0b100111001,
 			0b110101001, 0b000011111, 0b110000111, 0b110110001})
 	{
-		data_off = (freq_off * symbol_len) / rate - data_cols / 2;
-		mls0_off = data_off + 90;
-		mls1_off = data_off + 89;
+		code_off = (freq_off * symbol_len) / rate - code_cols / 2;
+		mls0_off = code_off + 90;
+		mls1_off = code_off + 89;
 		papr_min = cmplx(1000, 1000), papr_max = cmplx(-1000, -1000);
 		pilot_block();
 		schmidl_cox();
 		meta_data((call_sign << 8) | 2);
 		pilot_block();
 		crc1.reset();
-		for (int i = 0; i < (data_bits-32)/8; ++i)
+		for (int i = 0; i < data_bits/8; ++i)
 			crc1(inp[i]);
 		for (int i = 0; i < 4; ++i)
-			inp[(data_bits-32)/8+i] = (crc1() >> (8*i)) & 255;
-		for (int j = 0; j < data_rows; ++j) {
-			for (int i = 0; i < data_cols; ++i) {
+			inp[data_bits/8+i] = (crc1() >> (8*i)) & 255;
+		for (int j = 0; j < code_rows; ++j) {
+			for (int i = 0; i < code_cols; ++i) {
 				value tmp[Mod::BITS];
 				for (int k = 0; k < Mod::BITS; ++k) {
-					int l = Mod::BITS * (data_cols * j + i) + k;
+					int l = Mod::BITS * (code_cols * j + i) + k;
 					tmp[k] = 1 - 2 * CODE::get_le_bit(inp, l);
 				}
-				fdom[bin(i+data_off)] *= Mod::map(tmp);
+				fdom[bin(i+code_off)] *= Mod::map(tmp);
 			}
 			symbol();
 		}
