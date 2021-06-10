@@ -17,17 +17,19 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "mls.hh"
 #include "crc.hh"
 #include "psk.hh"
+#include "ldpc_tables.hh"
+#include "ldpc_encoder.hh"
 #include "galois_field.hh"
 #include "bose_chaudhuri_hocquenghem_encoder.hh"
 
 template <typename value, typename cmplx, int rate>
 struct Encoder
 {
-	typedef PhaseShiftKeying<8, cmplx, value> Mod;
+	typedef PhaseShiftKeying<8, cmplx, int8_t> Mod;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 32 - 12 * 16;
+	static const int data_bits = code_bits - 32 - 12 * 16 - 21600;
 	static const int code_cols = 432;
 	static const int code_rows = code_bits / code_cols / Mod::BITS;
 	static const int mls0_len = 127;
@@ -41,6 +43,8 @@ struct Encoder
 	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65343> bchenc1;
+	CODE::LDPCEncoder<DVB_T2_TABLE_A3> ldpcenc;
+	int8_t code[code_bits];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx guard[guard_len];
@@ -87,7 +91,7 @@ struct Encoder
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		for (int i = code_off; i < code_off + code_cols; ++i) {
-			value tmp[Mod::BITS];
+			int8_t tmp[Mod::BITS];
 			for (int k = 0; k < Mod::BITS; ++k)
 				tmp[k] = 1 - 2 * seq2();
 			fdom[bin(i)] = code_fac * Mod::map(tmp);
@@ -159,15 +163,12 @@ struct Encoder
 		for (int i = 0; i < 4; ++i)
 			inp[data_bits/8+i] = (crc1() >> (8*i)) & 255;
 		bchenc1(inp, inp+(data_bits+32)/8, data_bits+32);
+		for (int i = 0; i < data_bits+32+12*16; ++i)
+			code[i] = 1 - 2 * CODE::get_le_bit(inp, i);
+		ldpcenc(code, code+data_bits+32+12*16);
 		for (int j = 0; j < code_rows; ++j) {
-			for (int i = 0; i < code_cols; ++i) {
-				value tmp[Mod::BITS];
-				for (int k = 0; k < Mod::BITS; ++k) {
-					int l = Mod::BITS * (code_cols * j + i) + k;
-					tmp[k] = 1 - 2 * CODE::get_le_bit(inp, l);
-				}
-				fdom[bin(i+code_off)] *= Mod::map(tmp);
-			}
+			for (int i = 0; i < code_cols; ++i)
+				fdom[bin(i+code_off)] *= Mod::map(code+Mod::BITS*(code_cols*j+i));
 			symbol();
 		}
 		schmidl_cox();
@@ -239,7 +240,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const int code_len = 64800 / 8;
-	const int data_len = code_len - (32 + 12 * 16) / 8;
+	const int data_len = code_len - (32 + 12 * 16 + 21600) / 8;
 	uint8_t *input_data = new uint8_t[code_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = input_file.get();

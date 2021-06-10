@@ -4,6 +4,7 @@ OFDM modem decoder
 Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
+#include <algorithm>
 #include <iostream>
 #include <cassert>
 #include <cmath>
@@ -25,6 +26,8 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "crc.hh"
 #include "osd.hh"
 #include "psk.hh"
+#include "ldpc_tables.hh"
+#include "ldpc_decoder.hh"
 #include "galois_field.hh"
 #include "bose_chaudhuri_hocquenghem_decoder.hh"
 
@@ -152,12 +155,12 @@ template <typename value, typename cmplx, int rate>
 struct Decoder
 {
 	typedef DSP::Const<value> Const;
-	typedef PhaseShiftKeying<8, cmplx, value> Mod;
+	typedef PhaseShiftKeying<8, cmplx, int8_t> Mod;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 32 - 12 * 16;
+	static const int data_bits = code_bits - 32 - 12 * 16 - 21600;
 	static const int code_cols = 432;
 	static const int code_rows = code_bits / code_cols / Mod::BITS;
 	static const int code_off = -216;
@@ -183,7 +186,9 @@ struct Decoder
 	GF gf;
 	CODE::BoseChaudhuriHocquenghemDecoder<24, 1, 65343, GF> bchdec1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
+	CODE::LDPCDecoder<DVB_T2_TABLE_A3, 1> ldpcdec;
 	int8_t genmat[255*71];
+	int8_t code[code_bits];
 	cmplx head[symbol_len], tail[symbol_len];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
 	value phase[symbol_len/2];
@@ -331,21 +336,22 @@ struct Decoder
 		for (int i = 0; i < buffer_len; ++i)
 			tdom[i] = resam[i] * osc();
 
+		value precision = 16;
+
 		cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
 		fwd(fdom, cur);
 		for (int j = 0; j < code_rows; ++j) {
 			for (int i = 0; i < code_cols; ++i)
 				head[bin(i+code_off)] = fdom[bin(i+code_off)];
 			fwd(fdom, cur += symbol_len+guard_len);
-			for (int i = 0; i < code_cols; ++i) {
-				value tmp[Mod::BITS];
-				Mod::hard(tmp, fdom[bin(i+code_off)] / head[bin(i+code_off)]);
-				for (int k = 0; k < Mod::BITS; ++k) {
-					int l = Mod::BITS * (code_cols * j + i) + k;
-					CODE::set_le_bit(out, l, tmp[k] < 0);
-				}
-			}
+			for (int i = 0; i < code_cols; ++i)
+				Mod::soft(code+Mod::BITS*(code_cols*j+i), fdom[bin(i+code_off)]/head[bin(i+code_off)], precision);
 		}
+		int count = ldpcdec(code, code+data_bits+32+12*16);
+		if (count < 0)
+			std::cerr << "payload LDPC decoding did not converge." << std::endl;
+		for (int i = 0; i < data_bits+32+12*16; ++i)
+			CODE::set_le_bit(out, i, code[i] < 0);
 		int ret = bchdec1(out, out+(data_bits+32)/8, 0, 0, data_bits+32);
 		if (ret < 0) {
 			std::cerr << "payload BCH error." << std::endl;
@@ -411,7 +417,7 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
 		return 1;
 	}
-	const int data_len = code_len - (32 + 12 * 16) / 8;
+	const int data_len = code_len - (32 + 12 * 16 + 21600) / 8;
 	for (int i = 0; i < data_len; ++i)
 		output_file.put(output_data[i]);
 	delete []output_data;
