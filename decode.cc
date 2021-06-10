@@ -13,6 +13,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "resampler.hh"
 #include "trigger.hh"
 #include "complex.hh"
+#include "decibel.hh"
 #include "blockdc.hh"
 #include "hilbert.hh"
 #include "phasor.hh"
@@ -337,7 +338,31 @@ struct Decoder
 			tdom[i] = resam[i] * osc();
 
 		value precision = 16;
-
+		if (1) {
+			cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
+			fwd(fdom, cur);
+			value sp = 0, np = 0;
+			for (int j = 0; j < code_rows; ++j) {
+				for (int i = 0; i < code_cols; ++i)
+					head[bin(i+code_off)] = fdom[bin(i+code_off)];
+				fwd(fdom, cur += symbol_len+guard_len);
+				for (int i = 0; i < code_cols; ++i) {
+					int8_t tmp[Mod::BITS];
+					cmplx symbol = fdom[bin(i+code_off)] / head[bin(i+code_off)];
+					Mod::hard(tmp, symbol);
+					cmplx hard = Mod::map(tmp);
+					cmplx error = symbol - hard;
+					sp += norm(hard);
+					np += norm(error);
+				}
+			}
+			value snr = DSP::decibel(sp / np);
+			std::cerr << "Es / N0: " << snr << " dB" << std::endl;
+			// $LLR=log(\frac{p(x=+1|y)}{p(x=-1|y)})$
+			// $p(x|\mu,\sigma)=\frac{1}{\sqrt{2\pi}\sigma}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$
+			value sigma = std::sqrt(np / (2 * sp));
+			precision = 1 / (sigma * sigma);
+		}
 		cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
 		fwd(fdom, cur);
 		for (int j = 0; j < code_rows; ++j) {
