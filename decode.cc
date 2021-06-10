@@ -15,6 +15,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "blockdc.hh"
 #include "hilbert.hh"
 #include "phasor.hh"
+#include "bitman.hh"
 #include "delay.hh"
 #include "sma.hh"
 #include "wav.hh"
@@ -334,9 +335,7 @@ struct Decoder
 				Mod::hard(tmp, fdom[bin(i+data_off)] / head[bin(i+data_off)]);
 				for (int k = 0; k < Mod::BITS; ++k) {
 					int l = Mod::BITS * (data_cols * j + i) + k;
-					if (l % 8 == 0)
-						out[l/8] = 0;
-					out[l/8] |= (tmp[k] < 0) << (l % 8);
+					CODE::set_le_bit(out, l, tmp[k] < 0);
 				}
 			}
 		}

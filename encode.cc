@@ -9,6 +9,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cmath>
 #include "complex.hh"
 #include "utils.hh"
+#include "bitman.hh"
 #include "decibel.hh"
 #include "fft.hh"
 #include "wav.hh"
@@ -150,7 +151,7 @@ struct Encoder
 				value tmp[Mod::BITS];
 				for (int k = 0; k < Mod::BITS; ++k) {
 					int l = Mod::BITS * (data_cols * j + i) + k;
-					tmp[k] = 1 - 2 * ((inp[l/8] >> (l % 8)) & 1);
+					tmp[k] = 1 - 2 * CODE::get_le_bit(inp, l);
 				}
 				fdom[bin(i+data_off)] *= Mod::map(tmp);
 			}
