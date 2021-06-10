@@ -1,5 +1,5 @@
 
-CXXFLAGS = -std=c++11 -W -Wall -Ofast -fno-exceptions -fno-rtti -march=native -I../dsp -I../code
+CXXFLAGS = -std=c++17 -W -Wall -Ofast -fno-exceptions -fno-rtti -march=native -I../dsp -I../code
 CXX = clang++ -stdlib=libc++
 #CXX = g++
 
