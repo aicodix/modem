@@ -25,6 +25,8 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "crc.hh"
 #include "osd.hh"
 #include "psk.hh"
+#include "galois_field.hh"
+#include "bose_chaudhuri_hocquenghem_decoder.hh"
 
 template <typename value, typename cmplx, int search_pos, int symbol_len, int guard_len>
 struct SchmidlCox
@@ -155,7 +157,7 @@ struct Decoder
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 32;
+	static const int data_bits = code_bits - 32 - 12 * 16;
 	static const int code_cols = 432;
 	static const int code_rows = code_bits / code_cols / Mod::BITS;
 	static const int code_off = -216;
@@ -177,6 +179,9 @@ struct Decoder
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
+	typedef CODE::GaloisField<16, 0b10000000000101101, uint16_t> GF;
+	GF gf;
+	CODE::BoseChaudhuriHocquenghemDecoder<24, 1, 65343, GF> bchdec1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	int8_t genmat[255*71];
 	cmplx head[symbol_len], tail[symbol_len];
@@ -341,8 +346,15 @@ struct Decoder
 				}
 			}
 		}
+		int ret = bchdec1(out, out+(data_bits+32)/8, 0, 0, data_bits+32);
+		if (ret < 0) {
+			std::cerr << "payload BCH error." << std::endl;
+			return;
+		}
+		if (ret)
+			std::cerr << "payload BCH corrected " << ret << " errors." << std::endl;
 		crc1.reset();
-		for (int i = 0; i < code_bits / 8; ++i)
+		for (int i = 0; i < (data_bits+32)/8; ++i)
 			crc1(out[i]);
 		if (crc1())
 			std::cerr << "payload CRC error." << std::endl;
@@ -399,7 +411,7 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
 		return 1;
 	}
-	const int data_len = code_len - 32 / 8;
+	const int data_len = code_len - (32 + 12 * 16) / 8;
 	for (int i = 0; i < data_len; ++i)
 		output_file.put(output_data[i]);
 	delete []output_data;

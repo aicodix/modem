@@ -27,7 +27,7 @@ struct Encoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 32;
+	static const int data_bits = code_bits - 32 - 12 * 16;
 	static const int code_cols = 432;
 	static const int code_rows = code_bits / code_cols / Mod::BITS;
 	static const int mls0_len = 127;
@@ -39,7 +39,8 @@ struct Encoder
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
-	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
+	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
+	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65343> bchenc1;
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx guard[guard_len];
@@ -115,7 +116,7 @@ struct Encoder
 		uint16_t cs = crc0(md << 9);
 		for (int i = 0; i < 16; ++i)
 			CODE::set_be_bit(data, i+55, (cs>>i)&1);
-		bchenc(data, parity);
+		bchenc0(data, parity);
 		CODE::MLS seq4(mls1_poly);
 		value mls1_fac = sqrt(value(symbol_len) / value(mls1_len));
 		for (int i = 0; i < symbol_len; ++i)
@@ -132,13 +133,17 @@ struct Encoder
 		symbol();
 	}
 	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign) :
-		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc({
+		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc0({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
 			0b000010011, 0b101100101, 0b110001011, 0b101100011,
 			0b100011011, 0b100111111, 0b110001101, 0b100101101,
 			0b101011111, 0b111111001, 0b111000011, 0b100111001,
-			0b110101001, 0b000011111, 0b110000111, 0b110110001})
+			0b110101001, 0b000011111, 0b110000111, 0b110110001}), bchenc1({
+			0b10000000000101101, 0b10000000101110011, 0b10000111110111101,
+			0b10101101001010101, 0b10001111100101111, 0b11111011110110101,
+			0b11010111101100101, 0b10111001101100111, 0b10000111010100001,
+			0b10111010110100111, 0b10011101000101101, 0b10001101011100011})
 	{
 		code_off = (freq_off * symbol_len) / rate - code_cols / 2;
 		mls0_off = code_off + 90;
@@ -153,6 +158,7 @@ struct Encoder
 			crc1(inp[i]);
 		for (int i = 0; i < 4; ++i)
 			inp[data_bits/8+i] = (crc1() >> (8*i)) & 255;
+		bchenc1(inp, inp+(data_bits+32)/8, data_bits+32);
 		for (int j = 0; j < code_rows; ++j) {
 			for (int i = 0; i < code_cols; ++i) {
 				value tmp[Mod::BITS];
@@ -233,7 +239,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const int code_len = 64800 / 8;
-	const int data_len = code_len - 32 / 8;
+	const int data_len = code_len - (32 + 12 * 16) / 8;
 	uint8_t *input_data = new uint8_t[code_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = input_file.get();
