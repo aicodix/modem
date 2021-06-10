@@ -174,7 +174,8 @@ struct Decoder
 	DSP::Resampler<value, filter_len, 3> resample;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
-	CODE::CRC<uint16_t> crc;
+	CODE::CRC<uint16_t> crc0;
+	CODE::CRC<uint32_t> crc1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	int8_t genmat[255*71];
 	cmplx head[symbol_len], tail[symbol_len];
@@ -232,7 +233,7 @@ struct Decoder
 		return sum / (count * symbol_len/2);
 	}
 	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
-		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc(0xA8F4)
+		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
@@ -287,9 +288,9 @@ struct Decoder
 		uint16_t cs = 0;
 		for (int i = 0; i < 16; ++i)
 			cs |= (uint16_t)CODE::get_be_bit(data, i+55) << i;
-		crc.reset();
-		if (crc(md<<9) != cs) {
-			std::cerr << "CRC error." << std::endl;
+		crc0.reset();
+		if (crc0(md<<9) != cs) {
+			std::cerr << "header CRC error." << std::endl;
 			return;
 		}
 		if ((md&255) != 2) {
@@ -339,6 +340,11 @@ struct Decoder
 				}
 			}
 		}
+		crc1.reset();
+		for (int i = 0; i < data_bits / 8; ++i)
+			crc1(out[i]);
+		if (crc1())
+			std::cerr << "payload CRC error." << std::endl;
 	}
 };
 
@@ -366,8 +372,8 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int length = 64800 / 8;
-	uint8_t *output_data = new uint8_t[length];
+	const int code_len = 64800 / 8;
+	uint8_t *output_data = new uint8_t[code_len];
 
 	switch (input_file.rate()) {
 	case 8000:
@@ -392,7 +398,8 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
 		return 1;
 	}
-	for (int i = 0; i < length; ++i)
+	const int data_len = code_len - 32 / 8;
+	for (int i = 0; i < data_len; ++i)
 		output_file.put(output_data[i]);
 	delete []output_data;
 	return 0;

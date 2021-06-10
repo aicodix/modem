@@ -36,7 +36,8 @@ struct Encoder
 	static const int mls2_poly = 0b100101010001;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
-	CODE::CRC<uint16_t> crc;
+	CODE::CRC<uint16_t> crc0;
+	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
@@ -109,8 +110,8 @@ struct Encoder
 		uint8_t data[9] = { 0 }, parity[23] = { 0 };
 		for (int i = 0; i < 55; ++i)
 			CODE::set_be_bit(data, i, (md>>i)&1);
-		crc.reset();
-		uint16_t cs = crc(md << 9);
+		crc0.reset();
+		uint16_t cs = crc0(md << 9);
 		for (int i = 0; i < 16; ++i)
 			CODE::set_be_bit(data, i+55, (cs>>i)&1);
 		bchenc(data, parity);
@@ -130,7 +131,7 @@ struct Encoder
 		symbol();
 	}
 	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign) :
-		pcm(pcm), crc(0xA8F4), bchenc({
+		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
 			0b000010011, 0b101100101, 0b110001011, 0b101100011,
@@ -146,6 +147,11 @@ struct Encoder
 		schmidl_cox();
 		meta_data((call_sign << 8) | 2);
 		pilot_block();
+		crc1.reset();
+		for (int i = 0; i < (data_bits-32)/8; ++i)
+			crc1(inp[i]);
+		for (int i = 0; i < 4; ++i)
+			inp[(data_bits-32)/8+i] = (crc1() >> (8*i)) & 255;
 		for (int j = 0; j < data_rows; ++j) {
 			for (int i = 0; i < data_cols; ++i) {
 				value tmp[Mod::BITS];
@@ -225,9 +231,10 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
 		return 1;
 	}
-	const int length = 64800 / 8;
-	uint8_t *input_data = new uint8_t[length];
-	for (int i = 0; i < length; ++i)
+	const int code_len = 64800 / 8;
+	const int data_len = code_len - 32 / 8;
+	uint8_t *input_data = new uint8_t[code_len];
+	for (int i = 0; i < data_len; ++i)
 		input_data[i] = input_file.get();
 
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
