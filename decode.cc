@@ -357,7 +357,7 @@ struct Decoder
 				}
 			}
 			value snr = DSP::decibel(sp / np);
-			std::cerr << "Es / N0: " << snr << " dB" << std::endl;
+			std::cerr << "init Es/N0: " << snr << " dB" << std::endl;
 			// $LLR=log(\frac{p(x=+1|y)}{p(x=-1|y)})$
 			// $p(x|\mu,\sigma)=\frac{1}{\sqrt{2\pi}\sigma}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$
 			value sigma = std::sqrt(np / (2 * sp));
@@ -375,6 +375,32 @@ struct Decoder
 		int count = ldpcdec(code, code+data_bits+32+12*16);
 		if (count < 0)
 			std::cerr << "payload LDPC decoding did not converge." << std::endl;
+		if (1) {
+			cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
+			fwd(fdom, cur);
+			value sp = 0, np = 0;
+			for (int j = 0; j < code_rows; ++j) {
+				for (int i = 0; i < code_cols; ++i)
+					head[bin(i+code_off)] = fdom[bin(i+code_off)];
+				fwd(fdom, cur += symbol_len+guard_len);
+				for (int i = 0; i < code_cols; ++i) {
+					int8_t tmp[Mod::BITS];
+					for (int k = 0; k < Mod::BITS; ++k)
+						tmp[k] = 1 - 2 * (code[Mod::BITS*(code_cols*j+i)+k] < 0);
+					cmplx symbol = fdom[bin(i+code_off)] / head[bin(i+code_off)];
+					cmplx hard = Mod::map(tmp);
+					cmplx error = symbol - hard;
+					sp += norm(hard);
+					np += norm(error);
+				}
+			}
+			value snr = DSP::decibel(sp / np);
+			std::cerr << "corr Es/N0: " << snr << " dB" << std::endl;
+			// $LLR=log(\frac{p(x=+1|y)}{p(x=-1|y)})$
+			// $p(x|\mu,\sigma)=\frac{1}{\sqrt{2\pi}\sigma}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$
+			value sigma = std::sqrt(np / (2 * sp));
+			precision = 1 / (sigma * sigma);
+		}
 		for (int i = 0; i < data_bits+32+12*16; ++i)
 			CODE::set_le_bit(out, i, code[i] < 0);
 		int ret = bchdec1(out, out+(data_bits+32)/8, 0, 0, data_bits+32);
