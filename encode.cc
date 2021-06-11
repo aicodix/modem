@@ -37,6 +37,8 @@ struct Encoder
 	static const int mls1_len = 255;
 	static const int mls1_poly = 0b100101011;
 	static const int mls2_poly = 0b100101010001;
+	static const int mls3_poly = 0b10001000000001011;
+	static const int mls4_poly = 0b10111010010000001;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint16_t> crc0;
@@ -166,9 +168,13 @@ struct Encoder
 		for (int i = 0; i < data_bits+32+12*16; ++i)
 			code[i] = 1 - 2 * CODE::get_le_bit(inp, i);
 		ldpcenc(code, code+data_bits+32+12*16);
+		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		for (int j = 0; j < code_rows; ++j) {
-			for (int i = 0; i < code_cols; ++i)
-				fdom[bin(i+code_off)] *= Mod::map(code+Mod::BITS*(code_cols*j+i));
+			for (int i = 0; i < code_cols; ++i) {
+				cmplx con = Mod::map(code+Mod::BITS*(code_cols*j+i));
+				con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
+				fdom[bin(i+code_off)] *= con;
+			}
 			symbol();
 		}
 		schmidl_cox();

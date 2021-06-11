@@ -171,6 +171,8 @@ struct Decoder
 	static const int mls1_len = 255;
 	static const int mls1_off = -127;
 	static const int mls1_poly = 0b100101011;
+	static const int mls3_poly = 0b10001000000001011;
+	static const int mls4_poly = 0b10111010010000001;
 	static const int buffer_len = (code_rows + 8) * (symbol_len + guard_len);
 	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
 	DSP::ReadPCM<value> *pcm;
@@ -337,6 +339,7 @@ struct Decoder
 		for (int i = 0; i < buffer_len; ++i)
 			tdom[i] = resam[i] * osc();
 
+		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		value precision = 16;
 		if (1) {
 			cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
@@ -348,10 +351,11 @@ struct Decoder
 				fwd(fdom, cur += symbol_len+guard_len);
 				for (int i = 0; i < code_cols; ++i) {
 					int8_t tmp[Mod::BITS];
-					cmplx symbol = fdom[bin(i+code_off)] / head[bin(i+code_off)];
-					Mod::hard(tmp, symbol);
+					cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
+					con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
+					Mod::hard(tmp, con);
 					cmplx hard = Mod::map(tmp);
-					cmplx error = symbol - hard;
+					cmplx error = con - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
@@ -365,12 +369,17 @@ struct Decoder
 		}
 		cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
 		fwd(fdom, cur);
+		seq3.reset();
+		seq4.reset();
 		for (int j = 0; j < code_rows; ++j) {
 			for (int i = 0; i < code_cols; ++i)
 				head[bin(i+code_off)] = fdom[bin(i+code_off)];
 			fwd(fdom, cur += symbol_len+guard_len);
-			for (int i = 0; i < code_cols; ++i)
-				Mod::soft(code+Mod::BITS*(code_cols*j+i), fdom[bin(i+code_off)]/head[bin(i+code_off)], precision);
+			for (int i = 0; i < code_cols; ++i) {
+				cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
+				con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
+				Mod::soft(code+Mod::BITS*(code_cols*j+i), con, precision);
+			}
 		}
 		int count = ldpcdec(code, code+data_bits+32+12*16);
 		if (count < 0)
@@ -378,6 +387,8 @@ struct Decoder
 		if (1) {
 			cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
 			fwd(fdom, cur);
+			seq3.reset();
+			seq4.reset();
 			value sp = 0, np = 0;
 			for (int j = 0; j < code_rows; ++j) {
 				for (int i = 0; i < code_cols; ++i)
@@ -387,9 +398,10 @@ struct Decoder
 					int8_t tmp[Mod::BITS];
 					for (int k = 0; k < Mod::BITS; ++k)
 						tmp[k] = 1 - 2 * (code[Mod::BITS*(code_cols*j+i)+k] < 0);
-					cmplx symbol = fdom[bin(i+code_off)] / head[bin(i+code_off)];
+					cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
+					con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
 					cmplx hard = Mod::map(tmp);
-					cmplx error = symbol - hard;
+					cmplx error = con - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
