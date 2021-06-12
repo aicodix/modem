@@ -191,7 +191,7 @@ struct Decoder
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	CODE::LDPCDecoder<DVB_T2_TABLE_A3, 1> ldpcdec;
 	int8_t genmat[255*71];
-	int8_t code[code_bits];
+	int8_t code[code_bits], bint[code_bits];
 	cmplx head[symbol_len], tail[symbol_len];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
 	value phase[symbol_len/2];
@@ -245,6 +245,18 @@ struct Decoder
 			}
 		}
 		return sum / (count * symbol_len/2);
+	}
+	void deinterleave()
+	{
+		for (int i = 0; i < code_bits/Mod::BITS; ++i)
+			for (int k = 0; k < Mod::BITS; ++k)
+				code[(code_bits/Mod::BITS)*k+i] = bint[Mod::BITS*i+k];
+	}
+	void interleave()
+	{
+		for (int i = 0; i < code_bits/Mod::BITS; ++i)
+			for (int k = 0; k < Mod::BITS; ++k)
+				bint[Mod::BITS*i+k] = code[(code_bits/Mod::BITS)*k+i];
 	}
 	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
 		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
@@ -378,13 +390,15 @@ struct Decoder
 			for (int i = 0; i < code_cols; ++i) {
 				cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
 				con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
-				Mod::soft(code+Mod::BITS*(code_cols*j+i), con, precision);
+				Mod::soft(bint+Mod::BITS*(code_cols*j+i), con, precision);
 			}
 		}
+		deinterleave();
 		int count = ldpcdec(code, code+data_bits+32+12*16);
 		if (count < 0)
 			std::cerr << "payload LDPC decoding did not converge." << std::endl;
 		if (1) {
+			interleave();
 			cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
 			fwd(fdom, cur);
 			seq3.reset();
@@ -397,7 +411,7 @@ struct Decoder
 				for (int i = 0; i < code_cols; ++i) {
 					int8_t tmp[Mod::BITS];
 					for (int k = 0; k < Mod::BITS; ++k)
-						tmp[k] = 1 - 2 * (code[Mod::BITS*(code_cols*j+i)+k] < 0);
+						tmp[k] = 1 - 2 * (bint[Mod::BITS*(code_cols*j+i)+k] < 0);
 					cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
 					con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
 					cmplx hard = Mod::map(tmp);

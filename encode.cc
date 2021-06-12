@@ -46,7 +46,7 @@ struct Encoder
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65343> bchenc1;
 	CODE::LDPCEncoder<DVB_T2_TABLE_A3> ldpcenc;
-	int8_t code[code_bits];
+	int8_t code[code_bits], bint[code_bits];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx guard[guard_len];
@@ -138,6 +138,12 @@ struct Encoder
 			fdom[bin(i+mls1_off)] *= (1 - 2 * seq4());
 		symbol();
 	}
+	void interleave()
+	{
+		for (int i = 0; i < code_bits/Mod::BITS; ++i)
+			for (int k = 0; k < Mod::BITS; ++k)
+				bint[Mod::BITS*i+k] = code[(code_bits/Mod::BITS)*k+i];
+	}
 	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign) :
 		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc0({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
@@ -168,10 +174,11 @@ struct Encoder
 		for (int i = 0; i < data_bits+32+12*16; ++i)
 			code[i] = 1 - 2 * CODE::get_le_bit(inp, i);
 		ldpcenc(code, code+data_bits+32+12*16);
+		interleave();
 		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		for (int j = 0; j < code_rows; ++j) {
 			for (int i = 0; i < code_cols; ++i) {
-				cmplx con = Mod::map(code+Mod::BITS*(code_cols*j+i));
+				cmplx con = Mod::map(bint+Mod::BITS*(code_cols*j+i));
 				con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
 				fdom[bin(i+code_off)] *= con;
 			}
