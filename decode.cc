@@ -192,6 +192,7 @@ struct Decoder
 	CODE::LDPCDecoder<DVB_T2_TABLE_A3, 1> ldpcdec;
 	int8_t genmat[255*71];
 	int8_t code[code_bits], bint[code_bits];
+	uint16_t erasures[24];
 	cmplx head[symbol_len], tail[symbol_len];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
 	value phase[symbol_len/2];
@@ -429,7 +430,20 @@ struct Decoder
 		}
 		for (int i = 0; i < data_bits+32+12*16; ++i)
 			CODE::set_le_bit(out, i, code[i] < 0);
-		int ret = bchdec1(out, out+(data_bits+32)/8, 0, 0, data_bits+32);
+		int ecnt = 0;
+		for (int i = 0; i < data_bits+32+12*16; ++i) {
+			if (!code[i]) {
+				if (ecnt < 24) {
+					erasures[ecnt++] = i;
+				} else {
+					std::cerr << "payload LDPC produced more than 24 erasures." << std::endl;
+					return;
+				}
+			}
+		}
+		if (ecnt)
+			std::cerr << "payload LDPC produced " << ecnt << " erasures." << std::endl;
+		int ret = bchdec1(out, out+(data_bits+32)/8, erasures, ecnt, data_bits+32);
 		if (ret < 0) {
 			std::cerr << "payload BCH error." << std::endl;
 			return;
