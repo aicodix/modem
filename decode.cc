@@ -160,10 +160,11 @@ struct Decoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
-	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 12 * 16 - 21600;
+	static const int ldpc_bits = 64800;
+	static const int bch_bits = ldpc_bits - 21600;
+	static const int data_bits = bch_bits - 12 * 16;
 	static const int code_cols = 432;
-	static const int cons_cnt = code_bits / Mod::BITS;
+	static const int cons_cnt = ldpc_bits / Mod::BITS;
 	static const int code_rows = cons_cnt / code_cols;
 	static const int code_off = -216;
 	static const int mls0_off = -126;
@@ -191,7 +192,7 @@ struct Decoder
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	CODE::LDPCDecoder<DVB_T2_TABLE_A3, 1> ldpcdec;
 	int8_t genmat[255*71];
-	int8_t code[code_bits], bint[code_bits];
+	int8_t code[ldpc_bits], bint[ldpc_bits];
 	uint16_t erasures[24];
 	cmplx head[symbol_len], tail[symbol_len], cons[cons_cnt];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
@@ -389,7 +390,7 @@ struct Decoder
 		for (int i = 0; i < cons_cnt; ++i)
 			Mod::soft(bint+Mod::BITS*i, cons[i], precision);
 		deinterleave();
-		int count = ldpcdec(code, code+data_bits+12*16);
+		int count = ldpcdec(code, code + bch_bits);
 		if (count < 0)
 			std::cerr << "payload LDPC decoding did not converge." << std::endl;
 		if (1) {
@@ -411,10 +412,10 @@ struct Decoder
 			value sigma = std::sqrt(np / (2 * sp));
 			precision = 1 / (sigma * sigma);
 		}
-		for (int i = 0; i < data_bits+12*16; ++i)
+		for (int i = 0; i < bch_bits; ++i)
 			CODE::set_le_bit(out, i, code[i] < 0);
 		int ecnt = 0;
-		for (int i = 0; i < data_bits+12*16; ++i) {
+		for (int i = 0; i < bch_bits; ++i) {
 			if (!code[i]) {
 				if (ecnt < 24) {
 					erasures[ecnt++] = i;

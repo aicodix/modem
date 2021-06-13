@@ -28,10 +28,11 @@ struct Encoder
 	typedef PhaseShiftKeying<8, cmplx, int8_t> Mod;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
-	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 12 * 16 - 21600;
+	static const int ldpc_bits = 64800;
+	static const int bch_bits = ldpc_bits - 21600;
+	static const int data_bits = bch_bits - 12 * 16;
 	static const int code_cols = 432;
-	static const int cons_cnt = code_bits / Mod::BITS;
+	static const int cons_cnt = ldpc_bits / Mod::BITS;
 	static const int code_rows = cons_cnt / code_cols;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
@@ -46,7 +47,7 @@ struct Encoder
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65343> bchenc1;
 	CODE::LDPCEncoder<DVB_T2_TABLE_A3> ldpcenc;
-	int8_t code[code_bits], bint[code_bits];
+	int8_t code[ldpc_bits], bint[ldpc_bits];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx guard[guard_len];
@@ -170,9 +171,9 @@ struct Encoder
 		meta_data((call_sign << 8) | 2);
 		pilot_block();
 		bchenc1(inp, inp+data_bits/8, data_bits);
-		for (int i = 0; i < data_bits+12*16; ++i)
+		for (int i = 0; i < bch_bits; ++i)
 			code[i] = nrz(CODE::get_le_bit(inp, i));
-		ldpcenc(code, code+data_bits+12*16);
+		ldpcenc(code, code + bch_bits);
 		interleave();
 		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		for (int j = 0; j < code_rows; ++j) {
