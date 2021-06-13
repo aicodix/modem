@@ -60,6 +60,10 @@ struct Encoder
 	{
 		return (carrier + symbol_len) % symbol_len;
 	}
+	static int nrz(bool bit)
+	{
+		return 1 - 2 * bit;
+	}
 	void symbol()
 	{
 		bwd(tdom, fdom);
@@ -96,7 +100,7 @@ struct Encoder
 		for (int i = code_off; i < code_off + code_cols; ++i) {
 			int8_t tmp[Mod::BITS];
 			for (int k = 0; k < Mod::BITS; ++k)
-				tmp[k] = 1 - 2 * seq2();
+				tmp[k] = nrz(seq2());
 			fdom[bin(i)] = code_fac * Mod::map(tmp);
 		}
 		symbol();
@@ -109,7 +113,7 @@ struct Encoder
 			fdom[i] = 0;
 		fdom[bin(mls0_off-2)] = mls0_fac;
 		for (int i = 0; i < mls0_len; ++i)
-			fdom[bin(2*i+mls0_off)] = (1 - 2 * seq0());
+			fdom[bin(2*i+mls0_off)] = nrz(seq0());
 		for (int i = 0; i < mls0_len; ++i)
 			fdom[bin(2*i+mls0_off)] *= fdom[bin(2*(i-1)+mls0_off)];
 		symbol();
@@ -130,13 +134,13 @@ struct Encoder
 			fdom[i] = 0;
 		fdom[bin(mls1_off-1)] = mls1_fac;
 		for (int i = 0; i < 71; ++i)
-			fdom[bin(i+mls1_off)] = (1 - 2 * CODE::get_be_bit(data, i));
+			fdom[bin(i+mls1_off)] = nrz(CODE::get_be_bit(data, i));
 		for (int i = 71; i < mls1_len; ++i)
-			fdom[bin(i+mls1_off)] = (1 - 2 * CODE::get_be_bit(parity, i-71));
+			fdom[bin(i+mls1_off)] = nrz(CODE::get_be_bit(parity, i-71));
 		for (int i = 0; i < mls1_len; ++i)
 			fdom[bin(i+mls1_off)] *= fdom[bin(i-1+mls1_off)];
 		for (int i = 0; i < mls1_len; ++i)
-			fdom[bin(i+mls1_off)] *= (1 - 2 * seq4());
+			fdom[bin(i+mls1_off)] *= nrz(seq4());
 		symbol();
 	}
 	void interleave()
@@ -173,14 +177,14 @@ struct Encoder
 			inp[data_bits/8+i] = (crc1() >> (8*i)) & 255;
 		bchenc1(inp, inp+(data_bits+32)/8, data_bits+32);
 		for (int i = 0; i < data_bits+32+12*16; ++i)
-			code[i] = 1 - 2 * CODE::get_le_bit(inp, i);
+			code[i] = nrz(CODE::get_le_bit(inp, i));
 		ldpcenc(code, code+data_bits+32+12*16);
 		interleave();
 		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		for (int j = 0; j < code_rows; ++j) {
 			for (int i = 0; i < code_cols; ++i) {
 				cmplx con = Mod::map(bint+Mod::BITS*(code_cols*j+i));
-				con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
+				con = cmplx(con.real() * nrz(seq3()), con.imag() * nrz(seq4()));
 				fdom[bin(i+code_off)] *= con;
 			}
 			symbol();

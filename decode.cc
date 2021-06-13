@@ -204,13 +204,17 @@ struct Decoder
 	{
 		return (carrier + symbol_len) % symbol_len;
 	}
+	static int nrz(bool bit)
+	{
+		return 1 - 2 * bit;
+	}
 	const cmplx *mls0_seq()
 	{
 		CODE::MLS seq0(mls0_poly);
 		for (int i = 0; i < symbol_len/2; ++i)
 			fdom[i] = 0;
 		for (int i = 0; i < mls0_len; ++i)
-			fdom[(i+mls0_off/2+symbol_len/2)%(symbol_len/2)] = 1 - 2 * seq0();
+			fdom[(i+mls0_off/2+symbol_len/2)%(symbol_len/2)] = nrz(seq0());
 		return fdom;
 	}
 	int displacement(const cmplx *sym0, const cmplx *sym1)
@@ -298,7 +302,7 @@ struct Decoder
 		fwd(fdom, tdom);
 		CODE::MLS seq1(mls1_poly);
 		for (int i = 0; i < mls1_len; ++i)
-			fdom[bin(i+mls1_off)] *= (1 - 2 * seq1());
+			fdom[bin(i+mls1_off)] *= nrz(seq1());
 		int8_t soft[mls1_len];
 		uint8_t data[(mls1_len+7)/8];
 		for (int i = 0; i < mls1_len; ++i)
@@ -362,7 +366,7 @@ struct Decoder
 			fwd(fdom, cur += symbol_len+guard_len);
 			for (int i = 0; i < code_cols; ++i) {
 				cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
-				cons[code_cols*j+i] = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
+				cons[code_cols*j+i] = cmplx(con.real() * nrz(seq3()), con.imag() * nrz(seq4()));
 			}
 		}
 		value precision = 16;
@@ -395,7 +399,7 @@ struct Decoder
 			for (int i = 0; i < cons_cnt; ++i) {
 				int8_t tmp[Mod::BITS];
 				for (int k = 0; k < Mod::BITS; ++k)
-					tmp[k] = 1 - 2 * (bint[Mod::BITS*i+k] < 0);
+					tmp[k] = nrz(bint[Mod::BITS*i+k] < 0);
 				cmplx hard = Mod::map(tmp);
 				cmplx error = cons[i] - hard;
 				sp += norm(hard);
