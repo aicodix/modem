@@ -161,7 +161,7 @@ struct Decoder
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 32 - 12 * 16 - 21600;
+	static const int data_bits = code_bits - 12 * 16 - 21600;
 	static const int code_cols = 432;
 	static const int cons_cnt = code_bits / Mod::BITS;
 	static const int code_rows = cons_cnt / code_cols;
@@ -185,7 +185,6 @@ struct Decoder
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
-	CODE::CRC<uint32_t> crc1;
 	typedef CODE::GaloisField<16, 0b10000000000101101, uint16_t> GF;
 	GF gf;
 	CODE::BoseChaudhuriHocquenghemDecoder<24, 1, 65343, GF> bchdec1;
@@ -265,7 +264,7 @@ struct Decoder
 				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
 	}
 	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
-		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
+		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
@@ -390,7 +389,7 @@ struct Decoder
 		for (int i = 0; i < cons_cnt; ++i)
 			Mod::soft(bint+Mod::BITS*i, cons[i], precision);
 		deinterleave();
-		int count = ldpcdec(code, code+data_bits+32+12*16);
+		int count = ldpcdec(code, code+data_bits+12*16);
 		if (count < 0)
 			std::cerr << "payload LDPC decoding did not converge." << std::endl;
 		if (1) {
@@ -412,10 +411,10 @@ struct Decoder
 			value sigma = std::sqrt(np / (2 * sp));
 			precision = 1 / (sigma * sigma);
 		}
-		for (int i = 0; i < data_bits+32+12*16; ++i)
+		for (int i = 0; i < data_bits+12*16; ++i)
 			CODE::set_le_bit(out, i, code[i] < 0);
 		int ecnt = 0;
-		for (int i = 0; i < data_bits+32+12*16; ++i) {
+		for (int i = 0; i < data_bits+12*16; ++i) {
 			if (!code[i]) {
 				if (ecnt < 24) {
 					erasures[ecnt++] = i;
@@ -427,18 +426,13 @@ struct Decoder
 		}
 		if (ecnt)
 			std::cerr << "payload LDPC produced " << ecnt << " erasures." << std::endl;
-		int ret = bchdec1(out, out+(data_bits+32)/8, erasures, ecnt, data_bits+32);
+		int ret = bchdec1(out, out+data_bits/8, erasures, ecnt, data_bits);
 		if (ret < 0) {
 			std::cerr << "payload BCH error." << std::endl;
 			return;
 		}
 		if (ret)
 			std::cerr << "payload BCH corrected " << ret << " errors." << std::endl;
-		crc1.reset();
-		for (int i = 0; i < (data_bits+32)/8; ++i)
-			crc1(out[i]);
-		if (crc1())
-			std::cerr << "payload CRC error." << std::endl;
 	}
 };
 
@@ -492,7 +486,7 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
 		return 1;
 	}
-	const int data_len = code_len - (32 + 12 * 16 + 21600) / 8;
+	const int data_len = code_len - (12 * 16 + 21600) / 8;
 	for (int i = 0; i < data_len; ++i)
 		output_file.put(output_data[i]);
 	delete []output_data;

@@ -29,7 +29,7 @@ struct Encoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int code_bits = 64800;
-	static const int data_bits = code_bits - 32 - 12 * 16 - 21600;
+	static const int data_bits = code_bits - 12 * 16 - 21600;
 	static const int code_cols = 432;
 	static const int cons_cnt = code_bits / Mod::BITS;
 	static const int code_rows = cons_cnt / code_cols;
@@ -43,7 +43,6 @@ struct Encoder
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint16_t> crc0;
-	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65343> bchenc1;
 	CODE::LDPCEncoder<DVB_T2_TABLE_A3> ldpcenc;
@@ -150,7 +149,7 @@ struct Encoder
 				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
 	}
 	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign) :
-		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc0({
+		pcm(pcm), crc0(0xA8F4), bchenc0({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
 			0b000010011, 0b101100101, 0b110001011, 0b101100011,
@@ -170,15 +169,10 @@ struct Encoder
 		schmidl_cox();
 		meta_data((call_sign << 8) | 2);
 		pilot_block();
-		crc1.reset();
-		for (int i = 0; i < data_bits/8; ++i)
-			crc1(inp[i]);
-		for (int i = 0; i < 4; ++i)
-			inp[data_bits/8+i] = (crc1() >> (8*i)) & 255;
-		bchenc1(inp, inp+(data_bits+32)/8, data_bits+32);
-		for (int i = 0; i < data_bits+32+12*16; ++i)
+		bchenc1(inp, inp+data_bits/8, data_bits);
+		for (int i = 0; i < data_bits+12*16; ++i)
 			code[i] = nrz(CODE::get_le_bit(inp, i));
-		ldpcenc(code, code+data_bits+32+12*16);
+		ldpcenc(code, code+data_bits+12*16);
 		interleave();
 		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		for (int j = 0; j < code_rows; ++j) {
@@ -258,7 +252,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const int code_len = 64800 / 8;
-	const int data_len = code_len - (32 + 12 * 16 + 21600) / 8;
+	const int data_len = code_len - (12 * 16 + 21600) / 8;
 	uint8_t *input_data = new uint8_t[code_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = input_file.get();
