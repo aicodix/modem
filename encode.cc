@@ -31,7 +31,8 @@ struct Encoder
 	static const int code_bits = 64800;
 	static const int data_bits = code_bits - 32 - 12 * 16 - 21600;
 	static const int code_cols = 432;
-	static const int code_rows = code_bits / code_cols / Mod::BITS;
+	static const int cons_cnt = code_bits / Mod::BITS;
+	static const int code_rows = cons_cnt / code_cols;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -140,9 +141,9 @@ struct Encoder
 	}
 	void interleave()
 	{
-		for (int i = 0; i < code_bits/Mod::BITS; ++i)
+		for (int i = 0; i < cons_cnt; ++i)
 			for (int k = 0; k < Mod::BITS; ++k)
-				bint[Mod::BITS*i+k] = code[(code_bits/Mod::BITS)*k+i];
+				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
 	}
 	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign) :
 		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc0({

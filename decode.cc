@@ -163,7 +163,8 @@ struct Decoder
 	static const int code_bits = 64800;
 	static const int data_bits = code_bits - 32 - 12 * 16 - 21600;
 	static const int code_cols = 432;
-	static const int code_rows = code_bits / code_cols / Mod::BITS;
+	static const int cons_cnt = code_bits / Mod::BITS;
+	static const int code_rows = cons_cnt / code_cols;
 	static const int code_off = -216;
 	static const int mls0_off = -126;
 	static const int mls0_len = 127;
@@ -193,7 +194,7 @@ struct Decoder
 	int8_t genmat[255*71];
 	int8_t code[code_bits], bint[code_bits];
 	uint16_t erasures[24];
-	cmplx head[symbol_len], tail[symbol_len];
+	cmplx head[symbol_len], tail[symbol_len], cons[cons_cnt];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
 	value phase[symbol_len/2];
 	value cfo_rad, sfo_rad;
@@ -249,15 +250,15 @@ struct Decoder
 	}
 	void deinterleave()
 	{
-		for (int i = 0; i < code_bits/Mod::BITS; ++i)
+		for (int i = 0; i < cons_cnt; ++i)
 			for (int k = 0; k < Mod::BITS; ++k)
-				code[(code_bits/Mod::BITS)*k+i] = bint[Mod::BITS*i+k];
+				code[cons_cnt*k+i] = bint[Mod::BITS*i+k];
 	}
 	void interleave()
 	{
-		for (int i = 0; i < code_bits/Mod::BITS; ++i)
+		for (int i = 0; i < cons_cnt; ++i)
 			for (int k = 0; k < Mod::BITS; ++k)
-				bint[Mod::BITS*i+k] = code[(code_bits/Mod::BITS)*k+i];
+				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
 	}
 	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
 		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
@@ -353,25 +354,27 @@ struct Decoder
 			tdom[i] = resam[i] * osc();
 
 		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
+		cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
+		fwd(fdom, cur);
+		for (int j = 0; j < code_rows; ++j) {
+			for (int i = 0; i < code_cols; ++i)
+				head[bin(i+code_off)] = fdom[bin(i+code_off)];
+			fwd(fdom, cur += symbol_len+guard_len);
+			for (int i = 0; i < code_cols; ++i) {
+				cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
+				cons[code_cols*j+i] = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
+			}
+		}
 		value precision = 16;
 		if (1) {
-			cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
-			fwd(fdom, cur);
 			value sp = 0, np = 0;
-			for (int j = 0; j < code_rows; ++j) {
-				for (int i = 0; i < code_cols; ++i)
-					head[bin(i+code_off)] = fdom[bin(i+code_off)];
-				fwd(fdom, cur += symbol_len+guard_len);
-				for (int i = 0; i < code_cols; ++i) {
-					int8_t tmp[Mod::BITS];
-					cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
-					con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
-					Mod::hard(tmp, con);
-					cmplx hard = Mod::map(tmp);
-					cmplx error = con - hard;
-					sp += norm(hard);
-					np += norm(error);
-				}
+			for (int i = 0; i < cons_cnt; ++i) {
+				int8_t tmp[Mod::BITS];
+				Mod::hard(tmp, cons[i]);
+				cmplx hard = Mod::map(tmp);
+				cmplx error = cons[i] - hard;
+				sp += norm(hard);
+				np += norm(error);
 			}
 			value snr = DSP::decibel(sp / np);
 			std::cerr << "init Es/N0: " << snr << " dB" << std::endl;
@@ -380,46 +383,23 @@ struct Decoder
 			value sigma = std::sqrt(np / (2 * sp));
 			precision = 1 / (sigma * sigma);
 		}
-		cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
-		fwd(fdom, cur);
-		seq3.reset();
-		seq4.reset();
-		for (int j = 0; j < code_rows; ++j) {
-			for (int i = 0; i < code_cols; ++i)
-				head[bin(i+code_off)] = fdom[bin(i+code_off)];
-			fwd(fdom, cur += symbol_len+guard_len);
-			for (int i = 0; i < code_cols; ++i) {
-				cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
-				con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
-				Mod::soft(bint+Mod::BITS*(code_cols*j+i), con, precision);
-			}
-		}
+		for (int i = 0; i < cons_cnt; ++i)
+			Mod::soft(bint+Mod::BITS*i, cons[i], precision);
 		deinterleave();
 		int count = ldpcdec(code, code+data_bits+32+12*16);
 		if (count < 0)
 			std::cerr << "payload LDPC decoding did not converge." << std::endl;
 		if (1) {
 			interleave();
-			cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
-			fwd(fdom, cur);
-			seq3.reset();
-			seq4.reset();
 			value sp = 0, np = 0;
-			for (int j = 0; j < code_rows; ++j) {
-				for (int i = 0; i < code_cols; ++i)
-					head[bin(i+code_off)] = fdom[bin(i+code_off)];
-				fwd(fdom, cur += symbol_len+guard_len);
-				for (int i = 0; i < code_cols; ++i) {
-					int8_t tmp[Mod::BITS];
-					for (int k = 0; k < Mod::BITS; ++k)
-						tmp[k] = 1 - 2 * (bint[Mod::BITS*(code_cols*j+i)+k] < 0);
-					cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
-					con = cmplx(con.real() * (1 - 2 * seq3()), con.imag() * (1 - 2 * seq4()));
-					cmplx hard = Mod::map(tmp);
-					cmplx error = con - hard;
-					sp += norm(hard);
-					np += norm(error);
-				}
+			for (int i = 0; i < cons_cnt; ++i) {
+				int8_t tmp[Mod::BITS];
+				for (int k = 0; k < Mod::BITS; ++k)
+					tmp[k] = 1 - 2 * (bint[Mod::BITS*i+k] < 0);
+				cmplx hard = Mod::map(tmp);
+				cmplx error = cons[i] - hard;
+				sp += norm(hard);
+				np += norm(error);
 			}
 			value snr = DSP::decibel(sp / np);
 			std::cerr << "corr Es/N0: " << snr << " dB" << std::endl;
