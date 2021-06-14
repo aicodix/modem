@@ -42,15 +42,16 @@ struct Encoder
 	static const int mls3_poly = 0b10001000000001011;
 	static const int mls4_poly = 0b10111010010000001;
 	DSP::WritePCM<value> *pcm;
-	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
+	DSP::FastFourierTransform<4*symbol_len, cmplx, -1> fwd4;
+	DSP::FastFourierTransform<4*symbol_len, cmplx, 1> bwd4;
 	CODE::CRC<uint16_t> crc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65343> bchenc1;
 	CODE::LDPCEncoder<DVB_T2_TABLE_A3> ldpcenc;
 	int8_t code[ldpc_bits], bint[ldpc_bits];
-	cmplx fdom[symbol_len];
-	cmplx tdom[symbol_len];
+	cmplx fdom[symbol_len], fdom4[4*symbol_len];
+	cmplx tdom[symbol_len], tdom4[4*symbol_len];
 	cmplx temp[symbol_len];
 	cmplx guard[guard_len];
 	cmplx papr_min, papr_max;
@@ -62,33 +63,43 @@ struct Encoder
 	{
 		return (carrier + symbol_len) % symbol_len;
 	}
+	static int bin4(int carrier)
+	{
+		return (carrier + 4*symbol_len) % (4*symbol_len);
+	}
 	static int nrz(bool bit)
 	{
 		return 1 - 2 * bit;
 	}
 	void improve_papr()
 	{
-		for (int i = 0; i < symbol_len; ++i) {
-			value amp = std::max(std::abs(tdom[i].real()), std::abs(tdom[i].imag()));
+		for (int i = 0; i < 4*symbol_len; ++i)
+			fdom4[i] = 0;
+		for (int i = -symbol_len/2; i < symbol_len/2; ++i)
+			fdom4[bin4(i)] = fdom[bin(i)];
+		bwd4(tdom4, fdom4);
+		for (int i = 0; i < 4*symbol_len; ++i)
+			tdom4[i] /= sqrt(value(4*symbol_len));
+		for (int i = 0; i < 4*symbol_len; ++i) {
+			value amp = std::max(std::abs(tdom4[i].real()), std::abs(tdom4[i].imag()));
 			if (amp > value(1))
-				tdom[i] /= amp;
+				tdom4[i] /= amp;
 		}
-		fwd(temp, tdom);
-		for (int i = 0; i < symbol_len; ++i)
-			if (norm(fdom[i]))
-				temp[i] /= sqrt(value(symbol_len));
+		fwd4(fdom4, tdom4);
+		for (int i = -symbol_len/2; i < symbol_len/2; ++i)
+			if (norm(temp[bin(i)]))
+				temp[bin(i)] = fdom4[bin4(i)] / sqrt(value(4*symbol_len));
 			else
-				temp[i] = 0;
-		bwd(tdom, temp);
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] /= sqrt(value(symbol_len));
+				temp[bin(i)] = 0;
 	}
 	void symbol()
 	{
-		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] /= sqrt(value(4 * symbol_len));
+			temp[i] = fdom[i];
 		improve_papr();
+		bwd(tdom, temp);
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] /= sqrt(value(8*symbol_len));
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
