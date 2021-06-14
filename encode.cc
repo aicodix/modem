@@ -68,7 +68,12 @@ struct Encoder
 	{
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] /= sqrt(value(8 * symbol_len));
+			tdom[i] /= sqrt(value(4 * symbol_len));
+		for (int i = 0; i < symbol_len; ++i) {
+			value amp = std::max(std::abs(tdom[i].real()), std::abs(tdom[i].imag()));
+			if (amp > value(1))
+				tdom[i] /= amp;
+		}
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
