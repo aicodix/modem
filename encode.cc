@@ -42,6 +42,7 @@ struct Encoder
 	static const int mls3_poly = 0b10001000000001011;
 	static const int mls4_poly = 0b10111010010000001;
 	DSP::WritePCM<value> *pcm;
+	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint16_t> crc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
@@ -50,6 +51,7 @@ struct Encoder
 	int8_t code[ldpc_bits], bint[ldpc_bits];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
+	cmplx temp[symbol_len];
 	cmplx guard[guard_len];
 	cmplx papr_min, papr_max;
 	int code_off;
@@ -64,16 +66,29 @@ struct Encoder
 	{
 		return 1 - 2 * bit;
 	}
-	void symbol()
+	void improve_papr()
 	{
-		bwd(tdom, fdom);
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] /= sqrt(value(4 * symbol_len));
 		for (int i = 0; i < symbol_len; ++i) {
 			value amp = std::max(std::abs(tdom[i].real()), std::abs(tdom[i].imag()));
 			if (amp > value(1))
 				tdom[i] /= amp;
 		}
+		fwd(temp, tdom);
+		for (int i = 0; i < symbol_len; ++i)
+			if (norm(fdom[i]))
+				temp[i] /= sqrt(value(symbol_len));
+			else
+				temp[i] = 0;
+		bwd(tdom, temp);
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] /= sqrt(value(symbol_len));
+	}
+	void symbol()
+	{
+		bwd(tdom, fdom);
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] /= sqrt(value(4 * symbol_len));
+		improve_papr();
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
