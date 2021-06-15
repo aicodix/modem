@@ -79,7 +79,7 @@ struct Encoder
 			fdom4[bin4(i)] = fdom[bin(i)];
 		bwd4(tdom4, fdom4);
 		for (int i = 0; i < 4*symbol_len; ++i)
-			tdom4[i] /= sqrt(value(4*symbol_len));
+			tdom4[i] /= std::sqrt(value(4*symbol_len));
 		for (int i = 0; i < 4*symbol_len; ++i) {
 			value amp = std::max(std::abs(tdom4[i].real()), std::abs(tdom4[i].imag()));
 			if (amp > value(1))
@@ -88,7 +88,7 @@ struct Encoder
 		fwd4(fdom4, tdom4);
 		for (int i = -symbol_len/2; i < symbol_len/2; ++i)
 			if (norm(temp[bin(i)]))
-				temp[bin(i)] = fdom4[bin4(i)] / sqrt(value(4*symbol_len));
+				temp[bin(i)] = fdom4[bin4(i)] / std::sqrt(value(4*symbol_len));
 			else
 				temp[bin(i)] = 0;
 	}
@@ -99,7 +99,7 @@ struct Encoder
 		improve_papr();
 		bwd(tdom, temp);
 		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] /= sqrt(value(8*symbol_len));
+			tdom[i] /= std::sqrt(value(8*symbol_len));
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
@@ -125,7 +125,7 @@ struct Encoder
 	void pilot_block()
 	{
 		CODE::MLS seq2(mls2_poly);
-		value code_fac = sqrt(value(symbol_len) / value(code_cols));
+		value code_fac = std::sqrt(value(symbol_len) / value(code_cols));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		for (int i = code_off; i < code_off + code_cols; ++i) {
@@ -139,7 +139,7 @@ struct Encoder
 	void schmidl_cox()
 	{
 		CODE::MLS seq0(mls0_poly);
-		value mls0_fac = sqrt(value(symbol_len) / value(mls0_len));
+		value mls0_fac = std::sqrt(value(symbol_len) / value(mls0_len));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		fdom[bin(mls0_off-2)] = mls0_fac;
@@ -160,7 +160,7 @@ struct Encoder
 			CODE::set_be_bit(data, i+55, (cs>>i)&1);
 		bchenc0(data, parity);
 		CODE::MLS seq4(mls1_poly);
-		value mls1_fac = sqrt(value(symbol_len) / value(mls1_len));
+		value mls1_fac = std::sqrt(value(symbol_len) / value(mls1_len));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		fdom[bin(mls1_off-1)] = mls1_fac;
