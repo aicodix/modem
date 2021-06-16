@@ -25,13 +25,11 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 template <typename value, typename cmplx, int rate>
 struct Encoder
 {
-	typedef PhaseShiftKeying<8, cmplx, int8_t> Mod;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int ldpc_bits = 64800;
 	static const int bch_bits = ldpc_bits - 21600;
 	static const int data_bits = bch_bits - 12 * 16;
-	static const int cons_cnt = ldpc_bits / Mod::BITS;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -53,6 +51,9 @@ struct Encoder
 	cmplx temp[symbol_len];
 	cmplx guard[guard_len];
 	cmplx papr_min, papr_max;
+	int oper_mode;
+	int mod_bits;
+	int cons_cnt;
 	int code_cols;
 	int code_rows;
 	int code_off;
@@ -170,13 +171,25 @@ struct Encoder
 			fdom[bin(i+mls1_off)] *= nrz(seq4());
 		symbol();
 	}
+	cmplx mod_map(int8_t *b)
+	{
+		switch (oper_mode) {
+		case 2:
+		case 3:
+			return PhaseShiftKeying<8, cmplx, int8_t>::map(b);
+		case 4:
+		case 5:
+			return PhaseShiftKeying<4, cmplx, int8_t>::map(b);
+		}
+		return 0;
+	}
 	void interleave()
 	{
 		for (int i = 0; i < cons_cnt; ++i)
-			for (int k = 0; k < Mod::BITS; ++k)
-				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
+			for (int k = 0; k < mod_bits; ++k)
+				bint[mod_bits*i+k] = code[cons_cnt*k+i];
 	}
-	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign, int code_cols) :
+	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
 		pcm(pcm), crc0(0xA8F4), bchenc0({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
@@ -188,8 +201,30 @@ struct Encoder
 			0b10101101001010101, 0b10001111100101111, 0b11111011110110101,
 			0b11010111101100101, 0b10111001101100111, 0b10000111010100001,
 			0b10111010110100111, 0b10011101000101101, 0b10001101011100011}),
-			code_cols(code_cols), code_rows(cons_cnt / code_cols)
+			oper_mode(oper_mode)
 	{
+		switch (oper_mode) {
+		case 2:
+			code_cols = 432;
+			mod_bits = 3;
+			break;
+		case 3:
+			code_cols = 400;
+			mod_bits = 3;
+			break;
+		case 4:
+			code_cols = 400;
+			mod_bits = 2;
+			break;
+		case 5:
+			code_cols = 360;
+			mod_bits = 2;
+			break;
+		default:
+			return;
+		}
+		cons_cnt = ldpc_bits / mod_bits;
+		code_rows = cons_cnt / code_cols;
 		int offset = (freq_off * symbol_len) / rate;
 		code_off = offset - code_cols / 2;
 		mls0_off = offset - mls0_len + 1;
@@ -197,7 +232,7 @@ struct Encoder
 		papr_min = cmplx(1000, 1000), papr_max = cmplx(-1000, -1000);
 		pilot_block();
 		schmidl_cox();
-		meta_data((call_sign << 8) | 2);
+		meta_data((call_sign << 8) | oper_mode);
 		pilot_block();
 		bchenc1(inp, inp+data_bits/8, data_bits);
 		for (int i = 0; i < bch_bits; ++i)
@@ -207,14 +242,14 @@ struct Encoder
 		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		for (int j = 0; j < code_rows; ++j) {
 			for (int i = 0; i < code_cols; ++i) {
-				cmplx con = Mod::map(bint+Mod::BITS*(code_cols*j+i));
+				cmplx con = mod_map(bint+mod_bits*(code_cols*j+i));
 				con = cmplx(con.real() * nrz(seq3()), con.imag() * nrz(seq4()));
 				fdom[bin(i+code_off)] *= con;
 			}
 			symbol();
 		}
 		schmidl_cox();
-		meta_data((call_sign << 8) | 2);
+		meta_data((call_sign << 8) | oper_mode);
 		pilot_block();
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
@@ -244,8 +279,8 @@ long long int base37_encoder(const char *str)
 
 int main(int argc, char **argv)
 {
-	if (argc < 6 || argc > 8) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS INPUT [OFFSET] [CALLSIGN]" << std::endl;
+	if (argc < 6 || argc > 9) {
+		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS INPUT [OFFSET] [CALLSIGN] [MODE]" << std::endl;
 		return 1;
 	}
 
@@ -259,17 +294,41 @@ int main(int argc, char **argv)
 	if (argc >= 7)
 		freq_off = std::atoi(argv[6]);
 
-	if ((output_chan == 1 && freq_off < 1350) || freq_off < 1350 - output_rate / 2 || freq_off > output_rate / 2 - 1350) {
-		std::cerr << "Unsupported frequency offset." << std::endl;
-		return 1;
-	}
-
 	long long int call_sign = base37_encoder("ANONYMOUS");
 	if (argc >= 8)
 		call_sign = base37_encoder(argv[7]);
 
 	if (call_sign <= 0 || call_sign >= 129961739795077L) {
 		std::cerr << "Unsupported call sign." << std::endl;
+		return 1;
+	}
+
+	int oper_mode = 2;
+	if (argc >= 9)
+		oper_mode = std::atoi(argv[8]);
+	if (oper_mode < 2 || oper_mode > 5) {
+		std::cerr << "Unsupported operation mode." << std::endl;
+		return 1;
+	}
+
+	int band_width;
+	switch (oper_mode) {
+	case 2:
+		band_width = 2700;
+		break;
+	case 3:
+	case 4:
+		band_width = 2500;
+		break;
+	case 5:
+		band_width = 2250;
+		break;
+	default:
+		return 1;
+	}
+
+	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
+		std::cerr << "Unsupported frequency offset." << std::endl;
 		return 1;
 	}
 
@@ -281,7 +340,7 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
 		return 1;
 	}
-	const int code_len = 64800 / 8, code_cols = 432;
+	const int code_len = 64800 / 8;
 	const int data_len = code_len - (12 * 16 + 21600) / 8;
 	uint8_t *input_data = new uint8_t[code_len];
 	for (int i = 0; i < data_len; ++i)
@@ -291,16 +350,16 @@ int main(int argc, char **argv)
 	output_file.silence(output_rate);
 	switch (output_rate) {
 	case 8000:
-		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign, code_cols);
+		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	case 16000:
-		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign, code_cols);
+		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign, code_cols);
+		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign, code_cols);
+		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;

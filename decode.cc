@@ -152,19 +152,21 @@ void base37_decoder(char *str, long long int val, int len)
 		str[i] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%37];
 }
 
-template <typename value, typename cmplx, int rate, int cols_min>
+template <typename value, typename cmplx, int rate>
 struct Decoder
 {
 	typedef DSP::Const<value> Const;
-	typedef PhaseShiftKeying<8, cmplx, int8_t> Mod;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int ldpc_bits = 64800;
 	static const int bch_bits = ldpc_bits - 21600;
 	static const int data_bits = bch_bits - 12 * 16;
-	static const int cons_cnt = ldpc_bits / Mod::BITS;
-	static const int rows_max = cons_cnt / cols_min;
+	static const int mod_min = 2;
+	static const int mod_max = 3;
+	static const int cons_max = ldpc_bits / mod_min;
+	static const int cols_min = 360;
+	static const int rows_max = cons_max / cols_min;
 	static const int mls0_len = 127;
 	static const int mls0_off = - mls0_len + 1;
 	static const int mls0_poly = 0b10001001;
@@ -192,11 +194,14 @@ struct Decoder
 	int8_t genmat[255*71];
 	int8_t code[ldpc_bits], bint[ldpc_bits];
 	uint16_t erasures[24];
-	cmplx head[symbol_len], tail[symbol_len], cons[cons_cnt];
+	cmplx head[symbol_len], tail[symbol_len], cons[cons_max];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
 	value phase[symbol_len/2];
 	value cfo_rad, sfo_rad;
 	int symbol_pos;
+	int oper_mode;
+	int mod_bits;
+	int cons_cnt;
 
 	static int bin(int carrier)
 	{
@@ -253,16 +258,54 @@ struct Decoder
 	void deinterleave()
 	{
 		for (int i = 0; i < cons_cnt; ++i)
-			for (int k = 0; k < Mod::BITS; ++k)
-				code[cons_cnt*k+i] = bint[Mod::BITS*i+k];
+			for (int k = 0; k < mod_bits; ++k)
+				code[cons_cnt*k+i] = bint[mod_bits*i+k];
 	}
 	void interleave()
 	{
 		for (int i = 0; i < cons_cnt; ++i)
-			for (int k = 0; k < Mod::BITS; ++k)
-				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
+			for (int k = 0; k < mod_bits; ++k)
+				bint[mod_bits*i+k] = code[cons_cnt*k+i];
 	}
-	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count, int code_cols) :
+	cmplx mod_map(int8_t *b)
+	{
+		switch (oper_mode) {
+		case 2:
+		case 3:
+			return PhaseShiftKeying<8, cmplx, int8_t>::map(b);
+		case 4:
+		case 5:
+			return PhaseShiftKeying<4, cmplx, int8_t>::map(b);
+		}
+		return 0;
+	}
+	void mod_hard(int8_t *b, cmplx c)
+	{
+		switch (oper_mode) {
+		case 2:
+		case 3:
+			PhaseShiftKeying<8, cmplx, int8_t>::hard(b, c);
+			break;
+		case 4:
+		case 5:
+			PhaseShiftKeying<4, cmplx, int8_t>::hard(b, c);
+			break;
+		}
+	}
+	void mod_soft(int8_t *b, cmplx c, value precision)
+	{
+		switch (oper_mode) {
+		case 2:
+		case 3:
+			PhaseShiftKeying<8, cmplx, int8_t>::soft(b, c, precision);
+			break;
+		case 4:
+		case 5:
+			PhaseShiftKeying<4, cmplx, int8_t>::soft(b, c, precision);
+			break;
+		}
+	}
+	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
 		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
@@ -323,10 +366,31 @@ struct Decoder
 			std::cerr << "header CRC error." << std::endl;
 			return;
 		}
-		if ((md&255) != 2) {
-			std::cerr << "operation mode unsupported." << std::endl;
+		oper_mode = md & 255;
+		int code_cols;
+		switch (oper_mode) {
+		case 2:
+			code_cols = 432;
+			mod_bits = 3;
+			break;
+		case 3:
+			code_cols = 400;
+			mod_bits = 3;
+			break;
+		case 4:
+			code_cols = 400;
+			mod_bits = 2;
+			break;
+		case 5:
+			code_cols = 360;
+			mod_bits = 2;
+			break;
+		default:
+			std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 			return;
 		}
+		cons_cnt = ldpc_bits / mod_bits;
+		std::cerr << "oper mode: " << oper_mode << std::endl;
 		if ((md>>8) == 0 || (md>>8) >= 129961739795077L) {
 			std::cerr << "call sign unsupported." << std::endl;
 			return;
@@ -374,9 +438,9 @@ struct Decoder
 		if (1) {
 			value sp = 0, np = 0;
 			for (int i = 0; i < cons_cnt; ++i) {
-				int8_t tmp[Mod::BITS];
-				Mod::hard(tmp, cons[i]);
-				cmplx hard = Mod::map(tmp);
+				int8_t tmp[mod_max];
+				mod_hard(tmp, cons[i]);
+				cmplx hard = mod_map(tmp);
 				cmplx error = cons[i] - hard;
 				sp += norm(hard);
 				np += norm(error);
@@ -389,7 +453,7 @@ struct Decoder
 			precision = 1 / (sigma * sigma);
 		}
 		for (int i = 0; i < cons_cnt; ++i)
-			Mod::soft(bint+Mod::BITS*i, cons[i], precision);
+			mod_soft(bint+mod_bits*i, cons[i], precision);
 		deinterleave();
 		int count = ldpcdec(code, code + bch_bits);
 		if (count < 0)
@@ -398,10 +462,10 @@ struct Decoder
 			interleave();
 			value sp = 0, np = 0;
 			for (int i = 0; i < cons_cnt; ++i) {
-				int8_t tmp[Mod::BITS];
-				for (int k = 0; k < Mod::BITS; ++k)
-					tmp[k] = nrz(bint[Mod::BITS*i+k] < 0);
-				cmplx hard = Mod::map(tmp);
+				int8_t tmp[mod_max];
+				for (int k = 0; k < mod_bits; ++k)
+					tmp[k] = nrz(bint[mod_bits*i+k] < 0);
+				cmplx hard = mod_map(tmp);
 				cmplx error = cons[i] - hard;
 				sp += norm(hard);
 				np += norm(error);
@@ -462,21 +526,21 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int code_len = 64800 / 8, code_cols = 432, cols_min = 360;
+	const int code_len = 64800 / 8;
 	uint8_t *output_data = new uint8_t[code_len];
 
 	switch (input_file.rate()) {
 	case 8000:
-		delete new Decoder<value, cmplx, 8000, cols_min>(output_data, &input_file, skip_count, code_cols);
+		delete new Decoder<value, cmplx, 8000>(output_data, &input_file, skip_count);
 		break;
 	case 16000:
-		delete new Decoder<value, cmplx, 16000, cols_min>(output_data, &input_file, skip_count, code_cols);
+		delete new Decoder<value, cmplx, 16000>(output_data, &input_file, skip_count);
 		break;
 	case 44100:
-		delete new Decoder<value, cmplx, 44100, cols_min>(output_data, &input_file, skip_count, code_cols);
+		delete new Decoder<value, cmplx, 44100>(output_data, &input_file, skip_count);
 		break;
 	case 48000:
-		delete new Decoder<value, cmplx, 48000, cols_min>(output_data, &input_file, skip_count, code_cols);
+		delete new Decoder<value, cmplx, 48000>(output_data, &input_file, skip_count);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
