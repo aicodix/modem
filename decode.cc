@@ -152,7 +152,7 @@ void base37_decoder(char *str, long long int val, int len)
 		str[i] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%37];
 }
 
-template <typename value, typename cmplx, int rate>
+template <typename value, typename cmplx, int rate, int cols_min>
 struct Decoder
 {
 	typedef DSP::Const<value> Const;
@@ -163,19 +163,17 @@ struct Decoder
 	static const int ldpc_bits = 64800;
 	static const int bch_bits = ldpc_bits - 21600;
 	static const int data_bits = bch_bits - 12 * 16;
-	static const int code_cols = 432;
 	static const int cons_cnt = ldpc_bits / Mod::BITS;
-	static const int code_rows = cons_cnt / code_cols;
-	static const int code_off = -216;
-	static const int mls0_off = -126;
+	static const int rows_max = cons_cnt / cols_min;
 	static const int mls0_len = 127;
+	static const int mls0_off = - mls0_len + 1;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
-	static const int mls1_off = -127;
+	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
 	static const int mls3_poly = 0b10001000000001011;
 	static const int mls4_poly = 0b10111010010000001;
-	static const int buffer_len = (code_rows + 8) * (symbol_len + guard_len);
+	static const int buffer_len = (rows_max + 8) * (symbol_len + guard_len);
 	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
@@ -264,7 +262,7 @@ struct Decoder
 			for (int k = 0; k < Mod::BITS; ++k)
 				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
 	}
-	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
+	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count, int code_cols) :
 		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
@@ -337,6 +335,9 @@ struct Decoder
 		base37_decoder(call_sign, md>>8, 9);
 		call_sign[9] = 0;
 		std::cerr << "call sign: " << call_sign << std::endl;
+
+		int code_rows = cons_cnt / code_cols;
+		int code_off = - code_cols / 2;
 
 		int dis = displacement(buf+symbol_pos-(code_rows+1)*(symbol_len+guard_len), buf+symbol_pos+2*(symbol_len+guard_len));
 		sfo_rad = (dis * Const::TwoPi()) / ((code_rows+3)*(symbol_len+guard_len));
@@ -461,21 +462,21 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int code_len = 64800 / 8;
+	const int code_len = 64800 / 8, code_cols = 432, cols_min = 360;
 	uint8_t *output_data = new uint8_t[code_len];
 
 	switch (input_file.rate()) {
 	case 8000:
-		delete new Decoder<value, cmplx, 8000>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 8000, cols_min>(output_data, &input_file, skip_count, code_cols);
 		break;
 	case 16000:
-		delete new Decoder<value, cmplx, 16000>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 16000, cols_min>(output_data, &input_file, skip_count, code_cols);
 		break;
 	case 44100:
-		delete new Decoder<value, cmplx, 44100>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 44100, cols_min>(output_data, &input_file, skip_count, code_cols);
 		break;
 	case 48000:
-		delete new Decoder<value, cmplx, 48000>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 48000, cols_min>(output_data, &input_file, skip_count, code_cols);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;

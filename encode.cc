@@ -31,9 +31,7 @@ struct Encoder
 	static const int ldpc_bits = 64800;
 	static const int bch_bits = ldpc_bits - 21600;
 	static const int data_bits = bch_bits - 12 * 16;
-	static const int code_cols = 432;
 	static const int cons_cnt = ldpc_bits / Mod::BITS;
-	static const int code_rows = cons_cnt / code_cols;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -55,6 +53,8 @@ struct Encoder
 	cmplx temp[symbol_len];
 	cmplx guard[guard_len];
 	cmplx papr_min, papr_max;
+	int code_cols;
+	int code_rows;
 	int code_off;
 	int mls0_off;
 	int mls1_off;
@@ -180,7 +180,7 @@ struct Encoder
 			for (int k = 0; k < Mod::BITS; ++k)
 				bint[Mod::BITS*i+k] = code[cons_cnt*k+i];
 	}
-	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign) :
+	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign, int code_cols) :
 		pcm(pcm), crc0(0xA8F4), bchenc0({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
@@ -191,11 +191,13 @@ struct Encoder
 			0b10000000000101101, 0b10000000101110011, 0b10000111110111101,
 			0b10101101001010101, 0b10001111100101111, 0b11111011110110101,
 			0b11010111101100101, 0b10111001101100111, 0b10000111010100001,
-			0b10111010110100111, 0b10011101000101101, 0b10001101011100011})
+			0b10111010110100111, 0b10011101000101101, 0b10001101011100011}),
+			code_cols(code_cols), code_rows(cons_cnt / code_cols)
 	{
-		code_off = (freq_off * symbol_len) / rate - code_cols / 2;
-		mls0_off = code_off + 90;
-		mls1_off = code_off + 89;
+		int offset = (freq_off * symbol_len) / rate;
+		code_off = offset - code_cols / 2;
+		mls0_off = offset - mls0_len + 1;
+		mls1_off = offset - mls1_len / 2;
 		papr_min = cmplx(1000, 1000), papr_max = cmplx(-1000, -1000);
 		pilot_block();
 		schmidl_cox();
@@ -283,7 +285,7 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
 		return 1;
 	}
-	const int code_len = 64800 / 8;
+	const int code_len = 64800 / 8, code_cols = 432;
 	const int data_len = code_len - (12 * 16 + 21600) / 8;
 	uint8_t *input_data = new uint8_t[code_len];
 	for (int i = 0; i < data_len; ++i)
@@ -293,16 +295,16 @@ int main(int argc, char **argv)
 	output_file.silence(output_rate);
 	switch (output_rate) {
 	case 8000:
-		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign, code_cols);
 		break;
 	case 16000:
-		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign, code_cols);
 		break;
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign, code_cols);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign, code_cols);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
