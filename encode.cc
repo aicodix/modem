@@ -128,12 +128,8 @@ struct Encoder
 		value code_fac = std::sqrt(value(symbol_len) / value(code_cols));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-		for (int i = code_off; i < code_off + code_cols; ++i) {
-			int8_t tmp[Mod::BITS];
-			for (int k = 0; k < Mod::BITS; ++k)
-				tmp[k] = nrz(seq2());
-			fdom[bin(i)] = code_fac * Mod::map(tmp);
-		}
+		for (int i = code_off; i < code_off + code_cols; ++i)
+			fdom[bin(i)] = code_fac * nrz(seq2());
 		symbol();
 	}
 	void schmidl_cox()
