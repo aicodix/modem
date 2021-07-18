@@ -11,6 +11,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
 #include "bip_buffer.hh"
 #include "resampler.hh"
+#include "xorshift.hh"
 #include "trigger.hh"
 #include "complex.hh"
 #include "decibel.hh"
@@ -173,8 +174,6 @@ struct Decoder
 	static const int mls1_len = 255;
 	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
-	static const int mls3_poly = 0b10001000000001011;
-	static const int mls4_poly = 0b10111010010000001;
 	static const int buffer_len = (rows_max + 8) * (symbol_len + guard_len);
 	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
 	DSP::ReadPCM<value> *pcm;
@@ -422,17 +421,14 @@ struct Decoder
 		for (int i = 0; i < buffer_len; ++i)
 			tdom[i] = resam[i] * osc();
 
-		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		cmplx *cur = tdom + symbol_pos - (code_rows + 1) * (symbol_len + guard_len);
 		fwd(fdom, cur);
 		for (int j = 0; j < code_rows; ++j) {
 			for (int i = 0; i < code_cols; ++i)
 				head[bin(i+code_off)] = fdom[bin(i+code_off)];
 			fwd(fdom, cur += symbol_len+guard_len);
-			for (int i = 0; i < code_cols; ++i) {
-				cmplx con = fdom[bin(i+code_off)] / head[bin(i+code_off)];
-				cons[code_cols*j+i] = cmplx(con.real() * nrz(seq3()), con.imag() * nrz(seq4()));
-			}
+			for (int i = 0; i < code_cols; ++i)
+				cons[code_cols*j+i] = fdom[bin(i+code_off)] / head[bin(i+code_off)];
 		}
 		value precision = 16;
 		if (1) {
@@ -553,6 +549,9 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const int data_len = code_len - (12 * 16 + 21600) / 8;
+	CODE::Xorshift32 scrambler;
+	for (int i = 0; i < data_len; ++i)
+		output_data[i] ^= scrambler();
 	for (int i = 0; i < data_len; ++i)
 		output_file.put(output_data[i]);
 	delete []output_data;

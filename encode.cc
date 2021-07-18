@@ -7,6 +7,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <iostream>
 #include <cassert>
 #include <cmath>
+#include "xorshift.hh"
 #include "complex.hh"
 #include "utils.hh"
 #include "bitman.hh"
@@ -35,8 +36,6 @@ struct Encoder
 	static const int mls1_len = 255;
 	static const int mls1_poly = 0b100101011;
 	static const int mls2_poly = 0b100101010001;
-	static const int mls3_poly = 0b10001000000001011;
-	static const int mls4_poly = 0b10111010010000001;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	DSP::FastFourierTransform<4*symbol_len, cmplx, -1> fwd4;
@@ -239,13 +238,10 @@ struct Encoder
 			code[i] = nrz(CODE::get_le_bit(inp, i));
 		ldpcenc(code, code + bch_bits);
 		interleave();
-		CODE::MLS seq3(mls3_poly), seq4(mls4_poly);
 		for (int j = 0; j < code_rows; ++j) {
-			for (int i = 0; i < code_cols; ++i) {
-				cmplx con = mod_map(bint+mod_bits*(code_cols*j+i));
-				con = cmplx(con.real() * nrz(seq3()), con.imag() * nrz(seq4()));
-				fdom[bin(i+code_off)] *= con;
-			}
+			for (int i = 0; i < code_cols; ++i)
+				fdom[bin(i+code_off)] *=
+					mod_map(bint+mod_bits*(code_cols*j+i));
 			symbol();
 		}
 		schmidl_cox();
@@ -345,6 +341,9 @@ int main(int argc, char **argv)
 	uint8_t *input_data = new uint8_t[code_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = input_file.get();
+	CODE::Xorshift32 scrambler;
+	for (int i = 0; i < data_len; ++i)
+		input_data[i] ^= scrambler();
 
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
 	output_file.silence(output_rate);
