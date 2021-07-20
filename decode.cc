@@ -416,6 +416,20 @@ struct Decoder
 			for (int i = 0; i < code_cols; ++i)
 				cons[code_cols*j+i] = fdom[bin(i+code_off)] / head[bin(i+code_off)];
 		}
+		if (1) {
+			value sum = 0;
+			for (int i = 0; i < cons_cnt; ++i) {
+				int8_t tmp[mod_max];
+				mod_hard(tmp, cons[i]);
+				sum += arg(cons[i] * conj(mod_map(tmp)));
+			}
+			value avg = sum / cons_cnt;
+			cfo_rad += avg / (symbol_len+guard_len);
+			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+			cmplx comp = DSP::polar<value>(1, -avg);
+			for (int i = 0; i < cons_cnt; ++i)
+				cons[i] *= comp;
+		}
 		value precision = 16;
 		if (1) {
 			value sp = 0, np = 0;
