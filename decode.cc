@@ -195,7 +195,6 @@ struct Decoder
 	uint16_t erasures[24];
 	cmplx head[symbol_len], tail[symbol_len], cons[cons_max];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
-	value phase[symbol_len/2];
 	value cfo_rad, sfo_rad;
 	int symbol_pos;
 	int oper_mode;
@@ -236,23 +235,10 @@ struct Decoder
 	}
 	value frac_cfo(const cmplx *samples)
 	{
-		value avg = 0;
+		cmplx sum;
 		for (int i = 0; i < symbol_len/2; ++i)
-			avg += phase[i] = arg(samples[i] * conj(samples[i+symbol_len/2]));
-		avg /= value(symbol_len/2);
-		value var = 0;
-		for (int i = 0; i < symbol_len/2; ++i)
-			var += (phase[i] - avg) * (phase[i] - avg);
-		value std_dev = std::sqrt(var/(symbol_len/2-1));
-		int count = 0;
-		value sum = 0;
-		for (int i = 0; i < symbol_len/2; ++i) {
-			if (std::abs(phase[i] - avg) <= std_dev) {
-				sum += phase[i];
-				++count;
-			}
-		}
-		return sum / (count * symbol_len/2);
+			sum += samples[i] * conj(samples[i+symbol_len/2]);
+		return arg(sum) / (symbol_len/2);
 	}
 	void deinterleave()
 	{
