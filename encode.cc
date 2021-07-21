@@ -30,7 +30,7 @@ struct Encoder
 	static const int guard_len = symbol_len / 8;
 	static const int ldpc_bits = 64800;
 	static const int bch_bits = ldpc_bits - 21600;
-	static const int data_bits = bch_bits - 12 * 16;
+	static const int data_bits = bch_bits - 10 * 16;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -42,7 +42,7 @@ struct Encoder
 	DSP::FastFourierTransform<4*symbol_len, cmplx, 1> bwd4;
 	CODE::CRC<uint16_t> crc0;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
-	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65343> bchenc1;
+	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65375> bchenc1;
 	CODE::LDPCEncoder<DVB_T2_TABLE_A3> ldpcenc;
 	int8_t code[ldpc_bits], bint[ldpc_bits];
 	cmplx fdom[symbol_len], fdom4[4*symbol_len];
@@ -199,7 +199,7 @@ struct Encoder
 			0b10000000000101101, 0b10000000101110011, 0b10000111110111101,
 			0b10101101001010101, 0b10001111100101111, 0b11111011110110101,
 			0b11010111101100101, 0b10111001101100111, 0b10000111010100001,
-			0b10111010110100111, 0b10011101000101101, 0b10001101011100011}),
+			0b10111010110100111}),
 			oper_mode(oper_mode)
 	{
 		switch (oper_mode) {
@@ -337,7 +337,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const int code_len = 64800 / 8;
-	const int data_len = code_len - (12 * 16 + 21600) / 8;
+	const int data_len = code_len - (10 * 16 + 21600) / 8;
 	uint8_t *input_data = new uint8_t[code_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = input_file.get();

@@ -162,7 +162,7 @@ struct Decoder
 	static const int guard_len = symbol_len / 8;
 	static const int ldpc_bits = 64800;
 	static const int bch_bits = ldpc_bits - 21600;
-	static const int data_bits = bch_bits - 12 * 16;
+	static const int data_bits = bch_bits - 10 * 16;
 	static const int mod_min = 2;
 	static const int mod_max = 3;
 	static const int cons_max = ldpc_bits / mod_min;
@@ -187,12 +187,12 @@ struct Decoder
 	CODE::CRC<uint16_t> crc0;
 	typedef CODE::GaloisField<16, 0b10000000000101101, uint16_t> GF;
 	GF gf;
-	CODE::BoseChaudhuriHocquenghemDecoder<24, 1, 65343, GF> bchdec1;
+	CODE::BoseChaudhuriHocquenghemDecoder<20, 1, 65375, GF> bchdec1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	CODE::LDPCDecoder<DVB_T2_TABLE_A3, 1> ldpcdec;
 	int8_t genmat[255*71];
 	int8_t code[ldpc_bits], bint[ldpc_bits];
-	uint16_t erasures[24];
+	uint16_t erasures[20];
 	cmplx head[symbol_len], tail[symbol_len], cons[cons_max];
 	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
 	value cfo_rad, sfo_rad;
@@ -478,10 +478,10 @@ struct Decoder
 		int ecnt = 0;
 		for (int i = 0; i < bch_bits; ++i) {
 			if (!code[i]) {
-				if (ecnt < 24) {
+				if (ecnt < 20) {
 					erasures[ecnt++] = i;
 				} else {
-					std::cerr << "payload LDPC produced more than 24 erasures." << std::endl;
+					std::cerr << "payload LDPC produced more than 20 erasures." << std::endl;
 					return;
 				}
 			}
@@ -548,7 +548,7 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
 		return 1;
 	}
-	const int data_len = code_len - (12 * 16 + 21600) / 8;
+	const int data_len = code_len - (10 * 16 + 21600) / 8;
 	CODE::Xorshift32 scrambler;
 	for (int i = 0; i < data_len; ++i)
 		output_data[i] ^= scrambler();
