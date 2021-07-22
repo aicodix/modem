@@ -18,19 +18,19 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "mls.hh"
 #include "crc.hh"
 #include "psk.hh"
-#include "ldpc_tables.hh"
-#include "ldpc_encoder.hh"
-#include "galois_field.hh"
+#include "polar_tables.hh"
+#include "polar_helper.hh"
+#include "polar_encoder.hh"
 #include "bose_chaudhuri_hocquenghem_encoder.hh"
 
 template <typename value, typename cmplx, int rate>
 struct Encoder
 {
+	typedef int8_t code_type;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
-	static const int ldpc_bits = 64800;
-	static const int bch_bits = ldpc_bits - 21600;
-	static const int data_bits = bch_bits - 10 * 16;
+	static const int data_bits = 43040;
+	static const int crc_bits = data_bits + 32;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -41,20 +41,24 @@ struct Encoder
 	DSP::FastFourierTransform<4*symbol_len, cmplx, -1> fwd4;
 	DSP::FastFourierTransform<4*symbol_len, cmplx, 1> bwd4;
 	CODE::CRC<uint16_t> crc0;
-	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc0;
-	CODE::BoseChaudhuriHocquenghemEncoder<65535, 65375> bchenc1;
-	CODE::LDPCEncoder<DVB_T2_TABLE_A3> ldpcenc;
-	int8_t code[ldpc_bits], bint[ldpc_bits];
+	CODE::CRC<uint32_t> crc1;
+	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
+	CODE::PolarSysEnc<code_type> polarenc;
+	code_type code[65536], mesg[44096];
 	cmplx fdom[symbol_len], fdom4[4*symbol_len];
 	cmplx tdom[symbol_len], tdom4[4*symbol_len];
 	cmplx temp[symbol_len];
 	cmplx guard[guard_len];
 	cmplx papr_min, papr_max;
+	const uint32_t *frozen_bits;
+	int code_order;
 	int oper_mode;
 	int mod_bits;
 	int cons_cnt;
-	int code_cols;
-	int code_rows;
+	int cons_cols;
+	int cons_rows;
+	int cons_bits;
+	int mesg_bits;
 	int code_off;
 	int mls0_off;
 	int mls1_off;
@@ -126,10 +130,10 @@ struct Encoder
 	void pilot_block()
 	{
 		CODE::MLS seq2(mls2_poly);
-		value code_fac = std::sqrt(value(symbol_len) / value(code_cols));
+		value code_fac = std::sqrt(value(symbol_len) / value(cons_cols));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-		for (int i = code_off; i < code_off + code_cols; ++i)
+		for (int i = code_off; i < code_off + cons_cols; ++i)
 			fdom[bin(i)] = code_fac * nrz(seq2());
 		symbol();
 	}
@@ -155,7 +159,7 @@ struct Encoder
 		uint16_t cs = crc0(md << 9);
 		for (int i = 0; i < 16; ++i)
 			CODE::set_be_bit(data, i+55, (cs>>i)&1);
-		bchenc0(data, parity);
+		bchenc(data, parity);
 		CODE::MLS seq4(mls1_poly);
 		value mls1_fac = std::sqrt(value(symbol_len) / value(mls1_len));
 		for (int i = 0; i < symbol_len; ++i)
@@ -171,62 +175,111 @@ struct Encoder
 			fdom[bin(i+mls1_off)] *= nrz(seq4());
 		symbol();
 	}
-	cmplx mod_map(int8_t *b)
+	void shorten()
+	{
+		int code_bits = 1 << code_order;
+		for (int i = 0, j = 0, k = 0; i < code_bits; ++i)
+			if ((frozen_bits[i/32] >> (i%32)) & 1 || k++ < crc_bits)
+				code[j++] = code[i];
+	}
+	cmplx mod_map(code_type *b)
 	{
 		switch (oper_mode) {
-		case 2:
-		case 3:
-			return PhaseShiftKeying<8, cmplx, int8_t>::map(b);
-		case 4:
-		case 5:
-			return PhaseShiftKeying<4, cmplx, int8_t>::map(b);
+		case 6:
+		case 7:
+		case 10:
+		case 11:
+			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
+		case 8:
+		case 9:
+		case 12:
+		case 13:
+			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
 		}
 		return 0;
 	}
-	void interleave()
-	{
-		for (int i = 0; i < cons_cnt; ++i)
-			for (int k = 0; k < mod_bits; ++k)
-				bint[mod_bits*i+k] = code[cons_cnt*k+i];
-	}
-	Encoder(DSP::WritePCM<value> *pcm, uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
-		pcm(pcm), crc0(0xA8F4), bchenc0({
+	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
+		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
 			0b000010011, 0b101100101, 0b110001011, 0b101100011,
 			0b100011011, 0b100111111, 0b110001101, 0b100101101,
 			0b101011111, 0b111111001, 0b111000011, 0b100111001,
-			0b110101001, 0b000011111, 0b110000111, 0b110110001}), bchenc1({
-			0b10000000000101101, 0b10000000101110011, 0b10000111110111101,
-			0b10101101001010101, 0b10001111100101111, 0b11111011110110101,
-			0b11010111101100101, 0b10111001101100111, 0b10000111010100001,
-			0b10111010110100111}),
+			0b110101001, 0b000011111, 0b110000111, 0b110110001}),
 			oper_mode(oper_mode)
 	{
 		switch (oper_mode) {
-		case 2:
-			code_cols = 432;
+		case 6:
+			cons_cols = 432;
 			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
 			break;
-		case 3:
-			code_cols = 400;
+		case 7:
+			cons_cols = 400;
 			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
 			break;
-		case 4:
-			code_cols = 400;
+		case 8:
+			cons_cols = 400;
 			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
 			break;
-		case 5:
-			code_cols = 360;
+		case 9:
+			cons_cols = 360;
 			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
+			break;
+		case 10:
+			cons_cols = 512;
+			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
+			break;
+		case 11:
+			cons_cols = 384;
+			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
+			break;
+		case 12:
+			cons_cols = 384;
+			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
+			break;
+		case 13:
+			cons_cols = 256;
+			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
 			break;
 		default:
 			return;
 		}
-		cons_cnt = ldpc_bits / mod_bits;
-		code_rows = cons_cnt / code_cols;
+		cons_cnt = cons_bits / mod_bits;
+		cons_rows = cons_cnt / cons_cols;
 		int offset = (freq_off * symbol_len) / rate;
-		code_off = offset - code_cols / 2;
+		code_off = offset - cons_cols / 2;
 		mls0_off = offset - mls0_len + 1;
 		mls1_off = offset - mls1_len / 2;
 		papr_min = cmplx(1000, 1000), papr_max = cmplx(-1000, -1000);
@@ -234,15 +287,21 @@ struct Encoder
 		schmidl_cox();
 		meta_data((call_sign << 8) | oper_mode);
 		pilot_block();
-		bchenc1(inp, inp+data_bits/8, data_bits);
-		for (int i = 0; i < bch_bits; ++i)
-			code[i] = nrz(CODE::get_le_bit(inp, i));
-		ldpcenc(code, code + bch_bits);
-		interleave();
-		for (int j = 0; j < code_rows; ++j) {
-			for (int i = 0; i < code_cols; ++i)
+		for (int i = 0; i < data_bits; ++i)
+			mesg[i] = nrz(CODE::get_le_bit(inp, i));
+		crc1.reset();
+		for (int i = 0; i < data_bits / 8; ++i)
+			crc1(inp[i]);
+		for (int i = 0; i < 32; ++i)
+			mesg[i+data_bits] = nrz((crc1()>>i)&1);
+		for (int i = crc_bits; i < mesg_bits; ++i)
+			mesg[i] = 1;
+		polarenc(code, mesg, frozen_bits, code_order);
+		shorten();
+		for (int j = 0; j < cons_rows; ++j) {
+			for (int i = 0; i < cons_cols; ++i)
 				fdom[bin(i+code_off)] *=
-					mod_map(bint+mod_bits*(code_cols*j+i));
+					mod_map(code+mod_bits*(cons_cols*j+i));
 			symbol();
 		}
 		schmidl_cox();
@@ -300,25 +359,35 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int oper_mode = 2;
+	int oper_mode = 6;
 	if (argc >= 9)
 		oper_mode = std::atoi(argv[8]);
-	if (oper_mode < 2 || oper_mode > 5) {
+	if (oper_mode < 6 || oper_mode > 13) {
 		std::cerr << "Unsupported operation mode." << std::endl;
 		return 1;
 	}
 
 	int band_width;
 	switch (oper_mode) {
-	case 2:
+	case 6:
 		band_width = 2700;
 		break;
-	case 3:
-	case 4:
+	case 7:
+	case 8:
 		band_width = 2500;
 		break;
-	case 5:
+	case 9:
 		band_width = 2250;
+		break;
+	case 10:
+		band_width = 3200;
+		break;
+	case 11:
+	case 12:
+		band_width = 2400;
+		break;
+	case 13:
+		band_width = 1600;
 		break;
 	default:
 		return 1;
@@ -342,9 +411,8 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
 		return 1;
 	}
-	const int code_len = 64800 / 8;
-	const int data_len = code_len - (10 * 16 + 21600) / 8;
-	uint8_t *input_data = new uint8_t[code_len];
+	const int data_len = 43040 / 8;
+	uint8_t *input_data = new uint8_t[data_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = input_file.get();
 	CODE::Xorshift32 scrambler;

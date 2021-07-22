@@ -20,8 +20,11 @@ encode: encode.cc
 decode: decode.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
 
+freezer: freezer.cc
+	$(CXX) $(CXXFLAGS) $< -o $@
+
 .PHONY: clean
 
 clean:
-	rm -f encode decode
+	rm -f encode decode freezer
 
