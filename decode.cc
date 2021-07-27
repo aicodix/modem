@@ -159,7 +159,7 @@ struct Decoder
 	typedef DSP::Const<value> Const;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
-	static const int guard_len = symbol_len / 8;
+	static const int guard_len = symbol_len / 4;
 	static const int ldpc_bits = 64800;
 	static const int bch_bits = ldpc_bits - 21600;
 	static const int data_bits = bch_bits - 10 * 16;
@@ -529,8 +529,14 @@ int main(int argc, char **argv)
 	case 8000:
 		delete new Decoder<value, cmplx, 8000>(output_data, &input_file, skip_count);
 		break;
+	case 11025:
+		delete new Decoder<value, cmplx, 11025>(output_data, &input_file, skip_count);
+		break;
 	case 16000:
 		delete new Decoder<value, cmplx, 16000>(output_data, &input_file, skip_count);
+		break;
+	case 22050:
+		delete new Decoder<value, cmplx, 22050>(output_data, &input_file, skip_count);
 		break;
 	case 44100:
 		delete new Decoder<value, cmplx, 44100>(output_data, &input_file, skip_count);
