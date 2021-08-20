@@ -136,7 +136,7 @@ struct Encoder
 	void schmidl_cox()
 	{
 		CODE::MLS seq0(mls0_poly);
-		value mls0_fac = std::sqrt(value(symbol_len) / value(mls0_len));
+		value mls0_fac = std::sqrt(value(2 * symbol_len) / value(mls0_len));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		fdom[bin(mls0_off-2)] = mls0_fac;
