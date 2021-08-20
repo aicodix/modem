@@ -92,11 +92,12 @@ struct Encoder
 			else
 				temp[bin(i)] = 0;
 	}
-	void symbol()
+	void symbol(bool papr_reduction = true)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			temp[i] = fdom[i];
-		improve_papr();
+		if (papr_reduction)
+			improve_papr();
 		bwd(tdom, temp);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= std::sqrt(value(8*symbol_len));
@@ -143,7 +144,7 @@ struct Encoder
 			fdom[bin(2*i+mls0_off)] = nrz(seq0());
 		for (int i = 0; i < mls0_len; ++i)
 			fdom[bin(2*i+mls0_off)] *= fdom[bin(2*(i-1)+mls0_off)];
-		symbol();
+		symbol(false);
 	}
 	void meta_data(uint64_t md)
 	{
