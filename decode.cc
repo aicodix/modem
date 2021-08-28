@@ -417,6 +417,11 @@ struct Decoder
 				cons[code_cols*j+i] = fdom[bin(i+code_off)] / head[bin(i+code_off)];
 		}
 		if (1) {
+			for (int i = 0; i < cons_cnt; ++i)
+				if (norm(cons[i]) > 4)
+					cons[i] = 0;
+		}
+		if (1) {
 			value sum = 0;
 			for (int i = 0; i < cons_cnt; ++i) {
 				int8_t tmp[mod_max];
