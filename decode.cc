@@ -58,6 +58,15 @@ struct SchmidlCox
 	{
 		return (carrier + symbol_len) % symbol_len;
 	}
+	static cmplx demod_or_erase(cmplx curr, cmplx prev)
+	{
+		if (!(norm(prev) > 0))
+			return 0;
+		cmplx cons = curr / prev;
+		if (!(norm(cons) <= 4))
+			return 0;
+		return cons;
+	}
 public:
 	int symbol_pos = 0;
 	value cfo_rad = 0;
@@ -108,12 +117,7 @@ public:
 			tmp1[i] = samples[i+symbol_pos+symbol_len] * osc();
 		fwd(tmp0, tmp1);
 		for (int i = 0; i < symbol_len; ++i)
-			tmp1[i] = 0;
-		for (int i = 0; i < symbol_len; ++i)
-			if (norm(tmp0[bin(i-1)]) > 0 &&
-				std::min(norm(tmp0[i]), norm(tmp0[bin(i-1)])) * 2 >
-				std::max(norm(tmp0[i]), norm(tmp0[bin(i-1)])))
-					tmp1[i] = tmp0[i] / tmp0[bin(i-1)];
+			tmp1[i] = demod_or_erase(tmp0[i], tmp0[bin(i-1)]);
 		fwd(tmp0, tmp1);
 		for (int i = 0; i < symbol_len; ++i)
 			tmp0[i] *= kern[i];
@@ -208,6 +212,15 @@ struct Decoder
 	static int nrz(bool bit)
 	{
 		return 1 - 2 * bit;
+	}
+	static cmplx demod_or_erase(cmplx curr, cmplx prev)
+	{
+		if (!(norm(prev) > 0))
+			return 0;
+		cmplx cons = curr / prev;
+		if (!(norm(cons) <= 4))
+			return 0;
+		return cons;
 	}
 	const cmplx *mls0_seq()
 	{
@@ -333,8 +346,9 @@ struct Decoder
 		uint8_t data[(mls1_len+7)/8];
 		for (int i = 0; i < mls1_len; ++i)
 			soft[i] = std::min<value>(std::max<value>(
-				std::nearbyint(127 * (fdom[bin(i+mls1_off)] /
-				fdom[bin(i-1+mls1_off)]).real()), -128), 127);
+				std::nearbyint(127 * demod_or_erase(
+				fdom[bin(i+mls1_off)], fdom[bin(i-1+mls1_off)]).real()),
+				-128), 127);
 		bool unique = osddec(data, soft, genmat);
 		if (!unique) {
 			std::cerr << "OSD error." << std::endl;
@@ -414,12 +428,7 @@ struct Decoder
 				head[bin(i+code_off)] = fdom[bin(i+code_off)];
 			fwd(fdom, cur += symbol_len+guard_len);
 			for (int i = 0; i < code_cols; ++i)
-				cons[code_cols*j+i] = fdom[bin(i+code_off)] / head[bin(i+code_off)];
-		}
-		if (1) {
-			for (int i = 0; i < cons_cnt; ++i)
-				if (norm(cons[i]) > 4)
-					cons[i] = 0;
+				cons[code_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], head[bin(i+code_off)]);
 		}
 		if (1) {
 			value sum = 0;
