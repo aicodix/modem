@@ -9,8 +9,8 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cassert>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
-#include "regression.hh"
 #include "bip_buffer.hh"
+#include "theil_sen.hh"
 #include "xorshift.hh"
 #include "trigger.hh"
 #include "complex.hh"
@@ -176,6 +176,7 @@ struct Decoder
 	static const int mod_max = 3;
 	static const int cons_max = 64800 / mod_min;
 	static const int cols_min = 256;
+	static const int cols_max = 512;
 	static const int rows_max = cons_max / cols_min;
 	static const int mls0_len = 127;
 	static const int mls0_off = - mls0_len + 1;
@@ -191,6 +192,7 @@ struct Decoder
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
+	DSP::TheilSenEstimator<value, cols_max> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
@@ -202,7 +204,7 @@ struct Decoder
 	code_type code[65536];
 	cmplx head[symbol_len], tail[symbol_len], cons[cons_max];
 	cmplx fdom[symbol_len], tdom[buffer_len];
-	value index[cons_max], phase[cons_max];
+	value index[cols_max], phase[cols_max];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
 	int code_order;
@@ -467,40 +469,30 @@ struct Decoder
 				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], head[bin(i+code_off)]);
 		}
 		if (1) {
-			for (int i = 0; i < cons_cnt; ++i) {
-				code_type tmp[mod_max];
-				mod_hard(tmp, cons[i]);
-				index[i] = (i % cons_cols) + code_off;
-				phase[i] = arg(cons[i] * conj(mod_map(tmp)));
-			}
-			DSP::SimpleLinearRegression<value> dirty(index, phase, cons_cnt);
-			//std::cerr << "dirty slope = " << dirty.slope() << std::endl;
-			//std::cerr << "dirty yint = " << dirty.yint() << std::endl;
-			value avg_diff = 0;
-			for (int i = 0; i < cons_cnt; ++i)
-				avg_diff += dirty(index[i]) - phase[i];
-			avg_diff /= value(cons_cnt);
-			value var_diff = 0;
-			for (int i = 0; i < cons_cnt; ++i)
-				var_diff += (dirty(index[i]) - phase[i] - avg_diff) * (dirty(index[i]) - phase[i] - avg_diff);
-			value std_dev = std::sqrt(var_diff/(cons_cnt-1));
-			int count = 0;
-			for (int i = 0; i < cons_cnt; ++i) {
-				if (std::abs(dirty(index[i])-phase[i]) <= std_dev) {
-					index[count] = index[i];
-					phase[count] = phase[i];
-					++count;
+			value sum_slope = 0, sum_yint = 0;
+			for (int j = 0; j < cons_rows; ++j) {
+				for (int i = 0; i < cons_cols; ++i) {
+					code_type tmp[mod_max];
+					mod_hard(tmp, cons[cons_cols*j+i]);
+					index[i] = i + code_off;
+					phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
 				}
+				tse.compute(index, phase, cons_cols);
+				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+				sum_slope += tse.slope();
+				sum_yint += tse.yint();
+				for (int i = 0; i < cons_cols; ++i)
+					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
 			}
-			DSP::SimpleLinearRegression<value> pruned(index, phase, count);
-			//std::cerr << "pruned slope = " << pruned.slope() << std::endl;
-			//std::cerr << "pruned yint = " << pruned.yint() << std::endl;
-			sfo_rad -= pruned.slope() * symbol_len / value(symbol_len+guard_len);
-			cfo_rad += pruned.yint() / (symbol_len+guard_len);
+			value avg_slope = sum_slope / cons_rows;
+			value avg_yint = sum_yint / cons_rows;
+			//for (int i = 0; i < cons_cnt; ++i)
+			//	cons[i] *= DSP::polar<value>(1, -(avg_yint+avg_slope*((i%cons_cols)+code_off)));
+			sfo_rad -= avg_slope * symbol_len / value(symbol_len+guard_len);
+			cfo_rad += avg_yint / (symbol_len+guard_len);
 			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
 			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
-			for (int i = 0; i < cons_cnt; ++i)
-				cons[i] *= DSP::polar<value>(1, -pruned((i % cons_cols) + code_off));
 		}
 		value precision = 16;
 		if (1) {
