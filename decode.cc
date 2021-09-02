@@ -10,7 +10,6 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
 #include "bip_buffer.hh"
-#include "resampler.hh"
 #include "xorshift.hh"
 #include "trigger.hh"
 #include "complex.hh"
@@ -190,7 +189,6 @@ struct Decoder
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
-	DSP::Resampler<value, filter_len, 3> resample;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
@@ -202,7 +200,7 @@ struct Decoder
 	mesg_type mesg[44096], mess[65536];
 	code_type code[65536];
 	cmplx head[symbol_len], tail[symbol_len], cons[cons_max];
-	cmplx fdom[symbol_len], tdom[buffer_len], resam[buffer_len];
+	cmplx fdom[symbol_len], tdom[buffer_len];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
 	int code_order;
@@ -238,28 +236,6 @@ struct Decoder
 		for (int i = 0; i < mls0_len; ++i)
 			fdom[(i+mls0_off/2+symbol_len/2)%(symbol_len/2)] = nrz(seq0());
 		return fdom;
-	}
-	int displacement(const cmplx *sym0, const cmplx *sym1)
-	{
-		fwd(head, sym0);
-		fwd(tail, sym1);
-		for (int i = 0; i < symbol_len; ++i)
-			head[i] *= conj(tail[i]);
-		bwd(tail, head);
-		int idx = 0;
-		for (int i = 0; i < symbol_len; ++i)
-			if (norm(tail[i]) > norm(tail[idx]))
-				idx = i;
-		if (idx > symbol_len / 2)
-			idx -= symbol_len;
-		return -idx;
-	}
-	value frac_cfo(const cmplx *samples)
-	{
-		cmplx sum;
-		for (int i = 0; i < symbol_len/2; ++i)
-			sum += samples[i] * conj(samples[i+symbol_len/2]);
-		return arg(sum) / (symbol_len/2);
 	}
 	void lengthen()
 	{
@@ -329,7 +305,7 @@ struct Decoder
 		}
 	}
 	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
-		pcm(pcm), resample(rate, (rate * 19) / 40, 2), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
+		pcm(pcm), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
@@ -475,24 +451,9 @@ struct Decoder
 		int cons_rows = cons_cnt / cons_cols;
 		int code_off = - cons_cols / 2;
 
-		int dis = displacement(buf+symbol_pos-(cons_rows+1)*(symbol_len+guard_len), buf+symbol_pos+2*(symbol_len+guard_len));
-		sfo_rad = (dis * Const::TwoPi()) / ((cons_rows+3)*(symbol_len+guard_len));
-		std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
-		if (dis) {
-			value diff = sfo_rad * (rate / Const::TwoPi());
-			resample(resam, buf, -diff, buffer_len);
-			symbol_pos = std::nearbyint(correlator.symbol_pos * (1 - sfo_rad / Const::TwoPi()));
-			std::cerr << "resam pos: " << symbol_pos << std::endl;
-		} else {
-			for (int i = 0; i < buffer_len; ++i)
-				resam[i] = buf[i];
-		}
-		cfo_rad = correlator.cfo_rad + correlator.frac_cfo - frac_cfo(resam+symbol_pos);
-		std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
-
 		osc.omega(-cfo_rad);
 		for (int i = 0; i < buffer_len; ++i)
-			tdom[i] = resam[i] * osc();
+			tdom[i] = buf[i] * osc();
 
 		cmplx *cur = tdom + symbol_pos - (cons_rows + 1) * (symbol_len + guard_len);
 		fwd(fdom, cur);
