@@ -9,8 +9,8 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cassert>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
-#include "regression.hh"
 #include "bip_buffer.hh"
+#include "theil_sen.hh"
 #include "xorshift.hh"
 #include "trigger.hh"
 #include "complex.hh"
@@ -191,6 +191,7 @@ struct Decoder
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
+	DSP::TheilSenEstimator2<value, 10 * cons_max> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
@@ -473,34 +474,15 @@ struct Decoder
 				index[i] = (i % cons_cols) + code_off;
 				phase[i] = arg(cons[i] * conj(mod_map(tmp)));
 			}
-			DSP::SimpleLinearRegression<value> dirty(index, phase, cons_cnt);
-			//std::cerr << "dirty slope = " << dirty.slope() << std::endl;
-			//std::cerr << "dirty yint = " << dirty.yint() << std::endl;
-			value avg_diff = 0;
-			for (int i = 0; i < cons_cnt; ++i)
-				avg_diff += dirty(index[i]) - phase[i];
-			avg_diff /= value(cons_cnt);
-			value var_diff = 0;
-			for (int i = 0; i < cons_cnt; ++i)
-				var_diff += (dirty(index[i]) - phase[i] - avg_diff) * (dirty(index[i]) - phase[i] - avg_diff);
-			value std_dev = std::sqrt(var_diff/(cons_cnt-1));
-			int count = 0;
-			for (int i = 0; i < cons_cnt; ++i) {
-				if (std::abs(dirty(index[i])-phase[i]) <= std_dev) {
-					index[count] = index[i];
-					phase[count] = phase[i];
-					++count;
-				}
-			}
-			DSP::SimpleLinearRegression<value> pruned(index, phase, count);
-			//std::cerr << "pruned slope = " << pruned.slope() << std::endl;
-			//std::cerr << "pruned yint = " << pruned.yint() << std::endl;
-			sfo_rad -= pruned.slope() * symbol_len / value(symbol_len+guard_len);
-			cfo_rad += pruned.yint() / (symbol_len+guard_len);
+			tse.compute(index, phase, cons_cnt);
+			//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+			sfo_rad -= tse.slope() * symbol_len / value(symbol_len+guard_len);
+			cfo_rad += tse.yint() / (symbol_len+guard_len);
 			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
 			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
 			for (int i = 0; i < cons_cnt; ++i)
-				cons[i] *= DSP::polar<value>(1, -pruned((i % cons_cols) + code_off));
+				cons[i] *= DSP::polar<value>(1, -tse((i % cons_cols) + code_off));
 		}
 		value precision = 16;
 		if (1) {
