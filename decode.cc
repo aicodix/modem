@@ -9,6 +9,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cassert>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
+#include "regression.hh"
 #include "bip_buffer.hh"
 #include "xorshift.hh"
 #include "trigger.hh"
@@ -201,6 +202,7 @@ struct Decoder
 	code_type code[65536];
 	cmplx head[symbol_len], tail[symbol_len], cons[cons_max];
 	cmplx fdom[symbol_len], tdom[buffer_len];
+	value index[cons_max], phase[cons_max];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
 	int code_order;
@@ -465,18 +467,40 @@ struct Decoder
 				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], head[bin(i+code_off)]);
 		}
 		if (1) {
-			value sum = 0;
 			for (int i = 0; i < cons_cnt; ++i) {
 				code_type tmp[mod_max];
 				mod_hard(tmp, cons[i]);
-				sum += arg(cons[i] * conj(mod_map(tmp)));
+				index[i] = (i % cons_cols) + code_off;
+				phase[i] = arg(cons[i] * conj(mod_map(tmp)));
 			}
-			value avg = sum / cons_cnt;
-			cfo_rad += avg / (symbol_len+guard_len);
-			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
-			cmplx comp = DSP::polar<value>(1, -avg);
+			DSP::SimpleLinearRegression<value> dirty(index, phase, cons_cnt);
+			//std::cerr << "dirty slope = " << dirty.slope() << std::endl;
+			//std::cerr << "dirty yint = " << dirty.yint() << std::endl;
+			value avg_diff = 0;
 			for (int i = 0; i < cons_cnt; ++i)
-				cons[i] *= comp;
+				avg_diff += dirty(index[i]) - phase[i];
+			avg_diff /= value(cons_cnt);
+			value var_diff = 0;
+			for (int i = 0; i < cons_cnt; ++i)
+				var_diff += (dirty(index[i]) - phase[i] - avg_diff) * (dirty(index[i]) - phase[i] - avg_diff);
+			value std_dev = std::sqrt(var_diff/(cons_cnt-1));
+			int count = 0;
+			for (int i = 0; i < cons_cnt; ++i) {
+				if (std::abs(dirty(index[i])-phase[i]) <= std_dev) {
+					index[count] = index[i];
+					phase[count] = phase[i];
+					++count;
+				}
+			}
+			DSP::SimpleLinearRegression<value> pruned(index, phase, count);
+			//std::cerr << "pruned slope = " << pruned.slope() << std::endl;
+			//std::cerr << "pruned yint = " << pruned.yint() << std::endl;
+			sfo_rad -= pruned.slope() * symbol_len / value(symbol_len+guard_len);
+			cfo_rad += pruned.yint() / (symbol_len+guard_len);
+			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
+			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+			for (int i = 0; i < cons_cnt; ++i)
+				cons[i] *= DSP::polar<value>(1, -pruned((i % cons_cols) + code_off));
 		}
 		value precision = 16;
 		if (1) {
