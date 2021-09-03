@@ -329,6 +329,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	if (freq_off % 50) {
+		std::cerr << "Frequency offset must be divisible by 50." << std::endl;
+		return 1;
+	}
+
 	typedef float value;
 	typedef DSP::Complex<value> cmplx;
 
