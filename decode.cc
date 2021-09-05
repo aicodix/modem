@@ -184,11 +184,10 @@ struct Decoder
 	static const int mls1_len = 255;
 	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
-	static const int buffer_len = (rows_max + 8) * (symbol_len + guard_len);
+	static const int buffer_len = 6 * (symbol_len + guard_len);
 	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
-	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
@@ -202,8 +201,8 @@ struct Decoder
 	int8_t genmat[255*71];
 	mesg_type mesg[44096], mess[65536];
 	code_type code[65536];
-	cmplx head[symbol_len], tail[symbol_len], cons[cons_max];
-	cmplx fdom[symbol_len], tdom[buffer_len];
+	cmplx cons[cons_max], prev[cols_max];
+	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[cols_max], phase[cols_max];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
@@ -212,6 +211,7 @@ struct Decoder
 	int oper_mode;
 	int mod_bits;
 	int cons_cnt;
+	int cons_cols;
 	int cons_bits;
 	int mesg_bits;
 
@@ -321,8 +321,11 @@ struct Decoder
 
 		bool real = pcm->channels() == 1;
 		blockdc.samples(2*(symbol_len+guard_len));
+		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
+		bool okay;
 		do {
+			okay = false;
 			do {
 				if (!pcm->good())
 					return;
@@ -332,141 +335,153 @@ struct Decoder
 					tmp = hilbert(blockdc(tmp.real()));
 				buf = input_hist(tmp);
 			} while (!correlator(buf));
+
+			symbol_pos = correlator.symbol_pos;
+			cfo_rad = correlator.cfo_rad;
+			std::cerr << "symbol pos: " << symbol_pos << std::endl;
+			std::cerr << "coarse cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+
+			osc.omega(-cfo_rad);
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] = buf[i+symbol_pos+(symbol_len+guard_len)] * osc();
+			fwd(fdom, tdom);
+			CODE::MLS seq1(mls1_poly);
+			for (int i = 0; i < mls1_len; ++i)
+				fdom[bin(i+mls1_off)] *= nrz(seq1());
+			int8_t soft[mls1_len];
+			uint8_t data[(mls1_len+7)/8];
+			for (int i = 0; i < mls1_len; ++i)
+				soft[i] = std::min<value>(std::max<value>(
+					std::nearbyint(127 * demod_or_erase(
+					fdom[bin(i+mls1_off)], fdom[bin(i-1+mls1_off)]).real()),
+					-128), 127);
+			bool unique = osddec(data, soft, genmat);
+			if (!unique) {
+				std::cerr << "OSD error." << std::endl;
+				continue;
+			}
+			uint64_t md = 0;
+			for (int i = 0; i < 55; ++i)
+				md |= (uint64_t)CODE::get_be_bit(data, i) << i;
+			uint16_t cs = 0;
+			for (int i = 0; i < 16; ++i)
+				cs |= (uint16_t)CODE::get_be_bit(data, i+55) << i;
+			crc0.reset();
+			if (crc0(md<<9) != cs) {
+				std::cerr << "header CRC error." << std::endl;
+				continue;
+			}
+			oper_mode = md & 255;
+			switch (oper_mode) {
+			case 6:
+				cons_cols = 432;
+				mod_bits = 3;
+				code_order = 16;
+				cons_bits = 64800;
+				mesg_bits = 43808;
+				frozen_bits = frozen_64800_43072;
+				break;
+			case 7:
+				cons_cols = 400;
+				mod_bits = 3;
+				code_order = 16;
+				cons_bits = 64800;
+				mesg_bits = 43808;
+				frozen_bits = frozen_64800_43072;
+				break;
+			case 8:
+				cons_cols = 400;
+				mod_bits = 2;
+				code_order = 16;
+				cons_bits = 64800;
+				mesg_bits = 43808;
+				frozen_bits = frozen_64800_43072;
+				break;
+			case 9:
+				cons_cols = 360;
+				mod_bits = 2;
+				code_order = 16;
+				cons_bits = 64800;
+				mesg_bits = 43808;
+				frozen_bits = frozen_64800_43072;
+				break;
+			case 10:
+				cons_cols = 512;
+				mod_bits = 3;
+				code_order = 16;
+				cons_bits = 64512;
+				mesg_bits = 44096;
+				frozen_bits = frozen_64512_43072;
+				break;
+			case 11:
+				cons_cols = 384;
+				mod_bits = 3;
+				code_order = 16;
+				cons_bits = 64512;
+				mesg_bits = 44096;
+				frozen_bits = frozen_64512_43072;
+				break;
+			case 12:
+				cons_cols = 384;
+				mod_bits = 2;
+				code_order = 16;
+				cons_bits = 64512;
+				mesg_bits = 44096;
+				frozen_bits = frozen_64512_43072;
+				break;
+			case 13:
+				cons_cols = 256;
+				mod_bits = 2;
+				code_order = 16;
+				cons_bits = 64512;
+				mesg_bits = 44096;
+				frozen_bits = frozen_64512_43072;
+				break;
+			default:
+				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
+				continue;
+			}
+			cons_cnt = cons_bits / mod_bits;
+			std::cerr << "oper mode: " << oper_mode << std::endl;
+			if ((md>>8) == 0 || (md>>8) >= 129961739795077L) {
+				std::cerr << "call sign unsupported." << std::endl;
+				continue;
+			}
+			char call_sign[10];
+			base37_decoder(call_sign, md>>8, 9);
+			call_sign[9] = 0;
+			std::cerr << "call sign: " << call_sign << std::endl;
+			okay = true;
 		} while (skip_count--);
 
-		symbol_pos = correlator.symbol_pos;
-		cfo_rad = correlator.cfo_rad;
-		std::cerr << "symbol pos: " << symbol_pos << std::endl;
-		std::cerr << "coarse cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
-
-		DSP::Phasor<cmplx> osc;
-		osc.omega(-cfo_rad);
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] = buf[i+symbol_pos+(symbol_len+guard_len)] * osc();
-		fwd(fdom, tdom);
-		CODE::MLS seq1(mls1_poly);
-		for (int i = 0; i < mls1_len; ++i)
-			fdom[bin(i+mls1_off)] *= nrz(seq1());
-		int8_t soft[mls1_len];
-		uint8_t data[(mls1_len+7)/8];
-		for (int i = 0; i < mls1_len; ++i)
-			soft[i] = std::min<value>(std::max<value>(
-				std::nearbyint(127 * demod_or_erase(
-				fdom[bin(i+mls1_off)], fdom[bin(i-1+mls1_off)]).real()),
-				-128), 127);
-		bool unique = osddec(data, soft, genmat);
-		if (!unique) {
-			std::cerr << "OSD error." << std::endl;
+		if (!okay)
 			return;
-		}
-		uint64_t md = 0;
-		for (int i = 0; i < 55; ++i)
-			md |= (uint64_t)CODE::get_be_bit(data, i) << i;
-		uint16_t cs = 0;
-		for (int i = 0; i < 16; ++i)
-			cs |= (uint16_t)CODE::get_be_bit(data, i+55) << i;
-		crc0.reset();
-		if (crc0(md<<9) != cs) {
-			std::cerr << "header CRC error." << std::endl;
-			return;
-		}
-		oper_mode = md & 255;
-		int cons_cols;
-		switch (oper_mode) {
-		case 6:
-			cons_cols = 432;
-			mod_bits = 3;
-			code_order = 16;
-			cons_bits = 64800;
-			mesg_bits = 43808;
-			frozen_bits = frozen_64800_43072;
-			break;
-		case 7:
-			cons_cols = 400;
-			mod_bits = 3;
-			code_order = 16;
-			cons_bits = 64800;
-			mesg_bits = 43808;
-			frozen_bits = frozen_64800_43072;
-			break;
-		case 8:
-			cons_cols = 400;
-			mod_bits = 2;
-			code_order = 16;
-			cons_bits = 64800;
-			mesg_bits = 43808;
-			frozen_bits = frozen_64800_43072;
-			break;
-		case 9:
-			cons_cols = 360;
-			mod_bits = 2;
-			code_order = 16;
-			cons_bits = 64800;
-			mesg_bits = 43808;
-			frozen_bits = frozen_64800_43072;
-			break;
-		case 10:
-			cons_cols = 512;
-			mod_bits = 3;
-			code_order = 16;
-			cons_bits = 64512;
-			mesg_bits = 44096;
-			frozen_bits = frozen_64512_43072;
-			break;
-		case 11:
-			cons_cols = 384;
-			mod_bits = 3;
-			code_order = 16;
-			cons_bits = 64512;
-			mesg_bits = 44096;
-			frozen_bits = frozen_64512_43072;
-			break;
-		case 12:
-			cons_cols = 384;
-			mod_bits = 2;
-			code_order = 16;
-			cons_bits = 64512;
-			mesg_bits = 44096;
-			frozen_bits = frozen_64512_43072;
-			break;
-		case 13:
-			cons_cols = 256;
-			mod_bits = 2;
-			code_order = 16;
-			cons_bits = 64512;
-			mesg_bits = 44096;
-			frozen_bits = frozen_64512_43072;
-			break;
-		default:
-			std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
-			return;
-		}
-		cons_cnt = cons_bits / mod_bits;
-		std::cerr << "oper mode: " << oper_mode << std::endl;
-		if ((md>>8) == 0 || (md>>8) >= 129961739795077L) {
-			std::cerr << "call sign unsupported." << std::endl;
-			return;
-		}
-		char call_sign[10];
-		base37_decoder(call_sign, md>>8, 9);
-		call_sign[9] = 0;
-		std::cerr << "call sign: " << call_sign << std::endl;
 
 		int cons_rows = cons_cnt / cons_cols;
 		int code_off = - cons_cols / 2;
 
-		osc.omega(-cfo_rad);
-		for (int i = 0; i < buffer_len; ++i)
-			tdom[i] = buf[i] * osc();
-
-		cmplx *cur = tdom + symbol_pos - (cons_rows + 1) * (symbol_len + guard_len);
-		fwd(fdom, cur);
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] = buf[i+symbol_pos+2*(symbol_len+guard_len)] * osc();
+		for (int i = 0; i < guard_len; ++i)
+			osc();
+		fwd(fdom, tdom);
 		for (int j = 0; j < cons_rows; ++j) {
+			for (int i = 0; i < symbol_len+guard_len; ++i) {
+				cmplx tmp;
+				pcm->read(reinterpret_cast<value *>(&tmp), 1);
+				if (real)
+					tmp = hilbert(blockdc(tmp.real()));
+				buf = input_hist(tmp);
+			}
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] = buf[i+symbol_pos+2*(symbol_len+guard_len)] * osc();
+			for (int i = 0; i < guard_len; ++i)
+				osc();
 			for (int i = 0; i < cons_cols; ++i)
-				head[bin(i+code_off)] = fdom[bin(i+code_off)];
-			fwd(fdom, cur += symbol_len+guard_len);
+				prev[i] = fdom[bin(i+code_off)];
+			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
-				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], head[bin(i+code_off)]);
+				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
 		}
 		if (1) {
 			value sum_slope = 0, sum_yint = 0;
@@ -561,7 +576,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int skip_count = 1;
+	int skip_count = 0;
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
