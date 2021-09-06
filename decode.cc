@@ -308,6 +308,14 @@ struct Decoder
 			break;
 		}
 	}
+	const cmplx *next_sample()
+	{
+		cmplx tmp;
+		pcm->read(reinterpret_cast<value *>(&tmp), 1);
+		if (pcm->channels() == 1)
+			tmp = hilbert(blockdc(tmp.real()));
+		return input_hist(tmp);
+	}
 	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
 		pcm(pcm), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
 	{
@@ -319,7 +327,6 @@ struct Decoder
 			0b101011111, 0b111111001, 0b111000011, 0b100111001,
 			0b110101001, 0b000011111, 0b110000111, 0b110110001});
 
-		bool real = pcm->channels() == 1;
 		blockdc.samples(2*(symbol_len+guard_len));
 		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
@@ -329,11 +336,7 @@ struct Decoder
 			do {
 				if (!pcm->good())
 					return;
-				cmplx tmp;
-				pcm->read(reinterpret_cast<value *>(&tmp), 1);
-				if (real)
-					tmp = hilbert(blockdc(tmp.real()));
-				buf = input_hist(tmp);
+				buf = next_sample();
 			} while (!correlator(buf));
 
 			symbol_pos = correlator.symbol_pos;
@@ -460,21 +463,18 @@ struct Decoder
 		int cons_rows = cons_cnt / cons_cols;
 		int code_off = - cons_cols / 2;
 
+		for (int i = 0; i < symbol_pos+2*(symbol_len+guard_len); ++i)
+			buf = next_sample();
 		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] = buf[i+symbol_pos+2*(symbol_len+guard_len)] * osc();
+			tdom[i] = buf[i] * osc();
 		for (int i = 0; i < guard_len; ++i)
 			osc();
 		fwd(fdom, tdom);
 		for (int j = 0; j < cons_rows; ++j) {
-			for (int i = 0; i < symbol_len+guard_len; ++i) {
-				cmplx tmp;
-				pcm->read(reinterpret_cast<value *>(&tmp), 1);
-				if (real)
-					tmp = hilbert(blockdc(tmp.real()));
-				buf = input_hist(tmp);
-			}
+			for (int i = 0; i < symbol_len+guard_len; ++i)
+				buf = next_sample();
 			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i+symbol_pos+2*(symbol_len+guard_len)] * osc();
+				tdom[i] = buf[i] * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			for (int i = 0; i < cons_cols; ++i)
