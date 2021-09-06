@@ -470,6 +470,7 @@ struct Decoder
 		for (int i = 0; i < guard_len; ++i)
 			osc();
 		fwd(fdom, tdom);
+		std::cerr << "demod ";
 		for (int j = 0; j < cons_rows; ++j) {
 			for (int i = 0; i < symbol_len+guard_len; ++i)
 				buf = next_sample();
@@ -482,7 +483,9 @@ struct Decoder
 			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
 				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
+			std::cerr << ".";
 		}
+		std::cerr << " done" << std::endl;
 		if (1) {
 			value sum_slope = 0, sum_yint = 0;
 			for (int j = 0; j < cons_rows; ++j) {
