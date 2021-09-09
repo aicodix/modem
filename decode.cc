@@ -9,8 +9,8 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cassert>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
+#include "repeated_median.hh"
 #include "bip_buffer.hh"
-#include "theil_sen.hh"
 #include "xorshift.hh"
 #include "trigger.hh"
 #include "complex.hh"
@@ -193,7 +193,7 @@ struct Decoder
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
-	DSP::TheilSenEstimator<value, cols_max> tse;
+	DSP::RepeatedMedianEstimator<value, cols_max> rme;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
@@ -519,13 +519,13 @@ struct Decoder
 					index[i] = i + code_off;
 					phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
 				}
-				tse.compute(index, phase, cons_cols);
-				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
-				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
-				sum_slope += tse.slope();
-				sum_yint += tse.yint();
+				rme.compute(index, phase, cons_cols);
+				//std::cerr << "rme slope = " << rme.slope() << std::endl;
+				//std::cerr << "rme yint = " << rme.yint() << std::endl;
+				sum_slope += rme.slope();
+				sum_yint += rme.yint();
 				for (int i = 0; i < cons_cols; ++i)
-					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
+					cons[cons_cols*j+i] *= DSP::polar<value>(1, -rme(i+code_off));
 			}
 			value avg_slope = sum_slope / cons_rows;
 			value avg_yint = sum_yint / cons_rows;
