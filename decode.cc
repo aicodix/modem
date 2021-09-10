@@ -193,7 +193,7 @@ struct Decoder
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
-	DSP::RepeatedMedianEstimator<value, cols_max> rme;
+	DSP::RepeatedMedianEstimator2<value, cols_max> rme;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
