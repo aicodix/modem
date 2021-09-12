@@ -594,7 +594,11 @@ int main(int argc, char **argv)
 	typedef DSP::Complex<value> cmplx;
 
 	const char *output_name = argv[1];
+	if (output_name[0] == '-' && output_name[1] == 0)
+		output_name = "/dev/stdout";
 	const char *input_name = argv[2];
+	if (input_name[0] == '-' && input_name[1] == 0)
+		input_name = "/dev/stdin";
 
 	DSP::ReadWAV<value> input_file(input_name);
 

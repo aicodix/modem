@@ -341,10 +341,14 @@ int main(int argc, char **argv)
 	}
 
 	const char *output_name = argv[1];
+	if (output_name[0] == '-' && output_name[1] == 0)
+		output_name = "/dev/stdout";
 	int output_rate = std::atoi(argv[2]);
 	int output_bits = std::atoi(argv[3]);
 	int output_chan = std::atoi(argv[4]);
 	const char *input_name = argv[5];
+	if (input_name[0] == '-' && input_name[1] == 0)
+		input_name = "/dev/stdin";
 
 	int freq_off = output_chan == 1 ? 2000 : 0;
 	if (argc >= 7)
