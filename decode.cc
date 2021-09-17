@@ -188,8 +188,6 @@ struct Decoder
 	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
-	DSP::FastFourierTransform<symbol_len/2, cmplx, -1> fwd2;
-	DSP::FastFourierTransform<symbol_len/2, cmplx, 1> bwd2;
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
@@ -205,7 +203,6 @@ struct Decoder
 	code_type code[65536];
 	cmplx cons[cons_max], prev[cols_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
-	cmplx head[symbol_len/2], tail[symbol_len/2];
 	value index[cols_max], phase[cols_max];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
@@ -243,19 +240,6 @@ struct Decoder
 		for (int i = 0; i < mls0_len; ++i)
 			fdom[(i+mls0_off/2+symbol_len/2)%(symbol_len/2)] = nrz(seq0());
 		return fdom;
-	}
-	int displacement()
-	{
-		for (int i = 0; i < symbol_len/2; ++i)
-			head[i] *= conj(tail[i]);
-		bwd2(tail, head);
-		int idx = 0;
-		for (int i = 0; i < symbol_len/2; ++i)
-			if (norm(tail[i]) > norm(tail[idx]))
-				idx = i;
-		if (idx > symbol_len/4)
-			idx -= symbol_len/2;
-		return -idx;
 	}
 	void lengthen()
 	{
@@ -479,9 +463,6 @@ struct Decoder
 		int cons_rows = cons_cnt / cons_cols;
 		int code_off = - cons_cols / 2;
 
-		// get middle half of S&C symbol for coarse SFO estimation
-		fwd2(head, buf + symbol_pos + symbol_len / 4);
-
 		for (int i = 0; i < symbol_pos+2*(symbol_len+guard_len); ++i)
 			buf = next_sample();
 		for (int i = 0; i < symbol_len; ++i)
@@ -505,11 +486,6 @@ struct Decoder
 			std::cerr << ".";
 		}
 		std::cerr << " done" << std::endl;
-
-		fwd2(tail, buf + symbol_len + guard_len + symbol_len / 4);
-		value dis_sfo_rad = (displacement() * Const::TwoPi()) / ((cons_rows+2)*(symbol_len+guard_len));
-		std::cerr << "dis sfo: " << 1000000 * dis_sfo_rad / Const::TwoPi() << " ppm" << std::endl;
-
 		if (1) {
 			value sum_slope = 0, sum_yint = 0;
 			for (int j = 0; j < cons_rows; ++j) {
@@ -533,8 +509,8 @@ struct Decoder
 			//	cons[i] *= DSP::polar<value>(1, -(avg_yint+avg_slope*((i%cons_cols)+code_off)));
 			sfo_rad -= avg_slope * symbol_len / value(symbol_len+guard_len);
 			cfo_rad += avg_yint / (symbol_len+guard_len);
-			std::cerr << "avg sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
-			std::cerr << "avg cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
+			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
 		}
 		value precision = 16;
 		if (1) {
