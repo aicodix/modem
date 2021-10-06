@@ -304,9 +304,6 @@ struct Encoder
 					mod_map(code+mod_bits*(cons_cols*j+i));
 			symbol();
 		}
-		schmidl_cox();
-		meta_data(call_sign << 8);
-		pilot_block();
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		symbol();
