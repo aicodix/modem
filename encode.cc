@@ -184,29 +184,15 @@ struct Encoder
 	}
 	cmplx mod_map(code_type *b)
 	{
-		switch (oper_mode) {
-		case 6:
-		case 7:
-		case 10:
-		case 11:
-			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
-		case 8:
-		case 9:
-		case 12:
-		case 13:
+		switch (mod_bits) {
+		case 2:
 			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+		case 3:
+			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
 		}
 		return 0;
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
-		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc({
-			0b100011101, 0b101110111, 0b111110011, 0b101101001,
-			0b110111101, 0b111100111, 0b100101011, 0b111010111,
-			0b000010011, 0b101100101, 0b110001011, 0b101100011,
-			0b100011011, 0b100111111, 0b110001101, 0b100101101,
-			0b101011111, 0b111111001, 0b111000011, 0b100111001,
-			0b110101001, 0b000011111, 0b110000111, 0b110110001}),
-			oper_mode(oper_mode)
+	bool prepare()
 	{
 		switch (oper_mode) {
 		case 6:
@@ -274,10 +260,24 @@ struct Encoder
 			frozen_bits = frozen_64512_43072;
 			break;
 		default:
-			return;
+			return false;
 		}
 		cons_cnt = cons_bits / mod_bits;
 		cons_rows = cons_cnt / cons_cols;
+		return true;
+	}
+	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
+		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc({
+			0b100011101, 0b101110111, 0b111110011, 0b101101001,
+			0b110111101, 0b111100111, 0b100101011, 0b111010111,
+			0b000010011, 0b101100101, 0b110001011, 0b101100011,
+			0b100011011, 0b100111111, 0b110001101, 0b100101101,
+			0b101011111, 0b111111001, 0b111000011, 0b100111001,
+			0b110101001, 0b000011111, 0b110000111, 0b110110001}),
+			oper_mode(oper_mode)
+	{
+		if (!prepare())
+			return;
 		int offset = (freq_off * symbol_len) / rate;
 		code_off = offset - cons_cols / 2;
 		mls0_off = offset - mls0_len + 1;

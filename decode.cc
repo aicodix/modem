@@ -260,51 +260,33 @@ struct Decoder
 	}
 	cmplx mod_map(code_type *b)
 	{
-		switch (oper_mode) {
-		case 6:
-		case 7:
-		case 10:
-		case 11:
-			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
-		case 8:
-		case 9:
-		case 12:
-		case 13:
+		switch (mod_bits) {
+		case 2:
 			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+		case 3:
+			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
 		}
 		return 0;
 	}
 	void mod_hard(code_type *b, cmplx c)
 	{
-		switch (oper_mode) {
-		case 6:
-		case 7:
-		case 10:
-		case 11:
-			PhaseShiftKeying<8, cmplx, code_type>::hard(b, c);
-			break;
-		case 8:
-		case 9:
-		case 12:
-		case 13:
+		switch (mod_bits) {
+		case 2:
 			PhaseShiftKeying<4, cmplx, code_type>::hard(b, c);
+			break;
+		case 3:
+			PhaseShiftKeying<8, cmplx, code_type>::hard(b, c);
 			break;
 		}
 	}
 	void mod_soft(code_type *b, cmplx c, value precision)
 	{
-		switch (oper_mode) {
-		case 6:
-		case 7:
-		case 10:
-		case 11:
-			PhaseShiftKeying<8, cmplx, code_type>::soft(b, c, precision);
-			break;
-		case 8:
-		case 9:
-		case 12:
-		case 13:
+		switch (mod_bits) {
+		case 2:
 			PhaseShiftKeying<4, cmplx, code_type>::soft(b, c, precision);
+			break;
+		case 3:
+			PhaseShiftKeying<8, cmplx, code_type>::soft(b, c, precision);
 			break;
 		}
 	}
@@ -315,6 +297,79 @@ struct Decoder
 		if (pcm->channels() == 1)
 			tmp = hilbert(blockdc(tmp.real()));
 		return input_hist(tmp);
+	}
+	bool prepare()
+	{
+		switch (oper_mode) {
+		case 6:
+			cons_cols = 432;
+			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
+			break;
+		case 7:
+			cons_cols = 400;
+			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
+			break;
+		case 8:
+			cons_cols = 400;
+			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
+			break;
+		case 9:
+			cons_cols = 360;
+			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64800;
+			mesg_bits = 43808;
+			frozen_bits = frozen_64800_43072;
+			break;
+		case 10:
+			cons_cols = 512;
+			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
+			break;
+		case 11:
+			cons_cols = 384;
+			mod_bits = 3;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
+			break;
+		case 12:
+			cons_cols = 384;
+			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
+			break;
+		case 13:
+			cons_cols = 256;
+			mod_bits = 2;
+			code_order = 16;
+			cons_bits = 64512;
+			mesg_bits = 44096;
+			frozen_bits = frozen_64512_43072;
+			break;
+		default:
+			return false;
+		}
+		cons_cnt = cons_bits / mod_bits;
+		return true;
 	}
 	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
 		pcm(pcm), correlator(mls0_seq()), crc0(0xA8F4), crc1(0xD419CC15)
@@ -375,76 +430,10 @@ struct Decoder
 				continue;
 			}
 			oper_mode = md & 255;
-			switch (oper_mode) {
-			case 6:
-				cons_cols = 432;
-				mod_bits = 3;
-				code_order = 16;
-				cons_bits = 64800;
-				mesg_bits = 43808;
-				frozen_bits = frozen_64800_43072;
-				break;
-			case 7:
-				cons_cols = 400;
-				mod_bits = 3;
-				code_order = 16;
-				cons_bits = 64800;
-				mesg_bits = 43808;
-				frozen_bits = frozen_64800_43072;
-				break;
-			case 8:
-				cons_cols = 400;
-				mod_bits = 2;
-				code_order = 16;
-				cons_bits = 64800;
-				mesg_bits = 43808;
-				frozen_bits = frozen_64800_43072;
-				break;
-			case 9:
-				cons_cols = 360;
-				mod_bits = 2;
-				code_order = 16;
-				cons_bits = 64800;
-				mesg_bits = 43808;
-				frozen_bits = frozen_64800_43072;
-				break;
-			case 10:
-				cons_cols = 512;
-				mod_bits = 3;
-				code_order = 16;
-				cons_bits = 64512;
-				mesg_bits = 44096;
-				frozen_bits = frozen_64512_43072;
-				break;
-			case 11:
-				cons_cols = 384;
-				mod_bits = 3;
-				code_order = 16;
-				cons_bits = 64512;
-				mesg_bits = 44096;
-				frozen_bits = frozen_64512_43072;
-				break;
-			case 12:
-				cons_cols = 384;
-				mod_bits = 2;
-				code_order = 16;
-				cons_bits = 64512;
-				mesg_bits = 44096;
-				frozen_bits = frozen_64512_43072;
-				break;
-			case 13:
-				cons_cols = 256;
-				mod_bits = 2;
-				code_order = 16;
-				cons_bits = 64512;
-				mesg_bits = 44096;
-				frozen_bits = frozen_64512_43072;
-				break;
-			default:
+			if (!prepare()) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
-			cons_cnt = cons_bits / mod_bits;
 			std::cerr << "oper mode: " << oper_mode << std::endl;
 			if ((md>>8) == 0 || (md>>8) >= 129961739795077L) {
 				std::cerr << "call sign unsupported." << std::endl;
