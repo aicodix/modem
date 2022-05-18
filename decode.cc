@@ -501,23 +501,30 @@ struct Decoder
 			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
 			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
 		}
-		value precision = 16;
 		if (1) {
+			std::cerr << "Es/N0 (dB):";
 			value sp = 0, np = 0;
-			for (int i = 0; i < cons_cnt; ++i) {
-				code_type tmp[mod_max];
-				mod_hard(tmp, cons[i]);
-				cmplx hard = mod_map(tmp);
-				cmplx error = cons[i] - hard;
-				sp += norm(hard);
-				np += norm(error);
+			for (int j = 0; j < cons_rows; ++j) {
+				for (int i = 0; i < cons_cols; ++i) {
+					code_type tmp[mod_max];
+					mod_hard(tmp, cons[cons_cols*j+i]);
+					cmplx hard = mod_map(tmp);
+					cmplx error = cons[cons_cols*j+i] - hard;
+					sp += norm(hard);
+					np += norm(error);
+				}
+				value precision = sp / np;
+				value snr = DSP::decibel(precision);
+				std::cerr << " " << snr;
+				for (int i = 0; i < cons_cols; ++i)
+					mod_soft(code+mod_bits*(cons_cols*j+i), cons[cons_cols*j+i], precision);
 			}
-			precision = sp / np;
-			value snr = DSP::decibel(precision);
-			std::cerr << "init Es/N0: " << snr << " dB" << std::endl;
+			std::cerr << std::endl;
+		} else {
+			value precision = 8;
+			for (int i = 0; i < cons_cnt; ++i)
+				mod_soft(code+mod_bits*i, cons[i], precision);
 		}
-		for (int i = 0; i < cons_cnt; ++i)
-			mod_soft(code+mod_bits*i, cons[i], precision);
 		lengthen();
 		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
 		polardec(metric, mesg, code, frozen_bits, code_order);
