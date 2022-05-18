@@ -547,8 +547,16 @@ struct Decoder
 			std::cerr << "payload decoding error." << std::endl;
 			return;
 		}
-		for (int i = 0; i < data_bits; ++i)
-			CODE::set_le_bit(out, i, mesg[i].v[best] < 0);
+		int flips = 0;
+		for (int i = 0, j = 0; i < data_bits; ++i, ++j) {
+			while ((frozen_bits[j / 32] >> (j % 32)) & 1)
+				++j;
+			bool received = code[j] < 0;
+			bool decoded = mesg[i].v[best] < 0;
+			flips += received != decoded;
+			CODE::set_le_bit(out, i, decoded);
+		}
+		std::cerr << "bit flips: " << flips << std::endl;
 	}
 };
 
