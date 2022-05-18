@@ -513,12 +513,9 @@ struct Decoder
 				sp += norm(hard);
 				np += norm(error);
 			}
-			value snr = DSP::decibel(sp / np);
+			precision = sp / np;
+			value snr = DSP::decibel(precision);
 			std::cerr << "init Es/N0: " << snr << " dB" << std::endl;
-			// $LLR=log(\frac{p(x=+1|y)}{p(x=-1|y)})$
-			// $p(x|\mu,\sigma)=\frac{1}{\sqrt{2\pi}\sigma}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$
-			value sigma = std::sqrt(np / (2 * sp));
-			precision = 1 / (sigma * sigma);
 		}
 		for (int i = 0; i < cons_cnt; ++i)
 			mod_soft(code+mod_bits*i, cons[i], precision);
