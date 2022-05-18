@@ -3,10 +3,10 @@
 
 Quick start:
 
-Create file ```uncoded.dat``` with ```43040``` bits of random data:
+Create file ```uncoded.dat``` with ```1360``` bits of random data:
 
 ```
-dd if=/dev/urandom of=uncoded.dat bs=1 count=5380
+dd if=/dev/urandom of=uncoded.dat bs=1 count=170
 ```
 
 Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 8000 Hz sample rate, 16 bits and only 1 (real) channel:
@@ -15,10 +15,10 @@ Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.or
 ./encode encoded.wav 8000 16 1 uncoded.dat
 ```
 
-Start recording to ```recorded.wav``` audio file and stop after 20 seconds:
+Start recording to ```recorded.wav``` audio file and stop after 5 seconds:
 
 ```
-arecord -c 1 -f S16_LE -r 8000 -d 20 recorded.wav
+arecord -c 1 -f S16_LE -r 8000 -d 5 recorded.wav
 ```
 
 Start playing ```encoded.wav``` audio file:
