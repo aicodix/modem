@@ -160,7 +160,7 @@ void base37_decoder(char *str, long long int val, int len)
 template <typename value, typename cmplx, int rate>
 struct Decoder
 {
-	typedef float code_type;
+	typedef int8_t code_type;
 #ifdef __AVX2__
 	typedef SIMD<code_type, 32 / sizeof(code_type)> mesg_type;
 #else
