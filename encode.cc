@@ -288,7 +288,7 @@ int main(int argc, char **argv)
 	const int data_len = 1360 / 8;
 	uint8_t *input_data = new uint8_t[data_len];
 	for (int i = 0; i < data_len; ++i)
-		input_data[i] = input_file.get();
+		input_data[i] = std::max(input_file.get(), 0);
 	CODE::Xorshift32 scrambler;
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] ^= scrambler();
