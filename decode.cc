@@ -173,8 +173,7 @@ struct Decoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
-	static const int data_bits = 1360;
-	static const int crc_bits = data_bits + 32;
+	static const int max_bits = 1360 + 32;
 	static const int cons_cols = 256;
 	static const int cons_rows = 4;
 	static const int cons_total = cons_rows * cons_cols;
@@ -200,13 +199,16 @@ struct Decoder
 	CODE::PolarEncoder<mesg_type> polarenc;
 	CODE::PolarListDecoder<mesg_type, code_order> polardec;
 	int8_t genmat[255*71];
-	mesg_type mesg[crc_bits], mess[code_len];
+	mesg_type mesg[max_bits], mess[code_len];
 	code_type code[code_len];
 	cmplx cons[cons_total], prev[cons_cols];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[cons_cols], phase[cons_cols];
 	value cfo_rad, sfo_rad;
+	const uint32_t *frozen_bits;
 	int symbol_pos;
+	int oper_mode;
+	int crc_bits;
 
 	static int bin(int carrier)
 	{
@@ -236,10 +238,10 @@ struct Decoder
 	}
 	void systematic()
 	{
-		polarenc(mess, mesg, frozen_2048_1392, code_order);
+		polarenc(mess, mesg, frozen_bits, code_order);
 		int code_bits = 1 << code_order;
 		for (int i = 0, j = 0; i < code_bits && j < crc_bits; ++i)
-			if (!((frozen_2048_1392[i/32] >> (i%32)) & 1))
+			if (!((frozen_bits[i/32] >> (i%32)) & 1))
 				mesg[j++] = mess[i];
 	}
 	cmplx mod_map(code_type *b)
@@ -262,7 +264,7 @@ struct Decoder
 			tmp = hilbert(blockdc(tmp.real()));
 		return input_hist(tmp);
 	}
-	Decoder(uint8_t *out, DSP::ReadPCM<value> *pcm, int skip_count) :
+	Decoder(uint8_t *out, int *len, DSP::ReadPCM<value> *pcm, int skip_count) :
 		pcm(pcm), correlator(mls0_seq()), crc0(0xA8F4), crc1(0x8F6E37A0)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
@@ -320,8 +322,8 @@ struct Decoder
 				std::cerr << "header CRC error." << std::endl;
 				continue;
 			}
-			int oper_mode = md & 255;
-			if (oper_mode != 14) {
+			oper_mode = md & 255;
+			if (oper_mode && (oper_mode < 14 || oper_mode > 16)) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
@@ -337,7 +339,8 @@ struct Decoder
 			okay = true;
 		} while (skip_count--);
 
-		if (!okay)
+		*len = 0;
+		if (!okay || !oper_mode)
 			return;
 
 		for (int i = 0; i < symbol_pos+(symbol_len+guard_len); ++i)
@@ -415,8 +418,27 @@ struct Decoder
 			for (int i = 0; i < cons_total; ++i)
 				mod_soft(code+mod_bits*i, cons[i], precision);
 		}
+		int data_bits = 0;
+		switch (oper_mode) {
+		case 14:
+			data_bits = 1360;
+			frozen_bits = frozen_2048_1392;
+			break;
+		case 15:
+			data_bits = 1024;
+			frozen_bits = frozen_2048_1056;
+			break;
+		case 16:
+			data_bits = 680;
+			frozen_bits = frozen_2048_712;
+			break;
+		default:
+			return;
+		}
+		*len = data_bits / 8;
+		crc_bits = data_bits + 32;
 		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
-		polardec(metric, mesg, code, frozen_2048_1392, code_order);
+		polardec(metric, mesg, code, frozen_bits, code_order);
 		systematic();
 		int order[mesg_type::SIZE];
 		for (int k = 0; k < mesg_type::SIZE; ++k)
@@ -438,7 +460,7 @@ struct Decoder
 		}
 		int flips = 0;
 		for (int i = 0, j = 0; i < data_bits; ++i, ++j) {
-			while ((frozen_2048_1392[j / 32] >> (j % 32)) & 1)
+			while ((frozen_bits[j / 32] >> (j % 32)) & 1)
 				++j;
 			bool received = code[j] < 0;
 			bool decoded = mesg[i].v[best] < 0;
@@ -477,21 +499,22 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int data_len = 1360 / 8;
-	uint8_t *output_data = new uint8_t[data_len];
+	const int data_max = 1360 / 8;
+	uint8_t *output_data = new uint8_t[data_max];
+	int data_len = 0;
 
 	switch (input_file.rate()) {
 	case 8000:
-		delete new Decoder<value, cmplx, 8000>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 8000>(output_data, &data_len, &input_file, skip_count);
 		break;
 	case 16000:
-		delete new Decoder<value, cmplx, 16000>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 16000>(output_data, &data_len, &input_file, skip_count);
 		break;
 	case 44100:
-		delete new Decoder<value, cmplx, 44100>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 44100>(output_data, &data_len, &input_file, skip_count);
 		break;
 	case 48000:
-		delete new Decoder<value, cmplx, 48000>(output_data, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 48000>(output_data, &data_len, &input_file, skip_count);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;

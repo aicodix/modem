@@ -27,14 +27,12 @@ template <typename value, typename cmplx, int rate>
 struct Encoder
 {
 	typedef int8_t code_type;
-	static const int oper_mode = 14;
 	static const int mod_bits = 2;
 	static const int code_order = 11;
 	static const int code_len = 1 << code_order;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
-	static const int data_bits = 1360;
-	static const int crc_bits = data_bits + 32;
+	static const int max_bits = 1360 + 32;
 	static const int cons_cols = 256;
 	static const int cons_rows = 4;
 	static const int mls0_len = 127;
@@ -50,7 +48,7 @@ struct Encoder
 	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
 	CODE::PolarSysEnc<code_type> polarenc;
-	code_type code[code_len], mesg[crc_bits];
+	code_type code[code_len], mesg[max_bits];
 	cmplx fdom[symbol_len], fdom4[4*symbol_len];
 	cmplx tdom[symbol_len], tdom4[4*symbol_len];
 	cmplx temp[symbol_len];
@@ -178,7 +176,7 @@ struct Encoder
 	{
 		return PhaseShiftKeying<4, cmplx, code_type>::map(b);
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign) :
+	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
 		pcm(pcm), crc0(0xA8F4), crc1(0x8F6E37A0), bchenc({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
@@ -195,19 +193,39 @@ struct Encoder
 		pilot_block();
 		schmidl_cox();
 		meta_data((call_sign << 8) | oper_mode);
-		for (int i = 0; i < data_bits; ++i)
-			mesg[i] = nrz(CODE::get_le_bit(inp, i));
-		crc1.reset();
-		for (int i = 0; i < data_bits / 8; ++i)
-			crc1(inp[i]);
-		for (int i = 0; i < 32; ++i)
-			mesg[i+data_bits] = nrz((crc1()>>i)&1);
-		polarenc(code, mesg, frozen_2048_1392, code_order);
-		for (int j = 0; j < cons_rows; ++j) {
-			for (int i = 0; i < cons_cols; ++i)
-				fdom[bin(i+code_off)] *=
-					mod_map(code+mod_bits*(cons_cols*j+i));
-			symbol();
+		if (oper_mode > 0) {
+			const uint32_t *frozen_bits = nullptr;
+			int data_bits = 0;
+			switch (oper_mode) {
+			case 14:
+				data_bits = 1360;
+				frozen_bits = frozen_2048_1392;
+				break;
+			case 15:
+				data_bits = 1024;
+				frozen_bits = frozen_2048_1056;
+				break;
+			case 16:
+				data_bits = 680;
+				frozen_bits = frozen_2048_712;
+				break;
+			default:
+				return;
+			}
+			for (int i = 0; i < data_bits; ++i)
+				mesg[i] = nrz(CODE::get_le_bit(inp, i));
+			crc1.reset();
+			for (int i = 0; i < data_bits / 8; ++i)
+				crc1(inp[i]);
+			for (int i = 0; i < 32; ++i)
+				mesg[i+data_bits] = nrz((crc1()>>i)&1);
+			polarenc(code, mesg, frozen_bits, code_order);
+			for (int j = 0; j < cons_rows; ++j) {
+				for (int i = 0; i < cons_cols; ++i)
+					fdom[bin(i+code_off)] *=
+						mod_map(code+mod_bits*(cons_cols*j+i));
+				symbol();
+			}
 		}
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
@@ -289,6 +307,16 @@ int main(int argc, char **argv)
 	uint8_t *input_data = new uint8_t[data_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = std::max(input_file.get(), 0);
+	int oper_mode = 0;
+	for (int i = 128; i < 170; ++i)
+		if (!oper_mode && input_data[i])
+			oper_mode = 14;
+	for (int i = 85; i < 128; ++i)
+		if (!oper_mode && input_data[i])
+			oper_mode = 15;
+	for (int i = 0; i < 85; ++i)
+		if (!oper_mode && input_data[i])
+			oper_mode = 16;
 	CODE::Xorshift32 scrambler;
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] ^= scrambler();
@@ -297,16 +325,16 @@ int main(int argc, char **argv)
 	output_file.silence(output_rate);
 	switch (output_rate) {
 	case 8000:
-		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	case 16000:
-		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign);
+		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
