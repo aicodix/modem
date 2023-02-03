@@ -456,6 +456,7 @@ struct Decoder
 		}
 		if (best < 0) {
 			std::cerr << "payload decoding error." << std::endl;
+			*len = 0;
 			return;
 		}
 		int flips = 0;
