@@ -33,8 +33,6 @@ void code(int N, int K)
 
 int main()
 {
-	code<11>(2048, 1360+32);
-	code<11>(2048, 1024+32);
-	code<11>(2048, 680+32);
+	code<12>(4096, 2048+32);
 	return 0;
 }
