@@ -115,7 +115,7 @@ public:
 		if (!process)
 			return false;
 
-		frac_cfo = phase_max / value(symbol_len);
+		frac_cfo = phase_max / value(symbol_len+guard_len);
 
 		DSP::Phasor<cmplx> osc;
 		osc.omega(frac_cfo);
