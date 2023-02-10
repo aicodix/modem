@@ -177,8 +177,8 @@ struct Decoder
 	static const int payload_symbols = 32;
 	static const int first_subcarrier = 16;
 	static const int cons_total = payload_symbols * subcarrier_count;
-	static const int buffer_len = 6 * (symbol_len + guard_len);
-	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
+	static const int buffer_len = 2 * symbol_len + guard_len;
+	static const int search_pos = symbol_len;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::BlockDC<value, value> blockdc;
