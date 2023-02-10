@@ -85,8 +85,8 @@ public:
 	bool operator()(const cmplx *samples)
 	{
 		cmplx S = fsh();
-		cmplx P = conj(S) * cor(S * samples[search_pos] * conj(samples[search_pos+symbol_len+guard_len]));
-		value R = value(0.5) * pwr(norm(samples[search_pos]) + norm(samples[search_pos+symbol_len+guard_len]));
+		cmplx P = conj(S) * cor(S * samples[search_pos] * conj(samples[search_pos+symbol_len]));
+		value R = value(0.5) * pwr(norm(samples[search_pos]) + norm(samples[search_pos+symbol_len]));
 		value min_R = 0.0001 * symbol_len;
 		R = std::max(R, min_R);
 		value timing = match(norm(P) / (R * R));
@@ -115,11 +115,11 @@ public:
 		if (!process)
 			return false;
 
-		frac_cfo = phase_max / value(symbol_len+guard_len);
+		frac_cfo = phase_max / value(symbol_len);
 
 		DSP::Phasor<cmplx> osc;
 		osc.omega(frac_cfo);
-		symbol_pos = search_pos - index_max + guard_len;
+		symbol_pos = search_pos - index_max;
 		index_max = 0;
 		timing_max = 0;
 		for (int i = 0; i < symbol_len; ++i)

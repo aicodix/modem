@@ -48,7 +48,7 @@ struct Encoder
 	{
 		return 1 - 2 * bit;
 	}
-	void symbol()
+	void symbol(bool output_guard = true)
 	{
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
@@ -58,7 +58,8 @@ struct Encoder
 			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
 			guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], x);
 		}
-		pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
+		if (output_guard)
+			pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
 		pcm->write(reinterpret_cast<value *>(tdom), symbol_len, 2);
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = tdom[i];
@@ -76,13 +77,13 @@ struct Encoder
 		for (int i = first_subcarrier; i < first_subcarrier + subcarrier_count; ++i)
 			fdom[i] = fdom[i+1];
 		fdom[first_subcarrier+subcarrier_count] = 0;
-		symbol();
+		symbol(false);
 #else
 		fdom[first_subcarrier] = std::sqrt(value(2 * symbol_len) / value(subcarrier_count));
 		for (int i = first_subcarrier + 1; i < first_subcarrier + subcarrier_count; ++i)
 			fdom[i] = fdom[i-1] * cmplx(nrz(seq()));
 		symbol();
-		symbol();
+		symbol(false);
 #endif
 	}
 	cmplx mod_map(code_type *b)
