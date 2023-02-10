@@ -73,7 +73,7 @@ public:
 
 	SchmidlCox(const cmplx *sequence) : threshold(value(0.2*match_len), value(0.3*match_len))
 	{
-#if 0
+#if 1
 		fsh.omega(-1, symbol_len);
 #endif
 		for (int i = 0; i < symbol_len; ++i)
@@ -84,7 +84,8 @@ public:
 	}
 	bool operator()(const cmplx *samples)
 	{
-		cmplx P = cor(fsh() * samples[search_pos] * conj(samples[search_pos+symbol_len+guard_len]));
+		cmplx S = fsh();
+		cmplx P = conj(S) * cor(S * samples[search_pos] * conj(samples[search_pos+symbol_len+guard_len]));
 		value R = value(0.5) * pwr(norm(samples[search_pos]) + norm(samples[search_pos+symbol_len+guard_len]));
 		value min_R = 0.0001 * symbol_len;
 		R = std::max(R, min_R);
