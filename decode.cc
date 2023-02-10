@@ -45,8 +45,8 @@ struct SchmidlCox
 	DSP::Delay<value, match_del> delay;
 	DSP::SchmittTrigger<value> threshold;
 	DSP::FallingEdgeTrigger falling;
-	cmplx tmp0[symbol_len], tmp1[symbol_len], tmp2[symbol_len];
-	cmplx seq[symbol_len], kern[symbol_len];
+	cmplx tmp0[symbol_len], tmp1[symbol_len];
+	cmplx kern[symbol_len];
 	cmplx cmplx_shift = 0;
 	value timing_max = 0;
 	value phase_max = 0;
@@ -72,8 +72,6 @@ public:
 
 	SchmidlCox(const cmplx *sequence) : threshold(value(0.2*match_len), value(0.3*match_len))
 	{
-		for (int i = 0; i < symbol_len; ++i)
-			seq[i] = sequence[i];
 		fwd(kern, sequence);
 		for (int i = 0; i < symbol_len; ++i)
 			kern[i] = conj(kern[i]) / value(symbol_len);
@@ -125,13 +123,13 @@ public:
 		fwd(tmp0, tmp1);
 		for (int i = 0; i < symbol_len; ++i)
 			tmp0[i] *= kern[i];
-		bwd(tmp2, tmp0);
+		bwd(tmp1, tmp0);
 
 		int shift = 0;
 		value peak = 0;
 		value next = 0;
 		for (int i = 0; i < symbol_len; ++i) {
-			value power = norm(tmp2[i]);
+			value power = norm(tmp1[i]);
 			if (power > peak) {
 				next = peak;
 				peak = power;
@@ -143,7 +141,7 @@ public:
 		if (peak <= next * 4)
 			return false;
 
-		int pos_err = std::nearbyint(arg(tmp2[shift]) * symbol_len / Const::TwoPi());
+		int pos_err = std::nearbyint(arg(tmp1[shift]) * symbol_len / Const::TwoPi());
 		if (abs(pos_err) > guard_len / 2)
 			return false;
 		symbol_pos -= pos_err;
