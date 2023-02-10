@@ -42,7 +42,7 @@ struct SchmidlCox
 	DSP::SMA4<cmplx, value, symbol_len, false> cor;
 	DSP::SMA4<value, value, symbol_len, false> pwr;
 	DSP::SMA4<value, value, match_len, false> match;
-	DSP::Delay<value, match_del> delay;
+	DSP::Delay<value, match_del> align;
 	DSP::SchmittTrigger<value> threshold;
 	DSP::FallingEdgeTrigger falling;
 	cmplx tmp0[symbol_len], tmp1[symbol_len];
@@ -83,12 +83,10 @@ public:
 		value min_R = 0.0001 * symbol_len;
 		R = std::max(R, min_R);
 		value timing = match(norm(P) / (R * R));
-		value phase = delay(arg(P));
+		value phase = align(arg(P));
 
 		bool collect = threshold(timing);
 		bool process = falling(collect);
-
-		//std::cout << timing << " " << phase << " " << process << std::endl;
 
 		if (!collect && !process)
 			return false;
