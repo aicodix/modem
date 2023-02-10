@@ -45,7 +45,6 @@ struct SchmidlCox
 	DSP::Delay<value, match_del> delay;
 	DSP::SchmittTrigger<value> threshold;
 	DSP::FallingEdgeTrigger falling;
-	DSP::Phasor<cmplx> fsh;
 	cmplx tmp0[symbol_len], tmp1[symbol_len], tmp2[symbol_len];
 	cmplx seq[symbol_len], kern[symbol_len];
 	cmplx cmplx_shift = 0;
@@ -73,9 +72,6 @@ public:
 
 	SchmidlCox(const cmplx *sequence) : threshold(value(0.2*match_len), value(0.3*match_len))
 	{
-#if 1
-		fsh.omega(-1, symbol_len);
-#endif
 		for (int i = 0; i < symbol_len; ++i)
 			seq[i] = sequence[i];
 		fwd(kern, sequence);
@@ -84,8 +80,7 @@ public:
 	}
 	bool operator()(const cmplx *samples)
 	{
-		cmplx S = fsh();
-		cmplx P = conj(S) * cor(S * samples[search_pos] * conj(samples[search_pos+symbol_len]));
+		cmplx P = cor(samples[search_pos] * conj(samples[search_pos+symbol_len]));
 		value R = value(0.5) * pwr(norm(samples[search_pos]) + norm(samples[search_pos+symbol_len]));
 		value min_R = 0.0001 * symbol_len;
 		R = std::max(R, min_R);

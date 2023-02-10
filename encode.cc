@@ -69,22 +69,11 @@ struct Encoder
 		CODE::MLS seq(0b1100111);
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-#if 1
-		fdom[first_subcarrier+1] = std::sqrt(value(2 * symbol_len) / value(subcarrier_count));
-		for (int i = first_subcarrier + 2; i < first_subcarrier + subcarrier_count + 1; ++i)
-			fdom[i] = fdom[i-1] * cmplx(nrz(seq()));
-		symbol();
-		for (int i = first_subcarrier; i < first_subcarrier + subcarrier_count; ++i)
-			fdom[i] = fdom[i+1];
-		fdom[first_subcarrier+subcarrier_count] = 0;
-		symbol(false);
-#else
 		fdom[first_subcarrier] = std::sqrt(value(2 * symbol_len) / value(subcarrier_count));
 		for (int i = first_subcarrier + 1; i < first_subcarrier + subcarrier_count; ++i)
 			fdom[i] = fdom[i-1] * cmplx(nrz(seq()));
 		symbol();
 		symbol(false);
-#endif
 	}
 	cmplx mod_map(code_type *b)
 	{
