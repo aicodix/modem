@@ -26,6 +26,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "mls.hh"
 #include "crc.hh"
 #include "psk.hh"
+#include "hadamard_decoder.hh"
 #include "polar_tables.hh"
 #include "polar_helper.hh"
 #include "polar_encoder.hh"
@@ -184,6 +185,7 @@ struct Decoder
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
 	CODE::CRC<uint32_t> crc;
+	CODE::HadamardDecoder<8> hadamard;
 	CODE::PolarEncoder<mesg_type> polarenc;
 	CODE::PolarListDecoder<mesg_type, code_order> polardec;
 	mesg_type mesg[mesg_bits], mess[code_len];
@@ -247,6 +249,7 @@ struct Decoder
 	{
 		frozen_bits = frozen_4096_2080;
 		blockdc.samples(filter_len);
+		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
 		bool okay;
 		do {
@@ -261,23 +264,42 @@ struct Decoder
 			cfo_rad = correlator.cfo_rad;
 			std::cerr << "symbol pos: " << symbol_pos << std::endl;
 			std::cerr << "coarse cfo: " << cfo_rad * (sample_rate / Const::TwoPi()) << " Hz " << std::endl;
+
+			osc.omega(-cfo_rad);
+			for (int i = 0; i < symbol_pos; ++i)
+				buf = next_sample();
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] = buf[i] * osc();
+			for (int i = 0; i < guard_len; ++i)
+				osc();
+			fwd(fdom, tdom);
+			for (int i = 0; i < subcarrier_count; ++i)
+				prev[i] = fdom[first_subcarrier+i];
+			for (int i = 0; i < symbol_len+guard_len; ++i)
+				buf = next_sample();
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] = buf[i] * osc();
+			for (int i = 0; i < guard_len; ++i)
+				osc();
+			fwd(fdom, tdom);
+			for (int i = 0; i < subcarrier_count; ++i)
+				cons[i] = demod_or_erase(fdom[first_subcarrier+i], prev[i]);
+			for (int i = 0; i < subcarrier_count; ++i)
+				prev[i] = fdom[first_subcarrier+i];
+			for (int i = 0; i < subcarrier_count; ++i)
+				mod_soft(code+mod_bits*i, cons[i], 8);
+			int oper_mode = hadamard(code);
+			if (oper_mode != 1) {
+				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
+				continue;
+			}
+			std::cerr << "oper mode: " << oper_mode << std::endl;
 			okay = true;
 		} while (skip_count--);
 
 		if (!okay)
 			return;
 
-		DSP::Phasor<cmplx> osc;
-		osc.omega(-cfo_rad);
-		for (int i = 0; i < symbol_pos; ++i)
-			buf = next_sample();
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] = buf[i] * osc();
-		for (int i = 0; i < guard_len; ++i)
-			osc();
-		fwd(fdom, tdom);
-		for (int i = 0; i < subcarrier_count; ++i)
-			prev[i] = fdom[first_subcarrier+i];
 		std::cerr << "demod ";
 		for (int j = 0; j < payload_symbols; ++j) {
 			for (int i = 0; i < symbol_len+guard_len; ++i)

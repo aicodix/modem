@@ -18,6 +18,7 @@ Copyright 2023 Ahmet Inan <inan@aicodix.de>
 #include "mls.hh"
 #include "crc.hh"
 #include "psk.hh"
+#include "hadamard_encoder.hh"
 #include "polar_tables.hh"
 #include "polar_helper.hh"
 #include "polar_encoder.hh"
@@ -40,6 +41,7 @@ struct Encoder
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint32_t> crc;
+	CODE::HadamardEncoder<8> hadamard;
 	CODE::PolarSysEnc<code_type> polarenc;
 	code_type code[code_len], mesg[mesg_bits];
 	cmplx fdom[symbol_len], tdom[symbol_len], guard[guard_len];
@@ -77,6 +79,13 @@ struct Encoder
 		symbol();
 		symbol(false);
 	}
+	void meta_data(int data)
+	{
+		hadamard(code, data);
+		for (int i = 0; i < subcarrier_count; ++i)
+			fdom[first_subcarrier+i] *= mod_map(code+mod_bits*i);
+		symbol();
+	}
 	cmplx mod_map(code_type *b)
 	{
 		return PhaseShiftKeying<4, cmplx, code_type>::map(b);
@@ -84,6 +93,7 @@ struct Encoder
 	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp) : pcm(pcm), crc(0x8F6E37A0)
 	{
 		schmidl_cox();
+		meta_data(1);
 		for (int i = 0; i < data_bits; ++i)
 			mesg[i] = nrz(CODE::get_le_bit(inp, i));
 		crc.reset();
