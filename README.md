@@ -46,7 +46,7 @@ Prerequisite: [disorders](https://github.com/aicodix/disorders)
 Encode ```uncoded.dat``` to [analytic](https://en.wikipedia.org/wiki/Analytic_signal) audio signal, add [multipath](https://en.wikipedia.org/wiki/Multipath_propagation), [CFO, SFO](https://en.wikipedia.org/wiki/Carrier_frequency_offset), [AWGN](https://en.wikipedia.org/wiki/Additive_white_Gaussian_noise), decode and compare:
 
 ```
-./encode - 8000 16 2 uncoded.dat 2000 | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -30 | ./decode - - | diff -q -s uncoded.dat -
+./encode - uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -30 | ./decode - - | diff -q -s uncoded.dat -
 ```
 
 ### Reading
