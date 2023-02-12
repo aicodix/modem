@@ -68,6 +68,17 @@ struct Encoder
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = tdom[i];
 	}
+	void leading_noise() {
+		CODE::MLS seq(0b100101010001);
+		value factor = std::sqrt(value(symbol_len) / value(subcarrier_count));
+		for (int i = 0; i < symbol_len; ++i)
+			fdom[i] = 0;
+		for (int j = 0; j < 14; ++j) {
+			for (int i = 0; i < subcarrier_count; ++i)
+				fdom[first_subcarrier+i] = factor * cmplx(nrz(seq()), nrz(seq()));
+			symbol();
+		}
+	}
 	void schmidl_cox()
 	{
 		CODE::MLS seq(0b1100111);
@@ -92,6 +103,7 @@ struct Encoder
 	}
 	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp) : pcm(pcm), crc(0x8F6E37A0)
 	{
+		leading_noise();
 		schmidl_cox();
 		meta_data(1);
 		for (int i = 0; i < data_bits; ++i)
