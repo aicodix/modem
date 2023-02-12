@@ -81,7 +81,7 @@ public:
 	{
 		cmplx P = cor(samples[search_pos] * conj(samples[search_pos+symbol_len]));
 		value R = value(0.5) * pwr(norm(samples[search_pos]) + norm(samples[search_pos+symbol_len]));
-		value min_R = 0.0001 * symbol_len;
+		value min_R = 0.00001 * symbol_len;
 		R = std::max(R, min_R);
 		value timing = match(norm(P) / (R * R));
 		value phase = align(arg(P));
