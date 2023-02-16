@@ -89,6 +89,9 @@ public:
 		bool collect = threshold(timing);
 		bool process = falling(collect);
 
+		// std::cout << timing << " " << process << " " << index_max << std::endl;
+		// plot "< arecord -r 8000 -c 1 -f S16_LE | ./decode /dev/null - 1 | tee /tmp/data.txt" u ($1/33) w l, "/tmp/data.txt" u ($0-$3-1+16):2 w i, 0.2, 0.3
+
 		if (!collect && !process)
 			return false;
 
