@@ -170,6 +170,7 @@ struct Decoder
 	static const int code_order = 12;
 	static const int mod_bits = 2;
 	static const int code_len = 1 << code_order;
+	static const int meta_len = 128;
 	static const int symbol_len = 256;
 	static const int filter_len = 33;
 	static const int guard_len = symbol_len / 8;
@@ -291,6 +292,9 @@ struct Decoder
 				prev[i] = fdom[first_subcarrier+i];
 			for (int i = 0; i < subcarrier_count; ++i)
 				mod_soft(code+mod_bits*i, cons[i], 8);
+			CODE::MLS seq(0b10000011);
+			for (int i = 0; i < meta_len; ++i)
+				code[i] *= nrz(seq());
 			int oper_mode = hadamard(code);
 			if (oper_mode != 1) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;

@@ -31,6 +31,7 @@ struct Encoder
 	static const int mod_bits = 2;
 	static const int code_order = 12;
 	static const int code_len = 1 << code_order;
+	static const int meta_len = 128;
 	static const int symbol_len = 256;
 	static const int guard_len = symbol_len / 8;
 	static const int data_bits = 2048;
@@ -93,6 +94,9 @@ struct Encoder
 	void meta_data(int data)
 	{
 		hadamard(code, data);
+		CODE::MLS seq(0b10000011);
+		for (int i = 0; i < meta_len; ++i)
+			code[i] *= nrz(seq());
 		for (int i = 0; i < subcarrier_count; ++i)
 			fdom[first_subcarrier+i] *= mod_map(code+mod_bits*i);
 		symbol();
