@@ -270,7 +270,7 @@ int main(int argc, char **argv)
 	if (input_name[0] == '-' && input_name[1] == 0)
 		input_name = "/dev/stdin";
 
-	int freq_off = output_chan == 1 ? 2000 : 0;
+	int freq_off = output_chan == 1 ? 1500 : 0;
 	if (argc >= 7)
 		freq_off = std::atoi(argv[6]);
 
