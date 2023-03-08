@@ -178,7 +178,7 @@ struct Decoder
 	static const int mesg_bits = data_bits + 32;
 	static const int subcarrier_count = 64;
 	static const int payload_symbols = 32;
-	static const int first_subcarrier = 16;
+	static const int first_subcarrier = -subcarrier_count / 2;
 	static const int cons_total = payload_symbols * subcarrier_count;
 	static const int buffer_len = 2 * symbol_len + guard_len;
 	static const int search_pos = symbol_len;
@@ -200,6 +200,10 @@ struct Decoder
 	const uint32_t *frozen_bits;
 	int symbol_pos;
 
+	static int bin(int carrier)
+	{
+		return (carrier + first_subcarrier + symbol_len) % symbol_len;
+	}
 	static int nrz(bool bit)
 	{
 		return 1 - 2 * bit;
@@ -218,8 +222,8 @@ struct Decoder
 		CODE::MLS seq(0b1100111);
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-		for (int i = first_subcarrier + 1; i < first_subcarrier + subcarrier_count; ++i)
-			fdom[i] = nrz(seq());
+		for (int i = 1; i < subcarrier_count; ++i)
+			fdom[bin(i)] = nrz(seq());
 		return fdom;
 	}
 	void systematic()
@@ -278,7 +282,7 @@ struct Decoder
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < subcarrier_count; ++i)
-				prev[i] = fdom[first_subcarrier+i];
+				prev[i] = fdom[bin(i)];
 			for (int i = 0; i < symbol_len+guard_len; ++i)
 				buf = next_sample();
 			for (int i = 0; i < symbol_len; ++i)
@@ -287,9 +291,9 @@ struct Decoder
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < subcarrier_count; ++i)
-				cons[i] = demod_or_erase(fdom[first_subcarrier+i], prev[i]);
+				cons[i] = demod_or_erase(fdom[bin(i)], prev[i]);
 			for (int i = 0; i < subcarrier_count; ++i)
-				prev[i] = fdom[first_subcarrier+i];
+				prev[i] = fdom[bin(i)];
 			for (int i = 0; i < subcarrier_count; ++i)
 				mod_soft(code+mod_bits*i, cons[i], 8);
 			CODE::MLS seq(0b10000011);
@@ -317,9 +321,9 @@ struct Decoder
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < subcarrier_count; ++i)
-				cons[subcarrier_count*j+i] = demod_or_erase(fdom[first_subcarrier+i], prev[i]);
+				cons[subcarrier_count*j+i] = demod_or_erase(fdom[bin(i)], prev[i]);
 			for (int i = 0; i < subcarrier_count; ++i)
-				prev[i] = fdom[first_subcarrier+i];
+				prev[i] = fdom[bin(i)];
 			std::cerr << ".";
 		}
 		std::cerr << " done" << std::endl;
