@@ -11,7 +11,7 @@ CXX = clang++ -stdlib=libc++ -march=native
 all: encode decode
 
 test: encode decode
-	$(QEMU) ./encode encoded.wav 8000 8 1 /dev/urandom
+	$(QEMU) ./encode encoded.wav /dev/urandom
 	$(QEMU) ./decode /dev/null encoded.wav
 
 encode: encode.cc
