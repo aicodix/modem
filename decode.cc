@@ -27,7 +27,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "mls.hh"
 #include "crc.hh"
 #include "psk.hh"
-#include "hadamard_decoder.hh"
+#include "simplex_decoder.hh"
 #include "polar_tables.hh"
 #include "polar_helper.hh"
 #include "polar_encoder.hh"
@@ -171,7 +171,7 @@ struct Decoder
 	static const int code_order = 12;
 	static const int mod_bits = 2;
 	static const int code_len = 1 << code_order;
-	static const int meta_len = 128;
+	static const int meta_len = 63;
 	static const int symbol_len = 256;
 	static const int filter_len = 33;
 	static const int guard_len = symbol_len / 8;
@@ -190,7 +190,7 @@ struct Decoder
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
 	CODE::CRC<uint32_t> crc;
-	CODE::HadamardDecoder<8> hadamard;
+	CODE::SimplexDecoder<6> simplex;
 	CODE::PolarEncoder<mesg_type> polarenc;
 	CODE::PolarListDecoder<mesg_type, code_order> polardec;
 	CODE::ReverseFisherYatesShuffle<code_len> shuffle;
@@ -275,16 +275,9 @@ struct Decoder
 			std::cerr << "symbol pos: " << symbol_pos << std::endl;
 			std::cerr << "coarse cfo: " << cfo_rad * (sample_rate / Const::TwoPi()) << " Hz " << std::endl;
 
-			osc.omega(-cfo_rad);
 			for (int i = 0; i < symbol_pos; ++i)
-				buf = next_sample();
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i] * osc();
-			for (int i = 0; i < guard_len; ++i)
-				osc();
-			fwd(fdom, tdom);
-			for (int i = 0; i < subcarrier_count; ++i)
-				prev[i] = fdom[bin(i)];
+				next_sample();
+			osc.omega(-cfo_rad);
 			for (int i = 0; i < symbol_len+guard_len; ++i)
 				buf = next_sample();
 			for (int i = 0; i < symbol_len; ++i)
@@ -292,16 +285,16 @@ struct Decoder
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
-			for (int i = 0; i < subcarrier_count; ++i)
-				cons[i] = demod_or_erase(fdom[bin(i)], prev[i]);
+			for (int i = 0; i < meta_len; ++i)
+				cons[i] = demod_or_erase(fdom[bin(i+1)], fdom[bin(i)]);
 			for (int i = 0; i < subcarrier_count; ++i)
 				prev[i] = fdom[bin(i)];
-			for (int i = 0; i < subcarrier_count; ++i)
-				mod_soft(code+mod_bits*i, cons[i], 8);
-			CODE::MLS seq(0b10000011);
+			for (int i = 0; i < meta_len; ++i)
+				code[i] = DSP::clamp<value>(16 * cons[i].real(), -127, 127);
+			CODE::MLS seq(0b1000011);
 			for (int i = 0; i < meta_len; ++i)
 				code[i] *= nrz(seq());
-			int oper_mode = hadamard(code);
+			int oper_mode = simplex(code);
 			if (oper_mode != 1) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;

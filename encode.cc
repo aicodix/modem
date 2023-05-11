@@ -19,7 +19,7 @@ Copyright 2023 Ahmet Inan <inan@aicodix.de>
 #include "mls.hh"
 #include "crc.hh"
 #include "psk.hh"
-#include "hadamard_encoder.hh"
+#include "simplex_encoder.hh"
 #include "polar_tables.hh"
 #include "polar_helper.hh"
 #include "polar_encoder.hh"
@@ -32,7 +32,7 @@ struct Encoder
 	static const int mod_bits = 2;
 	static const int code_order = 12;
 	static const int code_len = 1 << code_order;
-	static const int meta_len = 128;
+	static const int meta_len = 63;
 	static const int symbol_len = 256;
 	static const int guard_len = symbol_len / 8;
 	static const int data_bits = 2048;
@@ -43,7 +43,7 @@ struct Encoder
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint32_t> crc;
-	CODE::HadamardEncoder<8> hadamard;
+	CODE::SimplexEncoder<6> simplex;
 	CODE::PolarSysEnc<code_type> polarenc;
 	CODE::FisherYatesShuffle<code_len> shuffle;
 	code_type code[code_len], mesg[mesg_bits];
@@ -95,12 +95,11 @@ struct Encoder
 	}
 	void meta_data(int data)
 	{
-		hadamard(code, data);
-		CODE::MLS seq(0b10000011);
+		simplex(code, data);
+		CODE::MLS seq(0b1000011);
+		fdom[first_subcarrier] = std::sqrt(value(symbol_len) / value(subcarrier_count));
 		for (int i = 0; i < meta_len; ++i)
-			code[i] *= nrz(seq());
-		for (int i = 0; i < subcarrier_count; ++i)
-			fdom[first_subcarrier+i] *= mod_map(code+mod_bits*i);
+			fdom[first_subcarrier+1+i] = fdom[first_subcarrier+i] * cmplx(code[i] * nrz(seq()));
 		symbol();
 	}
 	cmplx mod_map(code_type *b)
