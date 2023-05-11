@@ -9,6 +9,7 @@ Copyright 2023 Ahmet Inan <inan@aicodix.de>
 #include <cmath>
 #include "xorshift.hh"
 #include "complex.hh"
+#include "permute.hh"
 #include "phasor.hh"
 #include "bitman.hh"
 #include "utils.hh"
@@ -44,6 +45,7 @@ struct Encoder
 	CODE::CRC<uint32_t> crc;
 	CODE::HadamardEncoder<8> hadamard;
 	CODE::PolarSysEnc<code_type> polarenc;
+	CODE::FisherYatesShuffle<code_len> shuffle;
 	code_type code[code_len], mesg[mesg_bits];
 	cmplx fdom[symbol_len], tdom[symbol_len], guard[guard_len];
 
@@ -118,6 +120,7 @@ struct Encoder
 		for (int i = 0; i < 32; ++i)
 			mesg[i+data_bits] = nrz((crc()>>i)&1);
 		polarenc(code, mesg, frozen_4096_2080, code_order);
+		shuffle(code);
 		for (int j = 0; j < payload_symbols; ++j) {
 			for (int i = 0; i < subcarrier_count; ++i)
 				fdom[first_subcarrier+i] *=
