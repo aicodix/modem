@@ -26,7 +26,7 @@ struct PhaseShiftKeying<2, TYPE, CODE>
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -128), 127);
+			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
 		return value;
 	}
 
@@ -65,7 +65,7 @@ struct PhaseShiftKeying<4, TYPE, CODE>
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -128), 127);
+			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
 		return value;
 	}
 
@@ -111,7 +111,7 @@ struct PhaseShiftKeying<8, TYPE, CODE>
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -128), 127);
+			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
 		return value;
 	}
 
