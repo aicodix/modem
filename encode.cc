@@ -29,7 +29,7 @@ struct Encoder
 	typedef float value;
 	typedef DSP::Complex<value> cmplx;
 	typedef int8_t code_type;
-	static const int mod_bits = 2;
+	typedef PhaseShiftKeying<4, cmplx, code_type> qpsk;
 	static const int code_order = 12;
 	static const int code_len = 1 << code_order;
 	static const int meta_len = 63;
@@ -102,10 +102,6 @@ struct Encoder
 			fdom[first_subcarrier+1+i] = fdom[first_subcarrier+i] * cmplx(code[i] * nrz(seq()));
 		symbol();
 	}
-	cmplx mod_map(code_type *b)
-	{
-		return PhaseShiftKeying<4, cmplx, code_type>::map(b);
-	}
 	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp) : pcm(pcm), crc(0x8F6E37A0)
 	{
 		leading_noise();
@@ -123,7 +119,7 @@ struct Encoder
 		for (int j = 0; j < payload_symbols; ++j) {
 			for (int i = 0; i < subcarrier_count; ++i)
 				fdom[first_subcarrier+i] *=
-					mod_map(code+mod_bits*(subcarrier_count*j+i));
+					qpsk::map(code+2*(subcarrier_count*j+i));
 			symbol();
 		}
 		for (int i = 0; i < symbol_len; ++i)

@@ -167,9 +167,10 @@ struct Decoder
 	typedef SIMD<code_type, 16 / sizeof(code_type)> mesg_type;
 #endif
 	typedef DSP::Const<value> Const;
+	typedef PhaseShiftKeying<2, cmplx, code_type> bpsk;
+	typedef PhaseShiftKeying<4, cmplx, code_type> qpsk;
 	static const int sample_rate = 8000;
 	static const int code_order = 12;
-	static const int mod_bits = 2;
 	static const int code_len = 1 << code_order;
 	static const int meta_len = 63;
 	static const int symbol_len = 256;
@@ -236,18 +237,6 @@ struct Decoder
 			if (!((frozen_bits[i/32] >> (i%32)) & 1))
 				mesg[j++] = mess[i];
 	}
-	cmplx mod_map(code_type *b)
-	{
-		return PhaseShiftKeying<4, cmplx, code_type>::map(b);
-	}
-	void mod_hard(code_type *b, cmplx c)
-	{
-		PhaseShiftKeying<4, cmplx, code_type>::hard(b, c);
-	}
-	void mod_soft(code_type *b, cmplx c, value precision)
-	{
-		PhaseShiftKeying<4, cmplx, code_type>::soft(b, c, precision);
-	}
 	const cmplx *next_sample()
 	{
 		value real;
@@ -290,7 +279,7 @@ struct Decoder
 			for (int i = 0; i < subcarrier_count; ++i)
 				prev[i] = fdom[bin(i)];
 			for (int i = 0; i < meta_len; ++i)
-				code[i] = DSP::clamp<value>(16 * cons[i].real(), -127, 127);
+				bpsk::soft(code+i, cons[i], 8);
 			CODE::MLS seq(0b1000011);
 			for (int i = 0; i < meta_len; ++i)
 				code[i] *= nrz(seq());
@@ -327,9 +316,9 @@ struct Decoder
 			value sp = 0, np = 0;
 			for (int j = 0; j < payload_symbols; ++j) {
 				for (int i = 0; i < subcarrier_count; ++i) {
-					code_type tmp[mod_bits];
-					mod_hard(tmp, cons[subcarrier_count*j+i]);
-					cmplx hard = mod_map(tmp);
+					code_type tmp[2];
+					qpsk::hard(tmp, cons[subcarrier_count*j+i]);
+					cmplx hard = qpsk::map(tmp);
 					cmplx error = cons[subcarrier_count*j+i] - hard;
 					sp += norm(hard);
 					np += norm(error);
@@ -338,13 +327,13 @@ struct Decoder
 				value snr = DSP::decibel(precision);
 				std::cerr << " " << snr;
 				for (int i = 0; i < subcarrier_count; ++i)
-					mod_soft(code+mod_bits*(subcarrier_count*j+i), cons[subcarrier_count*j+i], precision);
+					qpsk::soft(code+2*(subcarrier_count*j+i), cons[subcarrier_count*j+i], precision);
 			}
 			std::cerr << std::endl;
 		} else {
 			value precision = 8;
 			for (int i = 0; i < cons_total; ++i)
-				mod_soft(code+mod_bits*i, cons[i], precision);
+				qpsk::soft(code+2*i, cons[i], precision);
 		}
 		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
 		shuffle(code);
