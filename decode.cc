@@ -309,7 +309,7 @@ struct Decoder
 				soft[i] = std::min<value>(std::max<value>(
 					std::nearbyint(127 * demod_or_erase(
 					fdom[bin(i+mls1_off)], fdom[bin(i-1+mls1_off)]).real()),
-					-128), 127);
+					-127), 127);
 			bool unique = osddec(data, soft, genmat);
 			if (!unique) {
 				std::cerr << "OSD error." << std::endl;
