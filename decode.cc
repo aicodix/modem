@@ -48,7 +48,7 @@ struct SchmidlCox
 	DSP::SchmittTrigger<value> threshold;
 	DSP::FallingEdgeTrigger falling;
 	cmplx tmp0[symbol_len], tmp1[symbol_len], tmp2[symbol_len];
-	cmplx seq[symbol_len], kern[symbol_len];
+	cmplx kern[symbol_len];
 	cmplx cmplx_shift = 0;
 	value timing_max = 0;
 	value phase_max = 0;
@@ -58,9 +58,11 @@ struct SchmidlCox
 	{
 		return (carrier + symbol_len) % symbol_len;
 	}
-	static cmplx demod_or_erase(cmplx curr, cmplx prev)
+	static cmplx demod_or_erase(cmplx curr, cmplx prev, value pwr)
 	{
-		if (!(norm(prev) > 0))
+		if (!(norm(curr) > pwr))
+			return 0;
+		if (!(norm(prev) > pwr))
 			return 0;
 		cmplx cons = curr / prev;
 		if (!(norm(cons) <= 4))
@@ -74,8 +76,6 @@ public:
 
 	SchmidlCox(const cmplx *sequence) : threshold(value(0.17*match_len), value(0.19*match_len))
 	{
-		for (int i = 0; i < symbol_len; ++i)
-			seq[i] = sequence[i];
 		fwd(kern, sequence);
 		for (int i = 0; i < symbol_len; ++i)
 			kern[i] = conj(kern[i]) / value(symbol_len);
@@ -116,8 +116,12 @@ public:
 		for (int i = 0; i < symbol_len; ++i)
 			tmp1[i] = samples[i+symbol_pos+symbol_len] * osc();
 		fwd(tmp0, tmp1);
+		value min_pwr = 0;
 		for (int i = 0; i < symbol_len; ++i)
-			tmp1[i] = demod_or_erase(tmp0[i], tmp0[bin(i-1)]);
+			min_pwr += norm(tmp0[i]);
+		min_pwr /= symbol_len;
+		for (int i = 0; i < symbol_len; ++i)
+			tmp1[i] = demod_or_erase(tmp0[i], tmp0[bin(i-1)], min_pwr);
 		fwd(tmp0, tmp1);
 		for (int i = 0; i < symbol_len; ++i)
 			tmp0[i] *= kern[i];
