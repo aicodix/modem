@@ -52,7 +52,7 @@ struct Encoder
 	cmplx tdom[symbol_len];
 	cmplx temp[symbol_len];
 	cmplx guard[guard_len];
-	cmplx papr_min, papr_max;
+	value papr_min, papr_max;
 	int code_off;
 	int mls0_off;
 	int mls1_off;
@@ -94,17 +94,17 @@ struct Encoder
 			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
 			guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], x);
 		}
-		cmplx peak, mean;
+		value peak = 0, mean = 0;
 		for (int i = 0; i < symbol_len; ++i) {
-			cmplx power(tdom[i].real() * tdom[i].real(), tdom[i].imag() * tdom[i].imag());
-			peak = cmplx(std::max(peak.real(), power.real()), std::max(peak.imag(), power.imag()));
+			value power(norm(tdom[i]));
+			peak = std::max(peak, power);
 			mean += power;
 		}
-		if (mean.real() > 0 && mean.imag() > 0) {
-			cmplx papr(peak.real() / mean.real(), peak.imag() / mean.imag());
-			papr *= value(symbol_len);
-			papr_min = cmplx(std::min(papr_min.real(), papr.real()), std::min(papr_min.imag(), papr.imag()));
-			papr_max = cmplx(std::max(papr_max.real(), papr.real()), std::max(papr_max.imag(), papr.imag()));
+		mean /= symbol_len;
+		if (mean > 0) {
+			value papr(peak / mean);
+			papr_min = std::min(papr_min, papr);
+			papr_max = std::max(papr_max, papr);
 		}
 		pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
 		pcm->write(reinterpret_cast<value *>(tdom), symbol_len, 2);
@@ -176,7 +176,7 @@ struct Encoder
 		code_off = offset - cons_cols / 2;
 		mls0_off = offset - mls0_len + 1;
 		mls1_off = offset - mls1_len / 2;
-		papr_min = cmplx(1000, 1000), papr_max = cmplx(-1000, -1000);
+		papr_min = 1000, papr_max = -1000;
 		pilot_block();
 		schmidl_cox();
 		meta_data((call_sign << 8) | oper_mode);
@@ -217,9 +217,7 @@ struct Encoder
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		symbol();
-		std::cerr << "real PAPR: " << DSP::decibel(papr_min.real()) << " .. " << DSP::decibel(papr_max.real()) << " dB" << std::endl;
-		if (pcm->channels() == 2)
-			std::cerr << "imag PAPR: " << DSP::decibel(papr_min.imag()) << " .. " << DSP::decibel(papr_max.imag()) << " dB" << std::endl;
+		std::cerr << "PAPR: " << DSP::decibel(papr_min) << " .. " << DSP::decibel(papr_max) << " dB" << std::endl;
 	}
 };
 
