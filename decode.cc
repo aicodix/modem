@@ -177,6 +177,7 @@ struct Decoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
+	static const int extended_len = symbol_len + guard_len;
 	static const int max_bits = 1360 + 32;
 	static const int cons_cols = 256;
 	static const int cons_rows = 4;
@@ -188,8 +189,8 @@ struct Decoder
 	static const int mls1_len = 255;
 	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
-	static const int buffer_len = 6 * (symbol_len + guard_len);
-	static const int search_pos = buffer_len - 4 * (symbol_len + guard_len);
+	static const int buffer_len = 6 * extended_len;
+	static const int search_pos = buffer_len - 4 * extended_len;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::BlockDC<value, value> blockdc;
@@ -279,7 +280,7 @@ struct Decoder
 			0b101011111, 0b111111001, 0b111000011, 0b100111001,
 			0b110101001, 0b000011111, 0b110000111, 0b110110001});
 
-		blockdc.samples(2*(symbol_len+guard_len));
+		blockdc.samples(2*extended_len);
 		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
 		bool okay;
@@ -298,7 +299,7 @@ struct Decoder
 
 			osc.omega(-cfo_rad);
 			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i+symbol_pos+(symbol_len+guard_len)] * osc();
+				tdom[i] = buf[i+symbol_pos+extended_len] * osc();
 			fwd(fdom, tdom);
 			CODE::MLS seq1(mls1_poly);
 			for (int i = 0; i < mls1_len; ++i)
@@ -347,7 +348,7 @@ struct Decoder
 		if (!okay || !oper_mode)
 			return;
 
-		for (int i = 0; i < symbol_pos+(symbol_len+guard_len); ++i)
+		for (int i = 0; i < symbol_pos+extended_len; ++i)
 			buf = next_sample();
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = buf[i] * osc();
@@ -358,7 +359,7 @@ struct Decoder
 			prev[i] = fdom[bin(i+code_off)];
 		std::cerr << "demod ";
 		for (int j = 0; j < cons_rows; ++j) {
-			for (int i = 0; i < symbol_len+guard_len; ++i)
+			for (int i = 0; i < extended_len; ++i)
 				buf = next_sample();
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i] * osc();
@@ -393,8 +394,8 @@ struct Decoder
 			value avg_yint = sum_yint / cons_rows;
 			//for (int i = 0; i < cons_cnt; ++i)
 			//	cons[i] *= DSP::polar<value>(1, -(avg_yint+avg_slope*((i%cons_cols)+code_off)));
-			sfo_rad -= avg_slope * symbol_len / value(symbol_len+guard_len);
-			cfo_rad += avg_yint / (symbol_len+guard_len);
+			sfo_rad -= avg_slope * symbol_len / value(extended_len);
+			cfo_rad += avg_yint / extended_len;
 			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
 			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
 		}
