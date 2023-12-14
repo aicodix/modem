@@ -41,16 +41,15 @@ struct Encoder
 	static const int mls1_poly = 0b100101011;
 	static const int mls2_poly = 0b100101010001;
 	DSP::WritePCM<value> *pcm;
+	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
-	DSP::FastFourierTransform<4*symbol_len, cmplx, -1> fwd4;
-	DSP::FastFourierTransform<4*symbol_len, cmplx, 1> bwd4;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
 	CODE::PolarSysEnc<code_type> polarenc;
 	code_type code[code_len], mesg[max_bits];
-	cmplx fdom[symbol_len], fdom4[4*symbol_len];
-	cmplx tdom[symbol_len], tdom4[4*symbol_len];
+	cmplx fdom[symbol_len];
+	cmplx tdom[symbol_len];
 	cmplx temp[symbol_len];
 	cmplx guard[guard_len];
 	cmplx papr_min, papr_max;
@@ -62,44 +61,32 @@ struct Encoder
 	{
 		return (carrier + symbol_len) % symbol_len;
 	}
-	static int bin4(int carrier)
-	{
-		return (carrier + 4*symbol_len) % (4*symbol_len);
-	}
 	static int nrz(bool bit)
 	{
 		return 1 - 2 * bit;
 	}
 	void improve_papr()
 	{
-		for (int i = 0; i < 4*symbol_len; ++i)
-			fdom4[i] = 0;
-		for (int i = -symbol_len/2; i < symbol_len/2; ++i)
-			fdom4[bin4(i)] = fdom[bin(i)];
-		bwd4(tdom4, fdom4);
-		for (int i = 0; i < 4*symbol_len; ++i)
-			tdom4[i] /= std::sqrt(value(4*symbol_len));
-		for (int i = 0; i < 4*symbol_len; ++i) {
-			value amp = std::max(std::abs(tdom4[i].real()), std::abs(tdom4[i].imag()));
-			if (amp > value(1))
-				tdom4[i] /= amp;
+		for (int i = 0; i < symbol_len; ++i) {
+			value pwr = norm(tdom[i]);
+			if (pwr > value(1))
+				tdom[i] /= sqrt(pwr);
 		}
-		fwd4(fdom4, tdom4);
-		for (int i = -symbol_len/2; i < symbol_len/2; ++i)
-			if (norm(temp[bin(i)]))
-				temp[bin(i)] = fdom4[bin4(i)] / std::sqrt(value(4*symbol_len));
+		fwd(temp, tdom);
+		for (int i = 0; i < symbol_len; ++i)
+			if (norm(fdom[i]))
+				temp[i] /= symbol_len;
 			else
-				temp[bin(i)] = 0;
+				temp[i] = 0;
+		bwd(tdom, temp);
 	}
 	void symbol(bool papr_reduction = true)
 	{
-		for (int i = 0; i < symbol_len; ++i)
-			temp[i] = fdom[i];
-		if (papr_reduction)
-			improve_papr();
-		bwd(tdom, temp);
+		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= std::sqrt(value(8*symbol_len));
+		if (papr_reduction)
+			improve_papr();
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			value ratio(0.5);
