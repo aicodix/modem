@@ -189,8 +189,8 @@ struct Decoder
 	static const int mls1_len = 255;
 	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
-	static const int buffer_len = 6 * extended_len;
-	static const int search_pos = buffer_len - 4 * extended_len;
+	static const int buffer_len = 4 * extended_len;
+	static const int search_pos = extended_len;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::BlockDC<value, value> blockdc;
