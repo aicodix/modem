@@ -195,8 +195,9 @@ struct Encoder
 		code_off = offset - cons_cols / 2;
 		mls0_off = offset - mls0_len + 1;
 		mls1_off = offset - mls1_len / 2;
-		value kern_fac = 1 / value(10 * 32);
-		for (int i = 0; i < 16; ++i) {
+		int reserved_tones = 32;
+		value kern_fac = 1 / value(10 * reserved_tones);
+		for (int i = 0; i < reserved_tones / 2; ++i) {
 			fdom[bin(code_off-1-i)] = kern_fac;
 			fdom[bin(code_off+cons_cols+i)] = kern_fac;
 		}
