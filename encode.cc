@@ -65,7 +65,7 @@ struct Encoder
 	{
 		return 1 - 2 * bit;
 	}
-	void improve_papr()
+	void clipping_and_filtering()
 	{
 		for (int i = 0; i < symbol_len; ++i) {
 			value pwr = norm(tdom[i]);
@@ -86,7 +86,7 @@ struct Encoder
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= std::sqrt(value(8*symbol_len));
 		if (papr_reduction)
-			improve_papr();
+			clipping_and_filtering();
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			value ratio(0.5);
@@ -144,7 +144,7 @@ struct Encoder
 		for (int i = 0; i < 16; ++i)
 			CODE::set_be_bit(data, i+55, (cs>>i)&1);
 		bchenc(data, parity);
-		CODE::MLS seq4(mls1_poly);
+		CODE::MLS seq1(mls1_poly);
 		value mls1_fac = std::sqrt(value(symbol_len) / value(mls1_len));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
@@ -156,7 +156,7 @@ struct Encoder
 		for (int i = 0; i < mls1_len; ++i)
 			fdom[bin(i+mls1_off)] *= fdom[bin(i-1+mls1_off)];
 		for (int i = 0; i < mls1_len; ++i)
-			fdom[bin(i+mls1_off)] *= nrz(seq4());
+			fdom[bin(i+mls1_off)] *= nrz(seq1());
 		symbol();
 	}
 	cmplx mod_map(code_type *b)
