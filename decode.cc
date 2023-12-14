@@ -280,7 +280,7 @@ struct Decoder
 			0b101011111, 0b111111001, 0b111000011, 0b100111001,
 			0b110101001, 0b000011111, 0b110000111, 0b110110001});
 
-		blockdc.samples(2*extended_len);
+		blockdc.samples(filter_len);
 		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
 		bool okay;
