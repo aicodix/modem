@@ -51,6 +51,7 @@ struct Encoder
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx temp[symbol_len];
+	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	value papr_min, papr_max;
 	int code_off;
@@ -80,13 +81,29 @@ struct Encoder
 				temp[i] = 0;
 		bwd(tdom, temp);
 	}
+	void tone_reservation()
+	{
+		for (int n = 0; n < 10; ++n) {
+			int peak = 0;
+			for (int i = 1; i < symbol_len; ++i)
+				if (norm(tdom[peak]) < norm(tdom[i]))
+					peak = i;
+			cmplx orig = tdom[peak];
+			for (int i = 0; i < peak; ++i)
+				tdom[i] -= orig * kern[symbol_len-peak+i];
+			for (int i = peak; i < symbol_len; ++i)
+				tdom[i] -= orig * kern[i-peak];
+		}
+	}
 	void symbol(bool papr_reduction = true)
 	{
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= std::sqrt(value(8*symbol_len));
-		if (papr_reduction)
-			clipping_and_filtering();
+		if (papr_reduction) {
+			// clipping_and_filtering();
+			tone_reservation();
+		}
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			value ratio(0.5);
@@ -176,6 +193,12 @@ struct Encoder
 		code_off = offset - cons_cols / 2;
 		mls0_off = offset - mls0_len + 1;
 		mls1_off = offset - mls1_len / 2;
+		value kern_fac = 1 / value(10 * 32);
+		for (int i = 0; i < 16; ++i) {
+			fdom[bin(code_off-1-i)] = kern_fac;
+			fdom[bin(code_off+cons_cols+i)] = kern_fac;
+		}
+		bwd(kern, fdom);
 		papr_min = 1000, papr_max = -1000;
 		pilot_block();
 		schmidl_cox();
