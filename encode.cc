@@ -91,10 +91,8 @@ struct Encoder
 			cmplx orig = tdom[peak];
 			if (norm(orig) <= value(1))
 				break;
-			for (int i = 0; i < peak; ++i)
-				tdom[i] -= orig * kern[symbol_len-peak+i];
-			for (int i = peak; i < symbol_len; ++i)
-				tdom[i] -= orig * kern[i-peak];
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] -= orig * kern[(symbol_len-peak+i)%symbol_len];
 		}
 	}
 	void symbol(bool papr_reduction = true)
