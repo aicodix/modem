@@ -371,12 +371,7 @@ struct Decoder
 			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
 				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], chan[i]);
-			std::cerr << ".";
-		}
-		std::cerr << " done" << std::endl;
-		if (0) {
-			value sum_slope = 0, sum_yint = 0;
-			for (int j = 0; j < cons_rows; ++j) {
+			if (1) {
 				for (int i = 0; i < cons_cols; ++i) {
 					code_type tmp[mod_bits];
 					mod_hard(tmp, cons[cons_cols*j+i]);
@@ -386,20 +381,14 @@ struct Decoder
 				tse.compute(index, phase, cons_cols);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
-				sum_slope += tse.slope();
-				sum_yint += tse.yint();
 				for (int i = 0; i < cons_cols; ++i)
 					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
+				for (int i = 0; i < cons_cols; ++i)
+					chan[i] *= DSP::polar<value>(1, tse(i+code_off));
 			}
-			value avg_slope = sum_slope / cons_rows;
-			value avg_yint = sum_yint / cons_rows;
-			//for (int i = 0; i < cons_cnt; ++i)
-			//	cons[i] *= DSP::polar<value>(1, -(avg_yint+avg_slope*((i%cons_cols)+code_off)));
-			sfo_rad -= avg_slope * symbol_len / value(extended_len);
-			cfo_rad += avg_yint / extended_len;
-			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
-			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+			std::cerr << ".";
 		}
+		std::cerr << " done" << std::endl;
 		if (1) {
 			std::cerr << "Es/N0 (dB):";
 			value sp = 0, np = 0;
