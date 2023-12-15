@@ -74,12 +74,21 @@ struct Encoder
 				tdom[i] /= sqrt(pwr);
 		}
 		fwd(temp, tdom);
-		for (int i = 0; i < symbol_len; ++i)
-			if (norm(fdom[i]))
-				temp[i] /= symbol_len;
-			else
+		for (int i = 0; i < symbol_len; ++i) {
+			if (norm(fdom[i])) {
+				temp[i] /= std::sqrt(value(symbol_len/4));
+				cmplx err = temp[i] - fdom[i];
+				value mag = abs(err);
+				value lim = 0.1;
+				if (mag > lim)
+					temp[i] -= ((mag - lim) / mag) * err;
+			} else {
 				temp[i] = 0;
+			}
+		}
 		bwd(tdom, temp);
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] /= std::sqrt(value(symbol_len*4));
 	}
 	void tone_reservation()
 	{
@@ -99,7 +108,7 @@ struct Encoder
 	{
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] /= std::sqrt(value(4*symbol_len));
+			tdom[i] /= std::sqrt(value(symbol_len*4));
 		if (papr_reduction) {
 			clipping_and_filtering();
 			tone_reservation();
