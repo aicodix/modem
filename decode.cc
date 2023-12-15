@@ -172,16 +172,16 @@ struct Decoder
 	typedef SIMD<code_type, 16 / sizeof(code_type)> mesg_type;
 #endif
 	typedef DSP::Const<value> Const;
-	static const int code_order = 11;
+	static const int code_order = 12;
 	static const int mod_bits = 4;
 	static const int code_len = 1 << code_order;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
-	static const int max_bits = 1360 + 32;
+	static const int max_bits = 2720 + 32;
 	static const int cons_cols = 256;
-	static const int cons_rows = 2;
+	static const int cons_rows = 4;
 	static const int cons_total = cons_rows * cons_cols;
 	static const int code_off = - cons_cols / 2;
 	static const int mls0_len = 127;
@@ -427,16 +427,16 @@ struct Decoder
 		int data_bits = 0;
 		switch (oper_mode) {
 		case 17:
-			data_bits = 1360;
-			frozen_bits = frozen_2048_1392;
+			data_bits = 2720;
+			frozen_bits = frozen_4096_2752;
 			break;
 		case 18:
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
+			data_bits = 2048;
+			frozen_bits = frozen_4096_2080;
 			break;
 		case 19:
-			data_bits = 680;
-			frozen_bits = frozen_2048_712;
+			data_bits = 1360;
+			frozen_bits = frozen_4096_1392;
 			break;
 		default:
 			return;
@@ -506,7 +506,7 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int data_max = 1360 / 8;
+	const int data_max = 340;
 	uint8_t *output_data = new uint8_t[data_max];
 	int data_len = 0;
 

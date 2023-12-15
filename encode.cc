@@ -29,13 +29,13 @@ struct Encoder
 {
 	typedef int8_t code_type;
 	static const int mod_bits = 4;
-	static const int code_order = 11;
+	static const int code_order = 12;
 	static const int code_len = 1 << code_order;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
-	static const int max_bits = 1360 + 32;
+	static const int max_bits = 2720 + 32;
 	static const int cons_cols = 256;
-	static const int cons_rows = 2;
+	static const int cons_rows = 4;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -218,16 +218,16 @@ struct Encoder
 			int data_bits = 0;
 			switch (oper_mode) {
 			case 17:
-				data_bits = 1360;
-				frozen_bits = frozen_2048_1392;
+				data_bits = 2720;
+				frozen_bits = frozen_4096_2752;
 				break;
 			case 18:
-				data_bits = 1024;
-				frozen_bits = frozen_2048_1056;
+				data_bits = 2048;
+				frozen_bits = frozen_4096_2080;
 				break;
 			case 19:
-				data_bits = 680;
-				frozen_bits = frozen_2048_712;
+				data_bits = 1360;
+				frozen_bits = frozen_4096_1392;
 				break;
 			default:
 				return;
@@ -324,18 +324,18 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
 		return 1;
 	}
-	const int data_len = 1360 / 8;
+	const int data_len = 340;
 	uint8_t *input_data = new uint8_t[data_len];
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] = std::max(input_file.get(), 0);
 	int oper_mode = 0;
-	for (int i = 128; i < 170; ++i)
+	for (int i = 256; i < 340; ++i)
 		if (!oper_mode && input_data[i])
 			oper_mode = 17;
-	for (int i = 85; i < 128; ++i)
+	for (int i = 170; i < 256; ++i)
 		if (!oper_mode && input_data[i])
 			oper_mode = 18;
-	for (int i = 0; i < 85; ++i)
+	for (int i = 0; i < 170; ++i)
 		if (!oper_mode && input_data[i])
 			oper_mode = 19;
 	CODE::Xorshift32 scrambler;
