@@ -28,6 +28,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "crc.hh"
 #include "osd.hh"
 #include "psk.hh"
+#include "qam.hh"
 #include "polar_tables.hh"
 #include "polar_helper.hh"
 #include "polar_encoder.hh"
@@ -172,7 +173,7 @@ struct Decoder
 #endif
 	typedef DSP::Const<value> Const;
 	static const int code_order = 11;
-	static const int mod_bits = 2;
+	static const int mod_bits = 4;
 	static const int code_len = 1 << code_order;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
@@ -180,7 +181,7 @@ struct Decoder
 	static const int extended_len = symbol_len + guard_len;
 	static const int max_bits = 1360 + 32;
 	static const int cons_cols = 256;
-	static const int cons_rows = 4;
+	static const int cons_rows = 2;
 	static const int cons_total = cons_rows * cons_cols;
 	static const int code_off = - cons_cols / 2;
 	static const int mls0_len = 127;
@@ -252,15 +253,15 @@ struct Decoder
 	}
 	cmplx mod_map(code_type *b)
 	{
-		return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+		return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
 	}
 	void mod_hard(code_type *b, cmplx c)
 	{
-		PhaseShiftKeying<4, cmplx, code_type>::hard(b, c);
+		QuadratureAmplitudeModulation<16, cmplx, code_type>::hard(b, c);
 	}
 	void mod_soft(code_type *b, cmplx c, value precision)
 	{
-		PhaseShiftKeying<4, cmplx, code_type>::soft(b, c, precision);
+		QuadratureAmplitudeModulation<16, cmplx, code_type>::soft(b, c, precision);
 	}
 	const cmplx *next_sample()
 	{
@@ -415,7 +416,7 @@ struct Decoder
 				value snr = DSP::decibel(precision);
 				std::cerr << " " << snr;
 				for (int i = 0; i < cons_cols; ++i)
-					mod_soft(code+2*(cons_cols*j+i), cons[cons_cols*j+i], precision);
+					mod_soft(code+mod_bits*(cons_cols*j+i), cons[cons_cols*j+i], precision);
 			}
 			std::cerr << std::endl;
 		} else {

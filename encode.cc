@@ -18,6 +18,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "mls.hh"
 #include "crc.hh"
 #include "psk.hh"
+#include "qam.hh"
 #include "polar_tables.hh"
 #include "polar_helper.hh"
 #include "polar_encoder.hh"
@@ -27,14 +28,14 @@ template <typename value, typename cmplx, int rate>
 struct Encoder
 {
 	typedef int8_t code_type;
-	static const int mod_bits = 2;
+	static const int mod_bits = 4;
 	static const int code_order = 11;
 	static const int code_len = 1 << code_order;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int max_bits = 1360 + 32;
 	static const int cons_cols = 256;
-	static const int cons_rows = 4;
+	static const int cons_rows = 2;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
 	static const int mls1_len = 255;
@@ -187,7 +188,7 @@ struct Encoder
 	}
 	cmplx mod_map(code_type *b)
 	{
-		return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+		return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
 	}
 	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode, int reserved_tones) :
 		pcm(pcm), crc0(0xA8F4), crc1(0x8F6E37A0), bchenc({
