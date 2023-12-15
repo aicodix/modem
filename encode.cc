@@ -101,7 +101,7 @@ struct Encoder
 	{
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] /= std::sqrt(value(8*symbol_len));
+			tdom[i] /= std::sqrt(value(4*symbol_len));
 		if (papr_reduction) {
 			// clipping_and_filtering();
 			tone_reservation();
