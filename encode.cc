@@ -103,7 +103,7 @@ struct Encoder
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= std::sqrt(value(4*symbol_len));
 		if (papr_reduction) {
-			// clipping_and_filtering();
+			clipping_and_filtering();
 			tone_reservation();
 		}
 		for (int i = 0; i < guard_len; ++i) {
