@@ -373,7 +373,7 @@ struct Decoder
 			std::cerr << ".";
 		}
 		std::cerr << " done" << std::endl;
-		if (1) {
+		if (0) {
 			value sum_slope = 0, sum_yint = 0;
 			for (int j = 0; j < cons_rows; ++j) {
 				for (int i = 0; i < cons_cols; ++i) {
