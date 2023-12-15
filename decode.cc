@@ -189,6 +189,7 @@ struct Decoder
 	static const int mls1_len = 255;
 	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
+	static const int mls2_poly = 0b100101010001;
 	static const int buffer_len = 4 * extended_len;
 	static const int search_pos = extended_len;
 	DSP::ReadPCM<value> *pcm;
@@ -206,7 +207,7 @@ struct Decoder
 	int8_t genmat[255*71];
 	mesg_type mesg[max_bits], mess[code_len];
 	code_type code[code_len];
-	cmplx cons[cons_total], prev[cons_cols];
+	cmplx cons[cons_total], chan[cons_cols];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[cons_cols], phase[cons_cols];
 	value cfo_rad, sfo_rad;
@@ -219,15 +220,15 @@ struct Decoder
 	{
 		return (carrier + symbol_len) % symbol_len;
 	}
-	static int nrz(bool bit)
+	static value nrz(bool bit)
 	{
 		return 1 - 2 * bit;
 	}
-	static cmplx demod_or_erase(cmplx curr, cmplx prev)
+	static cmplx demod_or_erase(cmplx curr, cmplx chan)
 	{
-		if (!(norm(prev) > 0))
+		if (!(norm(chan) > 0))
 			return 0;
-		cmplx cons = curr / prev;
+		cmplx cons = curr / chan;
 		if (!(norm(cons) <= 4))
 			return 0;
 		return cons;
@@ -328,7 +329,7 @@ struct Decoder
 				continue;
 			}
 			oper_mode = md & 255;
-			if (oper_mode && (oper_mode < 14 || oper_mode > 16)) {
+			if (oper_mode && (oper_mode < 17 || oper_mode > 19)) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
@@ -348,15 +349,16 @@ struct Decoder
 		if (!okay || !oper_mode)
 			return;
 
-		for (int i = 0; i < symbol_pos+extended_len; ++i)
+		for (int i = 0; i < symbol_pos+2*extended_len; ++i)
 			buf = next_sample();
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = buf[i] * osc();
 		for (int i = 0; i < guard_len; ++i)
 			osc();
 		fwd(fdom, tdom);
+		CODE::MLS seq2(mls2_poly);
 		for (int i = 0; i < cons_cols; ++i)
-			prev[i] = fdom[bin(i+code_off)];
+			chan[i] = nrz(seq2()) * fdom[bin(i+code_off)];
 		std::cerr << "demod ";
 		for (int j = 0; j < cons_rows; ++j) {
 			for (int i = 0; i < extended_len; ++i)
@@ -367,9 +369,7 @@ struct Decoder
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
-				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
-			for (int i = 0; i < cons_cols; ++i)
-				prev[i] = fdom[bin(i+code_off)];
+				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], chan[i]);
 			std::cerr << ".";
 		}
 		std::cerr << " done" << std::endl;
@@ -425,15 +425,15 @@ struct Decoder
 		}
 		int data_bits = 0;
 		switch (oper_mode) {
-		case 14:
+		case 17:
 			data_bits = 1360;
 			frozen_bits = frozen_2048_1392;
 			break;
-		case 15:
+		case 18:
 			data_bits = 1024;
 			frozen_bits = frozen_2048_1056;
 			break;
-		case 16:
+		case 19:
 			data_bits = 680;
 			frozen_bits = frozen_2048_712;
 			break;

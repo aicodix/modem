@@ -216,15 +216,15 @@ struct Encoder
 			const uint32_t *frozen_bits = nullptr;
 			int data_bits = 0;
 			switch (oper_mode) {
-			case 14:
+			case 17:
 				data_bits = 1360;
 				frozen_bits = frozen_2048_1392;
 				break;
-			case 15:
+			case 18:
 				data_bits = 1024;
 				frozen_bits = frozen_2048_1056;
 				break;
-			case 16:
+			case 19:
 				data_bits = 680;
 				frozen_bits = frozen_2048_712;
 				break;
@@ -239,9 +239,11 @@ struct Encoder
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc1()>>i)&1);
 			polarenc(code, mesg, frozen_bits, code_order);
+			pilot_block();
+			value code_fac = std::sqrt(value(symbol_len) / value(cons_cols));
 			for (int j = 0; j < cons_rows; ++j) {
 				for (int i = 0; i < cons_cols; ++i)
-					fdom[bin(i+code_off)] *=
+					fdom[bin(i+code_off)] = code_fac *
 						mod_map(code+mod_bits*(cons_cols*j+i));
 				symbol();
 			}
@@ -328,13 +330,13 @@ int main(int argc, char **argv)
 	int oper_mode = 0;
 	for (int i = 128; i < 170; ++i)
 		if (!oper_mode && input_data[i])
-			oper_mode = 14;
+			oper_mode = 17;
 	for (int i = 85; i < 128; ++i)
 		if (!oper_mode && input_data[i])
-			oper_mode = 15;
+			oper_mode = 18;
 	for (int i = 0; i < 85; ++i)
 		if (!oper_mode && input_data[i])
-			oper_mode = 16;
+			oper_mode = 19;
 	CODE::Xorshift32 scrambler;
 	for (int i = 0; i < data_len; ++i)
 		input_data[i] ^= scrambler();
