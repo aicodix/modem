@@ -182,7 +182,7 @@ struct Encoder
 	{
 		return PhaseShiftKeying<4, cmplx, code_type>::map(b);
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
+	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode, int reserved_tones) :
 		pcm(pcm), crc0(0xA8F4), crc1(0x8F6E37A0), bchenc({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
@@ -195,7 +195,6 @@ struct Encoder
 		code_off = offset - cons_cols / 2;
 		mls0_off = offset - mls0_len + 1;
 		mls1_off = offset - mls1_len / 2;
-		int reserved_tones = 8;
 		value kern_fac = 1 / value(10 * reserved_tones);
 		for (int i = 0; i < reserved_tones / 2; ++i) {
 			fdom[bin(code_off-1-i)] = kern_fac;
@@ -294,7 +293,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	const int band_width = 1600;
+	const int reserved_tones = 8;
+	const int band_width = 1600 + (25 * reserved_tones) / 4;
 
 	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
 		std::cerr << "Unsupported frequency offset." << std::endl;
@@ -336,16 +336,16 @@ int main(int argc, char **argv)
 	output_file.silence(output_rate);
 	switch (output_rate) {
 	case 8000:
-		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign, oper_mode, reserved_tones);
 		break;
 	case 16000:
-		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign, oper_mode, reserved_tones);
 		break;
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign, oper_mode, reserved_tones);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign, oper_mode, reserved_tones);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
