@@ -9,6 +9,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cmath>
 #include "xorshift.hh"
 #include "complex.hh"
+#include "permute.hh"
 #include "utils.hh"
 #include "bitman.hh"
 #include "decibel.hh"
@@ -48,6 +49,7 @@ struct Encoder
 	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
 	CODE::PolarSysEnc<code_type> polarenc;
+	CODE::FisherYatesShuffle<code_len> shuffle;
 	code_type code[code_len], mesg[max_bits];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
@@ -241,6 +243,7 @@ struct Encoder
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc1()>>i)&1);
 			polarenc(code, mesg, frozen_bits, code_order);
+			shuffle(code);
 			for (int i = 0; i < cons_cols; ++i)
 				prev[i] = fdom[bin(i+code_off)];
 			for (int j = 0; j < cons_rows; ++j) {

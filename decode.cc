@@ -14,6 +14,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "xorshift.hh"
 #include "trigger.hh"
 #include "complex.hh"
+#include "permute.hh"
 #include "decibel.hh"
 #include "blockdc.hh"
 #include "hilbert.hh"
@@ -204,6 +205,7 @@ struct Decoder
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	CODE::PolarEncoder<mesg_type> polarenc;
 	CODE::PolarListDecoder<mesg_type, code_order> polardec;
+	CODE::ReverseFisherYatesShuffle<code_len> shuffle;
 	int8_t genmat[255*71];
 	mesg_type mesg[max_bits], mess[code_len];
 	code_type code[code_len];
@@ -431,6 +433,7 @@ struct Decoder
 		*len = data_bits / 8;
 		crc_bits = data_bits + 32;
 		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
+		shuffle(code);
 		polardec(metric, mesg, code, frozen_bits, code_order);
 		systematic();
 		int order[mesg_type::SIZE];
