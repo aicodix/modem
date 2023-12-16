@@ -190,7 +190,6 @@ struct Decoder
 	static const int mls1_len = 255;
 	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
-	static const int mls2_poly = 0b100101010001;
 	static const int buffer_len = 4 * extended_len;
 	static const int search_pos = extended_len;
 	DSP::ReadPCM<value> *pcm;
@@ -208,7 +207,7 @@ struct Decoder
 	int8_t genmat[255*71];
 	mesg_type mesg[max_bits], mess[code_len];
 	code_type code[code_len];
-	cmplx cons[cons_total], chan[cons_cols];
+	cmplx cons[cons_total], prev[cons_cols];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[cons_cols], phase[cons_cols];
 	value cfo_rad, sfo_rad;
@@ -225,11 +224,11 @@ struct Decoder
 	{
 		return 1 - 2 * bit;
 	}
-	static cmplx demod_or_erase(cmplx curr, cmplx chan)
+	static cmplx demod_or_erase(cmplx curr, cmplx prev)
 	{
-		if (!(norm(chan) > 0))
+		if (!(norm(prev) > 0))
 			return 0;
-		cmplx cons = curr / chan;
+		cmplx cons = curr / prev;
 		if (!(norm(cons) <= 4))
 			return 0;
 		return cons;
@@ -350,16 +349,15 @@ struct Decoder
 		if (!okay || !oper_mode)
 			return;
 
-		for (int i = 0; i < symbol_pos+2*extended_len; ++i)
+		for (int i = 0; i < symbol_pos+extended_len; ++i)
 			buf = next_sample();
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = buf[i] * osc();
 		for (int i = 0; i < guard_len; ++i)
 			osc();
 		fwd(fdom, tdom);
-		CODE::MLS seq2(mls2_poly);
 		for (int i = 0; i < cons_cols; ++i)
-			chan[i] = nrz(seq2()) * fdom[bin(i+code_off)];
+			prev[i] = fdom[bin(i+code_off)];
 		std::cerr << "demod ";
 		for (int j = 0; j < cons_rows; ++j) {
 			for (int i = 0; i < extended_len; ++i)
@@ -370,7 +368,7 @@ struct Decoder
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
-				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], chan[i]);
+				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
 			if (1) {
 				for (int i = 0; i < cons_cols; ++i) {
 					code_type tmp[mod_bits];
@@ -384,7 +382,7 @@ struct Decoder
 				for (int i = 0; i < cons_cols; ++i)
 					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
 				for (int i = 0; i < cons_cols; ++i)
-					chan[i] *= DSP::polar<value>(1, tse(i+code_off));
+					prev[i] *= DSP::polar<value>(1, tse(i+code_off));
 			}
 			std::cerr << ".";
 		}

@@ -54,6 +54,7 @@ struct Encoder
 	cmplx temp[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
+	cmplx prev[cons_cols];
 	value papr_min, papr_max;
 	int code_off;
 	int mls0_off;
@@ -240,11 +241,11 @@ struct Encoder
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc1()>>i)&1);
 			polarenc(code, mesg, frozen_bits, code_order);
-			pilot_block();
-			value code_fac = std::sqrt(value(symbol_len) / value(cons_cols));
+			for (int i = 0; i < cons_cols; ++i)
+				prev[i] = fdom[bin(i+code_off)];
 			for (int j = 0; j < cons_rows; ++j) {
 				for (int i = 0; i < cons_cols; ++i)
-					fdom[bin(i+code_off)] = code_fac *
+					fdom[bin(i+code_off)] = prev[i] *
 						mod_map(code+mod_bits*(cons_cols*j+i));
 				symbol();
 			}
