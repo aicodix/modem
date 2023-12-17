@@ -173,14 +173,14 @@ struct Decoder
 	typedef SIMD<code_type, 16 / sizeof(code_type)> mesg_type;
 #endif
 	typedef DSP::Const<value> Const;
-	static const int code_order = 12;
-	static const int mod_bits = 4;
+	static const int code_order = 13;
+	static const int mod_bits = 8;
 	static const int code_len = 1 << code_order;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
-	static const int max_bits = 2720 + 32;
+	static const int max_bits = 5440 + 32;
 	static const int comb_cols = 16;
 	static const int code_cols = 256;
 	static const int cons_cols = code_cols + comb_cols;
@@ -335,7 +335,7 @@ struct Decoder
 				continue;
 			}
 			oper_mode = md & 255;
-			if (oper_mode && (oper_mode < 17 || oper_mode > 19)) {
+			if (oper_mode && (oper_mode < 20 || oper_mode > 22)) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
@@ -436,17 +436,17 @@ struct Decoder
 		std::cerr << std::endl;
 		int data_bits = 0;
 		switch (oper_mode) {
-		case 17:
+		case 20:
+			data_bits = 5440;
+			frozen_bits = frozen_8192_5472;
+			break;
+		case 21:
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
+			break;
+		case 22:
 			data_bits = 2720;
-			frozen_bits = frozen_4096_2752;
-			break;
-		case 18:
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 19:
-			data_bits = 1360;
-			frozen_bits = frozen_4096_1392;
+			frozen_bits = frozen_8192_2752;
 			break;
 		default:
 			return;
@@ -517,7 +517,7 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int data_max = 340;
+	const int data_max = 680;
 	uint8_t *output_data = new uint8_t[data_max];
 	int data_len = 0;
 
