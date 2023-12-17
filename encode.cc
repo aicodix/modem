@@ -191,7 +191,7 @@ struct Encoder
 	}
 	cmplx mod_map(code_type *b)
 	{
-		return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
+		return QuadratureAmplitudeModulation<1 << mod_bits, cmplx, code_type>::map(b);
 	}
 	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode, int reserved_tones) :
 		pcm(pcm), crc0(0xA8F4), crc1(0x8F6E37A0), bchenc({

@@ -254,15 +254,15 @@ struct Decoder
 	}
 	cmplx mod_map(code_type *b)
 	{
-		return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
+		return QuadratureAmplitudeModulation<1 << mod_bits, cmplx, code_type>::map(b);
 	}
 	void mod_hard(code_type *b, cmplx c)
 	{
-		QuadratureAmplitudeModulation<16, cmplx, code_type>::hard(b, c);
+		QuadratureAmplitudeModulation<1 << mod_bits, cmplx, code_type>::hard(b, c);
 	}
 	void mod_soft(code_type *b, cmplx c, value precision)
 	{
-		QuadratureAmplitudeModulation<16, cmplx, code_type>::soft(b, c, precision);
+		QuadratureAmplitudeModulation<1 << mod_bits, cmplx, code_type>::soft(b, c, precision);
 	}
 	const cmplx *next_sample()
 	{
