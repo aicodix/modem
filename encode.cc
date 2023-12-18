@@ -324,7 +324,7 @@ int main(int argc, char **argv)
 	}
 
 	const int comb_pilots = 16;
-	const int reserved_tones = 8;
+	const int reserved_tones = 16;
 	const int band_width = 1600 + (25 * (comb_pilots + reserved_tones)) / 4;
 
 	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
