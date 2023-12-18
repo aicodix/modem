@@ -70,7 +70,7 @@ struct Encoder
 	{
 		return 1 - 2 * bit;
 	}
-	void clipping_and_filtering()
+	void clipping_and_filtering(bool limit)
 	{
 		for (int i = 0; i < symbol_len; ++i) {
 			value pwr = norm(tdom[i]);
@@ -84,7 +84,7 @@ struct Encoder
 				cmplx err = temp[i] - fdom[i];
 				value mag = abs(err);
 				value lim = 0.1;
-				if (mag > lim)
+				if (limit && mag > lim)
 					temp[i] -= ((mag - lim) / mag) * err;
 			} else {
 				temp[i] = 0;
@@ -113,10 +113,11 @@ struct Encoder
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= std::sqrt(value(symbol_len*4));
-		if (papr_reduction) {
-			clipping_and_filtering();
+		clipping_and_filtering(papr_reduction);
+		if (papr_reduction)
 			tone_reservation();
-		}
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] = cmplx(std::min(value(1), tdom[i].real()), std::min(value(1), tdom[i].imag()));
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			value ratio(0.5);
