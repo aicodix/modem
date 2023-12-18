@@ -181,7 +181,7 @@ struct Decoder
 	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
 	static const int max_bits = 2720 + 32;
-	static const int comb_cols = 8;
+	static const int comb_cols = 16;
 	static const int code_cols = 256;
 	static const int cons_cols = code_cols + comb_cols;
 	static const int comb_dist = cons_cols / comb_cols;

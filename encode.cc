@@ -35,7 +35,7 @@ struct Encoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int max_bits = 2720 + 32;
-	static const int comb_cols = 8;
+	static const int comb_cols = 16;
 	static const int code_cols = 256;
 	static const int cons_cols = code_cols + comb_cols;
 	static const int comb_dist = cons_cols / comb_cols;
@@ -323,7 +323,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	const int comb_pilots = 8;
+	const int comb_pilots = 16;
 	const int reserved_tones = 8;
 	const int band_width = 1600 + (25 * (comb_pilots + reserved_tones)) / 4;
 
