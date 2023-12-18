@@ -181,7 +181,11 @@ struct Decoder
 	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
 	static const int max_bits = 2720 + 32;
-	static const int cons_cols = 256;
+	static const int comb_cols = 8;
+	static const int code_cols = 256;
+	static const int cons_cols = code_cols + comb_cols;
+	static const int comb_dist = cons_cols / comb_cols;
+	static const int comb_off = comb_dist / 2;
 	static const int cons_rows = 4;
 	static const int cons_total = cons_rows * cons_cols;
 	static const int code_off = - cons_cols / 2;
@@ -198,7 +202,7 @@ struct Decoder
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
-	DSP::TheilSenEstimator<value, cons_cols> tse;
+	DSP::TheilSenEstimator<value, comb_cols> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
@@ -211,7 +215,7 @@ struct Decoder
 	code_type code[code_len];
 	cmplx cons[cons_total], prev[cons_cols];
 	cmplx fdom[symbol_len], tdom[symbol_len];
-	value index[cons_cols], phase[cons_cols];
+	value index[comb_cols], phase[comb_cols];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
 	int symbol_pos;
@@ -361,6 +365,7 @@ struct Decoder
 		for (int i = 0; i < cons_cols; ++i)
 			prev[i] = fdom[bin(i+code_off)];
 		std::cerr << "demod ";
+		CODE::MLS seq0(mls0_poly);
 		for (int j = 0; j < cons_rows; ++j) {
 			for (int i = 0; i < extended_len; ++i)
 				buf = next_sample();
@@ -371,48 +376,46 @@ struct Decoder
 			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
 				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
-			if (1) {
-				for (int i = 0; i < cons_cols; ++i) {
-					code_type tmp[mod_bits];
-					mod_hard(tmp, cons[cons_cols*j+i]);
-					index[i] = i + code_off;
-					phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
-				}
-				tse.compute(index, phase, cons_cols);
-				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
-				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
-				for (int i = 0; i < cons_cols; ++i)
-					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
-				for (int i = 0; i < cons_cols; ++i)
-					prev[i] *= DSP::polar<value>(1, tse(i+code_off));
+			for (int i = 0; i < comb_cols; ++i)
+				cons[cons_cols*j+comb_dist*i+comb_off] *= nrz(seq0());
+			for (int i = 0; i < comb_cols; ++i) {
+				index[i] = code_off + comb_dist * i + comb_off;
+				phase[i] = arg(cons[cons_cols*j+comb_dist*i+comb_off]);
 			}
+			tse.compute(index, phase, comb_cols);
+			//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+			for (int i = 0; i < cons_cols; ++i)
+				cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
+			for (int i = 0; i < cons_cols; ++i)
+				if (i % comb_dist == comb_off)
+					prev[i] = fdom[bin(i+code_off)];
+				else
+					prev[i] *= DSP::polar<value>(1, tse(i+code_off));
 			std::cerr << ".";
 		}
 		std::cerr << " done" << std::endl;
-		if (1) {
-			std::cerr << "Es/N0 (dB):";
-			value sp = 0, np = 0;
-			for (int j = 0; j < cons_rows; ++j) {
-				for (int i = 0; i < cons_cols; ++i) {
-					code_type tmp[mod_bits];
-					mod_hard(tmp, cons[cons_cols*j+i]);
-					cmplx hard = mod_map(tmp);
-					cmplx error = cons[cons_cols*j+i] - hard;
-					sp += norm(hard);
-					np += norm(error);
-				}
-				value precision = sp / np;
-				value snr = DSP::decibel(precision);
-				std::cerr << " " << snr;
-				for (int i = 0; i < cons_cols; ++i)
-					mod_soft(code+mod_bits*(cons_cols*j+i), cons[cons_cols*j+i], precision);
+		std::cerr << "Es/N0 (dB):";
+		value sp = 0, np = 0;
+		for (int j = 0, k = 0; j < cons_rows; ++j) {
+			for (int i = 0; i < comb_cols; ++i) {
+				cmplx hard(1, 0);
+				cmplx error = cons[cons_cols*j+comb_dist*i+comb_off] - hard;
+				sp += norm(hard);
+				np += norm(error);
 			}
-			std::cerr << std::endl;
-		} else {
-			value precision = 8;
-			for (int i = 0; i < cons_total; ++i)
-				mod_soft(code+mod_bits*i, cons[i], precision);
+			value precision = sp / np;
+			// precision = 8;
+			value snr = DSP::decibel(precision);
+			std::cerr << " " << snr;
+			for (int i = 0; i < cons_cols; ++i) {
+				if (i % comb_dist == comb_off)
+					continue;
+				mod_soft(code+k, cons[cons_cols*j+i], precision);
+				k += mod_bits;
+			}
 		}
+		std::cerr << std::endl;
 		int data_bits = 0;
 		switch (oper_mode) {
 		case 17:

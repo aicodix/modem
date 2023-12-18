@@ -35,7 +35,11 @@ struct Encoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int max_bits = 2720 + 32;
-	static const int cons_cols = 256;
+	static const int comb_cols = 8;
+	static const int code_cols = 256;
+	static const int cons_cols = code_cols + comb_cols;
+	static const int comb_dist = cons_cols / comb_cols;
+	static const int comb_off = comb_dist / 2;
 	static const int cons_rows = 4;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
@@ -176,10 +180,10 @@ struct Encoder
 			CODE::set_be_bit(data, i+55, (cs>>i)&1);
 		bchenc(data, parity);
 		CODE::MLS seq1(mls1_poly);
-		value mls1_fac = std::sqrt(value(symbol_len) / value(mls1_len));
+		value cons_fac = std::sqrt(value(symbol_len) / value(cons_cols));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-		fdom[bin(mls1_off-1)] = mls1_fac;
+		fdom[bin(mls1_off-1)] = cons_fac;
 		for (int i = 0; i < 71; ++i)
 			fdom[bin(i+mls1_off)] = nrz(CODE::get_be_bit(data, i));
 		for (int i = 71; i < mls1_len; ++i)
@@ -188,6 +192,10 @@ struct Encoder
 			fdom[bin(i+mls1_off)] *= fdom[bin(i-1+mls1_off)];
 		for (int i = 0; i < mls1_len; ++i)
 			fdom[bin(i+mls1_off)] *= nrz(seq1());
+		for (int i = 0; i < comb_cols / 2; ++i) {
+			fdom[bin(i+code_off)] = cons_fac * nrz(seq1());
+			fdom[bin(i+mls1_off+mls1_len)] = cons_fac * nrz(seq1());
+		}
 		symbol();
 	}
 	cmplx mod_map(code_type *b)
@@ -247,10 +255,17 @@ struct Encoder
 			shuffle(code);
 			for (int i = 0; i < cons_cols; ++i)
 				prev[i] = fdom[bin(i+code_off)];
-			for (int j = 0; j < cons_rows; ++j) {
-				for (int i = 0; i < cons_cols; ++i)
-					fdom[bin(i+code_off)] = prev[i] *
-						mod_map(code+mod_bits*(cons_cols*j+i));
+			CODE::MLS seq0(mls0_poly);
+			for (int j = 0, k = 0; j < cons_rows; ++j) {
+				for (int i = 0; i < cons_cols; ++i) {
+					if (i % comb_dist == comb_off) {
+						prev[i] *= nrz(seq0());
+						fdom[bin(i+code_off)] = prev[i];
+					} else {
+						fdom[bin(i+code_off)] = prev[i] * mod_map(code+k);
+						k += mod_bits;
+					}
+				}
 				symbol();
 			}
 		}
@@ -308,8 +323,9 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	const int comb_pilots = 8;
 	const int reserved_tones = 8;
-	const int band_width = 1600 + (25 * reserved_tones) / 4;
+	const int band_width = 1600 + (25 * (comb_pilots + reserved_tones)) / 4;
 
 	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
 		std::cerr << "Unsupported frequency offset." << std::endl;
