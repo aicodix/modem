@@ -202,7 +202,7 @@ struct Decoder
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
-	DSP::TheilSenEstimator<value, comb_cols> tse;
+	DSP::TheilSenEstimator<value, cons_cols> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
@@ -215,7 +215,7 @@ struct Decoder
 	code_type code[code_len];
 	cmplx cons[cons_total], prev[cons_cols];
 	cmplx fdom[symbol_len], tdom[symbol_len];
-	value index[comb_cols], phase[comb_cols];
+	value index[cons_cols], phase[cons_cols];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
 	int symbol_pos;
@@ -391,6 +391,24 @@ struct Decoder
 				if (i % comb_dist == comb_off)
 					prev[i] = fdom[bin(i+code_off)];
 				else
+					prev[i] *= DSP::polar<value>(1, tse(i+code_off));
+			for (int i = 0; i < cons_cols; ++i) {
+				index[i] = code_off + i;
+				if (i % comb_dist == comb_off) {
+					phase[i] = arg(cons[cons_cols*j+i]);
+				} else {
+					code_type tmp[mod_bits];
+					mod_hard(tmp, cons[cons_cols*j+i]);
+					phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
+				}
+			}
+			tse.compute(index, phase, cons_cols);
+			//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+			for (int i = 0; i < cons_cols; ++i)
+				cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
+			for (int i = 0; i < cons_cols; ++i)
+				if (i % comb_dist != comb_off)
 					prev[i] *= DSP::polar<value>(1, tse(i+code_off));
 			std::cerr << ".";
 		}
