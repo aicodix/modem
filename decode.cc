@@ -555,6 +555,8 @@ struct Decoder
 		*len = data_bits / 8;
 		crc_bits = data_bits + 32;
 		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
+		for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
+			code[i] = 0;
 		shuffle(code);
 		polardec(metric, mesg, code, frozen_bits, code_order);
 		systematic();
