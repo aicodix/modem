@@ -86,7 +86,7 @@ struct Encoder
 				temp[i] /= std::sqrt(value(symbol_len/4));
 				cmplx err = temp[i] - fdom[i];
 				value mag = abs(err);
-				value lim = 0.1;
+				value lim = 0.1 * mod_distance();
 				if (limit && mag > lim)
 					temp[i] -= ((mag - lim) / mag) * err;
 			} else {
@@ -211,6 +211,18 @@ struct Encoder
 			return QuadratureAmplitudeModulation<64, cmplx, code_type>::map(b);
 		}
 		return 0;
+	}
+	value mod_distance()
+	{
+		switch (mod_bits) {
+		case 2:
+			return PhaseShiftKeying<4, cmplx, code_type>::DIST;
+		case 4:
+			return QuadratureAmplitudeModulation<16, cmplx, code_type>::DIST;
+		case 6:
+			return QuadratureAmplitudeModulation<64, cmplx, code_type>::DIST;
+		}
+		return 2;
 	}
 	void shuffle(code_type *c)
 	{
