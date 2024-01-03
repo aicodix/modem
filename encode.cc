@@ -226,6 +226,8 @@ struct Encoder
 	}
 	void shuffle(code_type *c)
 	{
+		if (oper_mode < 25)
+			return;
 		switch (code_order) {
 		case 11:
 			shuffle_2048(c);
@@ -258,6 +260,36 @@ struct Encoder
 		switch (oper_mode) {
 		case 0:
 			code_cols = 256;
+			break;
+		case 14:
+			mod_bits = 2;
+			cons_rows = 4;
+			comb_cols = 0;
+			code_order = 11;
+			code_cols = 256;
+			data_bits = 1360;
+			reserved_tones = 0;
+			frozen_bits = frozen_2048_1392;
+			break;
+		case 15:
+			mod_bits = 2;
+			cons_rows = 4;
+			comb_cols = 0;
+			code_order = 11;
+			code_cols = 256;
+			data_bits = 1024;
+			reserved_tones = 0;
+			frozen_bits = frozen_2048_1056;
+			break;
+		case 16:
+			mod_bits = 2;
+			cons_rows = 4;
+			comb_cols = 0;
+			code_order = 11;
+			code_cols = 256;
+			data_bits = 680;
+			reserved_tones = 0;
+			frozen_bits = frozen_2048_712;
 			break;
 		case 23:
 			mod_bits = 2;
@@ -438,6 +470,15 @@ int main(int argc, char **argv)
 	switch (oper_mode) {
 	case 0:
 		data_bits = 0;
+		break;
+	case 14:
+		data_bits = 1360;
+		break;
+	case 15:
+		data_bits = 1024;
+		break;
+	case 16:
+		data_bits = 680;
 		break;
 	case 23:
 		data_bits = 1024;
