@@ -257,7 +257,7 @@ struct Encoder
 		int reserved_tones = 0;
 		switch (oper_mode) {
 		case 0:
-			cons_cols = 256;
+			code_cols = 256;
 			break;
 		case 23:
 			mod_bits = 2;
@@ -325,11 +325,11 @@ struct Encoder
 		int offset = (freq_off * symbol_len) / rate;
 		mls0_off = offset - mls0_len + 1;
 		mls1_off = offset - mls1_len / 2;
+		cons_cols = code_cols + comb_cols;
+		code_off = offset - cons_cols / 2;
 		if (oper_mode > 0) {
-			cons_cols = code_cols + comb_cols;
 			comb_dist = comb_cols ? cons_cols / comb_cols : 1;
 			comb_off = comb_cols ? comb_dist / 2 : 1;
-			code_off = offset - cons_cols / 2;
 			if (reserved_tones) {
 				value kern_fac = 1 / value(10 * reserved_tones);
 				for (int i = 0, j = code_off - reserved_tones / 2; i < reserved_tones; ++i, ++j) {
@@ -400,8 +400,8 @@ long long int base37_encoder(const char *str)
 
 int main(int argc, char **argv)
 {
-	if (argc < 6 || argc > 8) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS INPUT [OFFSET] [CALLSIGN]" << std::endl;
+	if (argc < 7 || argc > 8) {
+		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS INPUT MODE [CALLSIGN]" << std::endl;
 		return 1;
 	}
 
@@ -415,9 +415,7 @@ int main(int argc, char **argv)
 	if (input_name[0] == '-' && input_name[1] == 0)
 		input_name = "/dev/stdin";
 
-	int freq_off = output_chan == 1 ? 1500 : 0;
-	if (argc >= 7)
-		freq_off = std::atoi(argv[6]);
+	int oper_mode = std::atoi(argv[6]);
 
 	long long int call_sign = base37_encoder("ANONYMOUS");
 	if (argc >= 8)
@@ -425,21 +423,6 @@ int main(int argc, char **argv)
 
 	if (call_sign <= 0 || call_sign >= 129961739795077L) {
 		std::cerr << "Unsupported call sign." << std::endl;
-		return 1;
-	}
-
-	const int comb_pilots_max = 16;
-	const int reserved_tones_max = 15;
-	const int data_carriers_max = 273;
-	const int band_width = (25 * (data_carriers_max + comb_pilots_max + reserved_tones_max)) / 4;
-
-	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
-		std::cerr << "Unsupported frequency offset." << std::endl;
-		return 1;
-	}
-
-	if (freq_off % 50) {
-		std::cerr << "Frequency offset must be divisible by 50." << std::endl;
 		return 1;
 	}
 
@@ -451,33 +434,44 @@ int main(int argc, char **argv)
 		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
 		return 1;
 	}
-	const int data_len = 768;
-	uint8_t *input_data = new uint8_t[data_len];
-	for (int i = 0; i < data_len; ++i)
-		input_data[i] = std::max(input_file.get(), 0);
-	int oper_mode = 0;
-	for (int i = 680; i < 768; ++i)
-		if (!oper_mode && input_data[i])
-			oper_mode = 28;
-	for (int i = 384; i < 680; ++i)
-		if (!oper_mode && input_data[i])
-			oper_mode = 27;
-	for (int i = 256; i < 384; ++i)
-		if (!oper_mode && input_data[i])
-			oper_mode = 26;
-	for (int i = 192; i < 256; ++i)
-		if (!oper_mode && input_data[i])
-			oper_mode = 25;
-	for (int i = 128; i < 192; ++i)
-		if (!oper_mode && input_data[i])
-			oper_mode = 24;
-	for (int i = 0; i < 128; ++i)
-		if (!oper_mode && input_data[i])
-			oper_mode = 23;
-	CODE::Xorshift32 scrambler;
-	for (int i = 0; i < data_len; ++i)
-		input_data[i] ^= scrambler();
-
+	int data_bits;
+	switch (oper_mode) {
+	case 0:
+		data_bits = 0;
+		break;
+	case 23:
+		data_bits = 1024;
+		break;
+	case 24:
+		data_bits = 1536;
+		break;
+	case 25:
+		data_bits = 2048;
+		break;
+	case 26:
+		data_bits = 3072;
+		break;
+	case 27:
+		data_bits = 5440;
+		break;
+	case 28:
+		data_bits = 6144;
+		break;
+	default:
+		std::cerr << "Unsupported operation mode." << std::endl;
+		return 1;
+	}
+	uint8_t *input_data = nullptr;
+	if (oper_mode) {
+		int data_len = data_bits / 8;
+		input_data = new uint8_t[data_len];
+		for (int i = 0; i < data_len; ++i)
+			input_data[i] = std::max(input_file.get(), 0);
+		CODE::Xorshift32 scrambler;
+		for (int i = 0; i < data_len; ++i)
+			input_data[i] ^= scrambler();
+	}
+	int freq_off = 1500;
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
 	output_file.silence(output_rate);
 	switch (output_rate) {
