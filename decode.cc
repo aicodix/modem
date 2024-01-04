@@ -177,10 +177,10 @@ struct Decoder
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
-	static const int code_max = 13;
+	static const int code_max = 14;
 	static const int bits_max = 1 << code_max;
 	static const int cols_max = 273 + 16;
-	static const int rows_max = 5;
+	static const int rows_max = 32;
 	static const int cons_max = cols_max * rows_max;
 	static const int mls0_len = 127;
 	static const int mls0_off = - mls0_len + 1;
@@ -202,9 +202,9 @@ struct Decoder
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	CODE::PolarEncoder<mesg_type> polarenc;
 	CODE::PolarListDecoder<mesg_type, code_max> polardec;
-	CODE::ReverseFisherYatesShuffle<2048> shuffle_2048;
 	CODE::ReverseFisherYatesShuffle<4096> shuffle_4096;
 	CODE::ReverseFisherYatesShuffle<8192> shuffle_8192;
+	CODE::ReverseFisherYatesShuffle<16384> shuffle_16384;
 	int8_t genmat[255*71];
 	mesg_type mesg[bits_max], mess[bits_max];
 	code_type code[bits_max];
@@ -289,17 +289,15 @@ struct Decoder
 	}
 	void shuffle(code_type *c)
 	{
-		if (oper_mode < 25)
-			return;
 		switch (code_order) {
-		case 11:
-			shuffle_2048(c);
-			break;
 		case 12:
 			shuffle_4096(c);
 			break;
 		case 13:
 			shuffle_8192(c);
+			break;
+		case 14:
+			shuffle_16384(c);
 			break;
 		}
 	}
@@ -370,7 +368,7 @@ struct Decoder
 				continue;
 			}
 			oper_mode = md & 255;
-			if (oper_mode && (oper_mode < 14 || (oper_mode > 16 && oper_mode < 23) || oper_mode > 28)) {
+			if (oper_mode && (oper_mode < 14 || (oper_mode > 16 && oper_mode < 23) || oper_mode > 30)) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
@@ -424,23 +422,32 @@ struct Decoder
 			break;
 		case 23:
 			mod_bits = 2;
-			cons_rows = 4;
+			cons_rows = 8;
 			comb_cols = 0;
-			code_order = 11;
+			code_order = 12;
 			code_cols = 256;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
+			data_bits = 2048;
+			frozen_bits = frozen_4096_2080;
 			break;
 		case 24:
 			mod_bits = 2;
-			cons_rows = 4;
+			cons_rows = 16;
 			comb_cols = 0;
-			code_order = 11;
+			code_order = 13;
 			code_cols = 256;
-			data_bits = 1536;
-			frozen_bits = frozen_2048_1568;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
 			break;
 		case 25:
+			mod_bits = 2;
+			cons_rows = 32;
+			comb_cols = 0;
+			code_order = 14;
+			code_cols = 256;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 26:
 			mod_bits = 4;
 			cons_rows = 4;
 			comb_cols = 8;
@@ -449,32 +456,41 @@ struct Decoder
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
-		case 26:
-			mod_bits = 4;
-			cons_rows = 4;
-			comb_cols = 8;
-			code_order = 12;
-			code_cols = 256;
-			data_bits = 3072;
-			frozen_bits = frozen_4096_3104;
-			break;
 		case 27:
-			mod_bits = 6;
-			cons_rows = 5;
-			comb_cols = 16;
+			mod_bits = 4;
+			cons_rows = 8;
+			comb_cols = 8;
 			code_order = 13;
-			code_cols = 273;
-			data_bits = 5440;
-			frozen_bits = frozen_8192_5472;
+			code_cols = 256;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
 			break;
 		case 28:
+			mod_bits = 4;
+			cons_rows = 16;
+			comb_cols = 8;
+			code_order = 14;
+			code_cols = 256;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 29:
 			mod_bits = 6;
 			cons_rows = 5;
 			comb_cols = 16;
 			code_order = 13;
 			code_cols = 273;
-			data_bits = 6144;
-			frozen_bits = frozen_8192_6176;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
+			break;
+		case 30:
+			mod_bits = 6;
+			cons_rows = 10;
+			comb_cols = 16;
+			code_order = 14;
+			code_cols = 273;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
 			break;
 		default:
 			return;
@@ -505,7 +521,7 @@ struct Decoder
 			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
 				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
-			if (oper_mode > 24) {
+			if (oper_mode > 25) {
 				for (int i = 0; i < comb_cols; ++i)
 					cons[cons_cols*j+comb_dist*i+comb_off] *= nrz(seq0());
 				for (int i = 0; i < comb_cols; ++i) {
@@ -538,7 +554,7 @@ struct Decoder
 			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 			for (int i = 0; i < cons_cols; ++i)
 				cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
-			if (oper_mode > 24) {
+			if (oper_mode > 25) {
 				for (int i = 0; i < cons_cols; ++i)
 					if (i % comb_dist != comb_off)
 						prev[i] *= DSP::polar<value>(1, tse(i+code_off));
@@ -552,7 +568,7 @@ struct Decoder
 		std::cerr << "Es/N0 (dB):";
 		value sp = 0, np = 0;
 		for (int j = 0, k = 0; j < cons_rows; ++j) {
-			if (oper_mode > 24) {
+			if (oper_mode > 25) {
 				for (int i = 0; i < comb_cols; ++i) {
 					cmplx hard(1, 0);
 					cmplx error = cons[cons_cols*j+comb_dist*i+comb_off] - hard;
@@ -574,7 +590,7 @@ struct Decoder
 			value snr = DSP::decibel(precision);
 			std::cerr << " " << snr;
 			for (int i = 0; i < cons_cols; ++i) {
-				if (oper_mode > 24 && i % comb_dist == comb_off)
+				if (oper_mode > 25 && i % comb_dist == comb_off)
 					continue;
 				mod_soft(code+k, cons[cons_cols*j+i], precision);
 				k += mod_bits;
@@ -649,7 +665,7 @@ int main(int argc, char **argv)
 	if (argc > 3)
 		skip_count = std::atoi(argv[3]);
 
-	const int data_max = 768;
+	const int data_max = 1024;
 	uint8_t *output_data = new uint8_t[data_max];
 	int data_len = 0;
 

@@ -31,7 +31,7 @@ struct Encoder
 	typedef int8_t code_type;
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
-	static const int bits_max = 8192;
+	static const int bits_max = 16384;
 	static const int cols_max = 273 + 16;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
@@ -45,9 +45,9 @@ struct Encoder
 	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
 	CODE::PolarSysEnc<code_type> polarenc;
-	CODE::FisherYatesShuffle<2048> shuffle_2048;
 	CODE::FisherYatesShuffle<4096> shuffle_4096;
 	CODE::FisherYatesShuffle<8192> shuffle_8192;
+	CODE::FisherYatesShuffle<16384> shuffle_16384;
 	code_type code[bits_max], mesg[bits_max];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
@@ -116,8 +116,8 @@ struct Encoder
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= std::sqrt(value(symbol_len*4));
-		clipping_and_filtering(oper_mode > 24 && papr_reduction);
-		if (oper_mode > 24 && papr_reduction)
+		clipping_and_filtering(oper_mode > 25 && papr_reduction);
+		if (oper_mode > 25 && papr_reduction)
 			tone_reservation();
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = cmplx(std::min(value(1), tdom[i].real()), std::min(value(1), tdom[i].imag()));
@@ -191,7 +191,7 @@ struct Encoder
 			fdom[bin(i+mls1_off)] *= fdom[bin(i-1+mls1_off)];
 		for (int i = 0; i < mls1_len; ++i)
 			fdom[bin(i+mls1_off)] *= nrz(seq1());
-		if (oper_mode > 24) {
+		if (oper_mode > 25) {
 			for (int i = code_off; i < code_off + cons_cols; ++i) {
 				if (i == mls1_off-1)
 					i += mls1_len + 1;
@@ -226,17 +226,15 @@ struct Encoder
 	}
 	void shuffle(code_type *c)
 	{
-		if (oper_mode < 25)
-			return;
 		switch (code_order) {
-		case 11:
-			shuffle_2048(c);
-			break;
 		case 12:
 			shuffle_4096(c);
 			break;
 		case 13:
 			shuffle_8192(c);
+			break;
+		case 14:
+			shuffle_16384(c);
 			break;
 		}
 	}
@@ -293,25 +291,35 @@ struct Encoder
 			break;
 		case 23:
 			mod_bits = 2;
-			cons_rows = 4;
+			cons_rows = 8;
 			comb_cols = 0;
-			code_order = 11;
+			code_order = 12;
 			code_cols = 256;
-			data_bits = 1024;
+			data_bits = 2048;
 			reserved_tones = 0;
-			frozen_bits = frozen_2048_1056;
+			frozen_bits = frozen_4096_2080;
 			break;
 		case 24:
 			mod_bits = 2;
-			cons_rows = 4;
+			cons_rows = 16;
 			comb_cols = 0;
-			code_order = 11;
+			code_order = 13;
 			code_cols = 256;
-			data_bits = 1536;
+			data_bits = 4096;
 			reserved_tones = 0;
-			frozen_bits = frozen_2048_1568;
+			frozen_bits = frozen_8192_4128;
 			break;
 		case 25:
+			mod_bits = 2;
+			cons_rows = 32;
+			comb_cols = 0;
+			code_order = 14;
+			code_cols = 256;
+			data_bits = 8192;
+			reserved_tones = 0;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 26:
 			mod_bits = 4;
 			cons_rows = 4;
 			comb_cols = 8;
@@ -321,35 +329,45 @@ struct Encoder
 			reserved_tones = 8;
 			frozen_bits = frozen_4096_2080;
 			break;
-		case 26:
-			mod_bits = 4;
-			cons_rows = 4;
-			comb_cols = 8;
-			code_order = 12;
-			code_cols = 256;
-			data_bits = 3072;
-			reserved_tones = 8;
-			frozen_bits = frozen_4096_3104;
-			break;
 		case 27:
-			mod_bits = 6;
-			cons_rows = 5;
-			comb_cols = 16;
+			mod_bits = 4;
+			cons_rows = 8;
+			comb_cols = 8;
 			code_order = 13;
-			code_cols = 273;
-			data_bits = 5440;
-			reserved_tones = 15;
-			frozen_bits = frozen_8192_5472;
+			code_cols = 256;
+			data_bits = 4096;
+			reserved_tones = 8;
+			frozen_bits = frozen_8192_4128;
 			break;
 		case 28:
+			mod_bits = 4;
+			cons_rows = 16;
+			comb_cols = 8;
+			code_order = 14;
+			code_cols = 256;
+			data_bits = 8192;
+			reserved_tones = 8;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 29:
 			mod_bits = 6;
 			cons_rows = 5;
 			comb_cols = 16;
 			code_order = 13;
 			code_cols = 273;
-			data_bits = 6144;
+			data_bits = 4096;
 			reserved_tones = 15;
-			frozen_bits = frozen_8192_6176;
+			frozen_bits = frozen_8192_4128;
+			break;
+		case 30:
+			mod_bits = 6;
+			cons_rows = 10;
+			comb_cols = 16;
+			code_order = 14;
+			code_cols = 273;
+			data_bits = 8192;
+			reserved_tones = 15;
+			frozen_bits = frozen_16384_8224;
 			break;
 		default:
 			return;
@@ -391,7 +409,7 @@ struct Encoder
 			CODE::MLS seq0(mls0_poly);
 			for (int j = 0, k = 0; j < cons_rows; ++j) {
 				for (int i = 0; i < cons_cols; ++i) {
-					if (oper_mode < 25) {
+					if (oper_mode < 26) {
 						prev[i] *= mod_map(code+k);
 						fdom[bin(i+code_off)] = prev[i];
 						k += mod_bits;
@@ -481,22 +499,28 @@ int main(int argc, char **argv)
 		data_bits = 680;
 		break;
 	case 23:
-		data_bits = 1024;
-		break;
-	case 24:
-		data_bits = 1536;
-		break;
-	case 25:
 		data_bits = 2048;
 		break;
+	case 24:
+		data_bits = 4096;
+		break;
+	case 25:
+		data_bits = 8192;
+		break;
 	case 26:
-		data_bits = 3072;
+		data_bits = 2048;
 		break;
 	case 27:
-		data_bits = 5440;
+		data_bits = 4096;
 		break;
 	case 28:
-		data_bits = 6144;
+		data_bits = 8192;
+		break;
+	case 29:
+		data_bits = 4096;
+		break;
+	case 30:
+		data_bits = 8192;
 		break;
 	default:
 		std::cerr << "Unsupported operation mode." << std::endl;
