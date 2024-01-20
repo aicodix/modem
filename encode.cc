@@ -6,6 +6,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 
 #include <iostream>
 #include <cassert>
+#include <cstdint>
 #include <cmath>
 #include "xorshift.hh"
 #include "complex.hh"
@@ -21,8 +22,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "psk.hh"
 #include "qam.hh"
 #include "polar_tables.hh"
-#include "polar_helper.hh"
-#include "polar_encoder.hh"
+#include "polar_parity_aided.hh"
 #include "bose_chaudhuri_hocquenghem_encoder.hh"
 
 template <typename value, typename cmplx, int rate>
@@ -44,7 +44,7 @@ struct Encoder
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
-	CODE::PolarSysEnc<code_type> polarenc;
+	CODE::PolarParityEncoder<code_type> polarenc;
 	CODE::FisherYatesShuffle<4096> shuffle_4096;
 	CODE::FisherYatesShuffle<8192> shuffle_8192;
 	CODE::FisherYatesShuffle<16384> shuffle_16384;
@@ -267,7 +267,7 @@ struct Encoder
 			code_cols = 256;
 			data_bits = 2048;
 			reserved_tones = 0;
-			frozen_bits = frozen_4096_2080;
+			frozen_bits = frozen_4096_2147;
 			break;
 		case 24:
 			mod_bits = 2;
@@ -277,7 +277,7 @@ struct Encoder
 			code_cols = 256;
 			data_bits = 4096;
 			reserved_tones = 0;
-			frozen_bits = frozen_8192_4128;
+			frozen_bits = frozen_8192_4261;
 			break;
 		case 25:
 			mod_bits = 2;
@@ -287,7 +287,7 @@ struct Encoder
 			code_cols = 256;
 			data_bits = 8192;
 			reserved_tones = 0;
-			frozen_bits = frozen_16384_8224;
+			frozen_bits = frozen_16384_8489;
 			break;
 		case 26:
 			mod_bits = 4;
@@ -297,7 +297,7 @@ struct Encoder
 			code_cols = 256;
 			data_bits = 2048;
 			reserved_tones = 8;
-			frozen_bits = frozen_4096_2080;
+			frozen_bits = frozen_4096_2147;
 			break;
 		case 27:
 			mod_bits = 4;
@@ -307,7 +307,7 @@ struct Encoder
 			code_cols = 256;
 			data_bits = 4096;
 			reserved_tones = 8;
-			frozen_bits = frozen_8192_4128;
+			frozen_bits = frozen_8192_4261;
 			break;
 		case 28:
 			mod_bits = 4;
@@ -317,7 +317,7 @@ struct Encoder
 			code_cols = 256;
 			data_bits = 8192;
 			reserved_tones = 8;
-			frozen_bits = frozen_16384_8224;
+			frozen_bits = frozen_16384_8489;
 			break;
 		case 29:
 			mod_bits = 6;
@@ -327,7 +327,7 @@ struct Encoder
 			code_cols = 273;
 			data_bits = 4096;
 			reserved_tones = 15;
-			frozen_bits = frozen_8192_4128;
+			frozen_bits = frozen_8192_4261;
 			break;
 		case 30:
 			mod_bits = 6;
@@ -337,7 +337,7 @@ struct Encoder
 			code_cols = 273;
 			data_bits = 8192;
 			reserved_tones = 15;
-			frozen_bits = frozen_16384_8224;
+			frozen_bits = frozen_16384_8489;
 			break;
 		default:
 			return;
@@ -372,7 +372,7 @@ struct Encoder
 				crc1(inp[i]);
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc1()>>i)&1);
-			polarenc(code, mesg, frozen_bits, code_order);
+			polarenc(code, mesg, frozen_bits, code_order, 31);
 			shuffle(code);
 			for (int i = 0; i < cons_cols; ++i)
 				prev[i] = fdom[bin(i+code_off)];

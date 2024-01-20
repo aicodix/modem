@@ -7,6 +7,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <algorithm>
 #include <iostream>
 #include <cassert>
+#include <cstdint>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
 #include "bip_buffer.hh"
@@ -31,9 +32,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "psk.hh"
 #include "qam.hh"
 #include "polar_tables.hh"
-#include "polar_helper.hh"
-#include "polar_encoder.hh"
-#include "polar_list_decoder.hh"
+#include "polar_parity_aided.hh"
 
 template <typename value, typename cmplx, int search_pos, int symbol_len, int guard_len>
 struct SchmidlCox
@@ -200,13 +199,12 @@ struct Decoder
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
-	CODE::PolarEncoder<mesg_type> polarenc;
-	CODE::PolarListDecoder<mesg_type, code_max> polardec;
+	CODE::PolarParityDecoder<mesg_type, code_max> polardec;
 	CODE::ReverseFisherYatesShuffle<4096> shuffle_4096;
 	CODE::ReverseFisherYatesShuffle<8192> shuffle_8192;
 	CODE::ReverseFisherYatesShuffle<16384> shuffle_16384;
 	int8_t genmat[255*71];
-	mesg_type mesg[bits_max], mess[bits_max];
+	mesg_type mesg[bits_max];
 	code_type code[bits_max];
 	cmplx cons[cons_max], prev[cols_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
@@ -244,14 +242,6 @@ struct Decoder
 		for (int i = 0; i < mls0_len; ++i)
 			fdom[(i+mls0_off/2+symbol_len/2)%(symbol_len/2)] = nrz(seq0());
 		return fdom;
-	}
-	void systematic()
-	{
-		polarenc(mess, mesg, frozen_bits, code_order);
-		int code_bits = 1 << code_order;
-		for (int i = 0, j = 0; i < code_bits && j < crc_bits; ++i)
-			if (!((frozen_bits[i/32] >> (i%32)) & 1))
-				mesg[j++] = mess[i];
 	}
 	cmplx mod_map(code_type *b)
 	{
@@ -400,7 +390,7 @@ struct Decoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
+			frozen_bits = frozen_4096_2147;
 			break;
 		case 24:
 			mod_bits = 2;
@@ -409,7 +399,7 @@ struct Decoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
+			frozen_bits = frozen_8192_4261;
 			break;
 		case 25:
 			mod_bits = 2;
@@ -418,7 +408,7 @@ struct Decoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
+			frozen_bits = frozen_16384_8489;
 			break;
 		case 26:
 			mod_bits = 4;
@@ -427,7 +417,7 @@ struct Decoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
+			frozen_bits = frozen_4096_2147;
 			break;
 		case 27:
 			mod_bits = 4;
@@ -436,7 +426,7 @@ struct Decoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
+			frozen_bits = frozen_8192_4261;
 			break;
 		case 28:
 			mod_bits = 4;
@@ -445,7 +435,7 @@ struct Decoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
+			frozen_bits = frozen_16384_8489;
 			break;
 		case 29:
 			mod_bits = 6;
@@ -454,7 +444,7 @@ struct Decoder
 			code_order = 13;
 			code_cols = 273;
 			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
+			frozen_bits = frozen_8192_4261;
 			break;
 		case 30:
 			mod_bits = 6;
@@ -463,7 +453,7 @@ struct Decoder
 			code_order = 14;
 			code_cols = 273;
 			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
+			frozen_bits = frozen_16384_8489;
 			break;
 		default:
 			return;
@@ -576,8 +566,7 @@ struct Decoder
 		for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
 			code[i] = 0;
 		shuffle(code);
-		polardec(metric, mesg, code, frozen_bits, code_order);
-		systematic();
+		polardec(metric, mesg, code, frozen_bits, code_order, 31);
 		int order[mesg_type::SIZE];
 		for (int k = 0; k < mesg_type::SIZE; ++k)
 			order[k] = k;
@@ -597,16 +586,8 @@ struct Decoder
 			*len = 0;
 			return;
 		}
-		int flips = 0;
-		for (int i = 0, j = 0; i < data_bits; ++i, ++j) {
-			while ((frozen_bits[j / 32] >> (j % 32)) & 1)
-				++j;
-			bool received = code[j] < 0;
-			bool decoded = mesg[i].v[best] < 0;
-			flips += received != decoded;
-			CODE::set_le_bit(out, i, decoded);
-		}
-		std::cerr << "bit flips: " << flips << std::endl;
+		for (int i = 0; i < data_bits; ++i)
+			CODE::set_le_bit(out, i, mesg[i].v[best] < 0);
 	}
 };
 

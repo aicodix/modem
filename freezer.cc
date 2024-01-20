@@ -25,6 +25,7 @@ void code(int N, int K)
 	(*freeze)(frozen, M, K+(1<<M)-N, better_probability);
 	delete freeze;
 
+	std::cerr << "Polar(" << N << ", " << K << ")" << std::endl;
 	std::cout << "static const uint32_t frozen_" << std::dec << N << "_" << K << "[" << (1<<(M-5)) << "] = { " << std::hex;
 	for (int i = 0; i < 1<<(M-5); ++i)
 		std::cout << "0x" << frozen[i] << ", ";
@@ -33,8 +34,8 @@ void code(int N, int K)
 
 int main()
 {
-	code<14>(16384, 8192+32);
-	code<13>(8192, 4096+32);
-	code<12>(4096, 2048+32);
+	code<12>(4096, 2048+32+67);
+	code<13>(8192, 4096+32+133);
+	code<14>(16384, 8192+32+265);
 	return 0;
 }
