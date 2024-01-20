@@ -31,6 +31,7 @@ struct Encoder
 	static const int symbol_len = (1280 * rate) / 8000;
 	static const int guard_len = symbol_len / 8;
 	static const int data_bits = 43040;
+	static const int data_bytes = data_bits / 8;
 	static const int crc_bits = data_bits + 32;
 	static const int mls0_len = 127;
 	static const int mls0_poly = 0b10001001;
@@ -267,7 +268,7 @@ struct Encoder
 		cons_rows = cons_cnt / cons_cols;
 		return true;
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int freq_off, uint64_t call_sign, int oper_mode) :
+	Encoder(DSP::WritePCM<value> *pcm, const uint8_t *inp, int count, int freq_off, uint64_t call_sign, int oper_mode) :
 		pcm(pcm), crc0(0xA8F4), crc1(0xD419CC15), bchenc({
 			0b100011101, 0b101110111, 0b111110011, 0b101101001,
 			0b110111101, 0b111100111, 0b100101011, 0b111010111,
@@ -285,25 +286,27 @@ struct Encoder
 		mls1_off = offset - mls1_len / 2;
 		papr_min = cmplx(1000, 1000), papr_max = cmplx(-1000, -1000);
 		pilot_block();
-		schmidl_cox();
-		meta_data((call_sign << 8) | oper_mode);
-		pilot_block();
-		for (int i = 0; i < data_bits; ++i)
-			mesg[i] = nrz(CODE::get_le_bit(inp, i));
-		crc1.reset();
-		for (int i = 0; i < data_bits / 8; ++i)
-			crc1(inp[i]);
-		for (int i = 0; i < 32; ++i)
-			mesg[i+data_bits] = nrz((crc1()>>i)&1);
-		for (int i = crc_bits; i < mesg_bits; ++i)
-			mesg[i] = 1;
-		polarenc(code, mesg, frozen_bits, code_order);
-		shorten();
-		for (int j = 0; j < cons_rows; ++j) {
-			for (int i = 0; i < cons_cols; ++i)
-				fdom[bin(i+code_off)] *=
-					mod_map(code+mod_bits*(cons_cols*j+i));
-			symbol();
+		for (int k = 0; k < count; ++k) {
+			schmidl_cox();
+			meta_data((call_sign << 8) | oper_mode);
+			pilot_block();
+			for (int i = 0; i < data_bits; ++i)
+				mesg[i] = nrz(CODE::get_le_bit(inp+k*data_bytes, i));
+			crc1.reset();
+			for (int i = 0; i < data_bytes; ++i)
+				crc1(inp[i+k*data_bytes]);
+			for (int i = 0; i < 32; ++i)
+				mesg[i+data_bits] = nrz((crc1()>>i)&1);
+			for (int i = crc_bits; i < mesg_bits; ++i)
+				mesg[i] = 1;
+			polarenc(code, mesg, frozen_bits, code_order);
+			shorten();
+			for (int j = 0; j < cons_rows; ++j) {
+				for (int i = 0; i < cons_cols; ++i)
+					fdom[bin(i+code_off)] *=
+						mod_map(code+mod_bits*(cons_cols*j+i));
+				symbol();
+			}
 		}
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
@@ -333,8 +336,8 @@ long long int base37_encoder(const char *str)
 
 int main(int argc, char **argv)
 {
-	if (argc < 6 || argc > 9) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS INPUT [OFFSET] [CALLSIGN] [MODE]" << std::endl;
+	if (argc < 9) {
+		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET CALLSIGN MODE INPUT.." << std::endl;
 		return 1;
 	}
 
@@ -344,28 +347,16 @@ int main(int argc, char **argv)
 	int output_rate = std::atoi(argv[2]);
 	int output_bits = std::atoi(argv[3]);
 	int output_chan = std::atoi(argv[4]);
-	const char *input_name = argv[5];
-	if (input_name[0] == '-' && input_name[1] == 0)
-		input_name = "/dev/stdin";
 
-	int freq_off = output_chan == 1 ? 2000 : 0;
-	if (argc >= 7)
-		freq_off = std::atoi(argv[6]);
-
-	long long int call_sign = base37_encoder("ANONYMOUS");
-	if (argc >= 8)
-		call_sign = base37_encoder(argv[7]);
-
-	if (call_sign <= 0 || call_sign >= 129961739795077L) {
-		std::cerr << "Unsupported call sign." << std::endl;
-		return 1;
-	}
-
-	int oper_mode = 6;
-	if (argc >= 9)
-		oper_mode = std::atoi(argv[8]);
+	int freq_off = std::atoi(argv[5]);
+	int oper_mode = std::atoi(argv[6]);
 	if (oper_mode < 6 || oper_mode > 13) {
 		std::cerr << "Unsupported operation mode." << std::endl;
+		return 1;
+	}
+	long long int call_sign = base37_encoder(argv[7]);
+	if (call_sign <= 0 || call_sign >= 129961739795077L) {
+		std::cerr << "Unsupported call sign." << std::endl;
 		return 1;
 	}
 
@@ -408,33 +399,40 @@ int main(int argc, char **argv)
 	typedef float value;
 	typedef DSP::Complex<value> cmplx;
 
-	std::ifstream input_file(input_name, std::ios::binary);
-	if (input_file.bad()) {
-		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
-		return 1;
-	}
+
+	const int input_count = argc - 8;
 	const int data_len = 43040 / 8;
-	uint8_t *input_data = new uint8_t[data_len];
-	for (int i = 0; i < data_len; ++i)
-		input_data[i] = input_file.get();
-	CODE::Xorshift32 scrambler;
-	for (int i = 0; i < data_len; ++i)
-		input_data[i] ^= scrambler();
+	uint8_t *input_data = new uint8_t[data_len*input_count];
+	for (int j = 0; j < input_count; ++j) {
+		const char *input_name = argv[j+8];
+		if (argc == 9 && input_name[0] == '-' && input_name[1] == 0)
+			input_name = "/dev/stdin";
+		std::ifstream input_file(input_name, std::ios::binary);
+		if (input_file.bad()) {
+			std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
+			return 1;
+		}
+		for (int i = 0; i < data_len; ++i)
+			input_data[j*data_len+i] = input_file.get();
+		CODE::Xorshift32 scrambler;
+		for (int i = 0; i < data_len; ++i)
+			input_data[j*data_len+i] ^= scrambler();
+	}
 
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
 	output_file.silence(output_rate);
 	switch (output_rate) {
 	case 8000:
-		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 8000>(&output_file, input_data, input_count, freq_off, call_sign, oper_mode);
 		break;
 	case 16000:
-		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 16000>(&output_file, input_data, input_count, freq_off, call_sign, oper_mode);
 		break;
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 44100>(&output_file, input_data, input_count, freq_off, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 48000>(&output_file, input_data, input_count, freq_off, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
