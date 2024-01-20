@@ -368,7 +368,7 @@ struct Decoder
 				continue;
 			}
 			oper_mode = md & 255;
-			if (oper_mode && (oper_mode < 14 || (oper_mode > 16 && oper_mode < 23) || oper_mode > 30)) {
+			if (oper_mode && (oper_mode < 23 || oper_mode > 30)) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
@@ -393,33 +393,6 @@ struct Decoder
 		int comb_cols = 0;
 		int code_cols = 0;
 		switch (oper_mode) {
-		case 14:
-			mod_bits = 2;
-			cons_rows = 4;
-			comb_cols = 0;
-			code_order = 11;
-			code_cols = 256;
-			data_bits = 1360;
-			frozen_bits = frozen_2048_1392;
-			break;
-		case 15:
-			mod_bits = 2;
-			cons_rows = 4;
-			comb_cols = 0;
-			code_order = 11;
-			code_cols = 256;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
-			break;
-		case 16:
-			mod_bits = 2;
-			cons_rows = 4;
-			comb_cols = 0;
-			code_order = 11;
-			code_cols = 256;
-			data_bits = 680;
-			frozen_bits = frozen_2048_712;
-			break;
 		case 23:
 			mod_bits = 2;
 			cons_rows = 8;

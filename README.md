@@ -44,11 +44,6 @@ diff -s uncoded.dat decoded.dat
 Ping:
 * Mode 0: DBPSK, 2/7-rate code, 1600 Hz bandwidth, 0.36 seconds and no payload
 
-Rattlegram:
-* Mode 14: DQPSK, 2/3-rate code, 1600 Hz bandwidth, 1.08 seconds and 170 bytes
-* Mode 15: DQPSK, 1/2-rate code, 1600 Hz bandwidth, 1.08 seconds and 128 bytes
-* Mode 16: DQPSK, 1/3-rate code, 1600 Hz bandwidth, 1.08 seconds and 85 bytes
-
 Next:
 * Mode 23: DQPSK, 1/2-rate code, 1600 Hz bandwidth, 1.80 seconds and 256 bytes
 * Mode 24: DQPSK, 1/2-rate code, 1600 Hz bandwidth, 3.24 seconds and 512 bytes
