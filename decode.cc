@@ -378,6 +378,8 @@ struct Decoder
 		if (!okay || !oper_mode)
 			return;
 
+		int parity_stride = 0;
+		int first_parity = 0;
 		int data_bits = 0;
 		int cons_rows = 0;
 		int comb_cols = 0;
@@ -390,6 +392,8 @@ struct Decoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
+			parity_stride = 31;
+			first_parity = 3;
 			frozen_bits = frozen_4096_2147;
 			break;
 		case 24:
@@ -399,6 +403,8 @@ struct Decoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
+			parity_stride = 31;
+			first_parity = 5;
 			frozen_bits = frozen_8192_4261;
 			break;
 		case 25:
@@ -408,6 +414,8 @@ struct Decoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
+			parity_stride = 31;
+			first_parity = 9;
 			frozen_bits = frozen_16384_8489;
 			break;
 		case 26:
@@ -417,6 +425,8 @@ struct Decoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
+			parity_stride = 31;
+			first_parity = 3;
 			frozen_bits = frozen_4096_2147;
 			break;
 		case 27:
@@ -426,6 +436,8 @@ struct Decoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
+			parity_stride = 31;
+			first_parity = 5;
 			frozen_bits = frozen_8192_4261;
 			break;
 		case 28:
@@ -435,6 +447,8 @@ struct Decoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
+			parity_stride = 31;
+			first_parity = 9;
 			frozen_bits = frozen_16384_8489;
 			break;
 		case 29:
@@ -444,6 +458,8 @@ struct Decoder
 			code_order = 13;
 			code_cols = 273;
 			data_bits = 4096;
+			parity_stride = 31;
+			first_parity = 5;
 			frozen_bits = frozen_8192_4261;
 			break;
 		case 30:
@@ -453,6 +469,8 @@ struct Decoder
 			code_order = 14;
 			code_cols = 273;
 			data_bits = 8192;
+			parity_stride = 31;
+			first_parity = 9;
 			frozen_bits = frozen_16384_8489;
 			break;
 		default:
@@ -566,7 +584,7 @@ struct Decoder
 		for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
 			code[i] = 0;
 		shuffle(code);
-		polardec(metric, mesg, code, frozen_bits, code_order, 31);
+		polardec(metric, mesg, code, frozen_bits, code_order, parity_stride, first_parity);
 		int order[mesg_type::SIZE];
 		for (int k = 0; k < mesg_type::SIZE; ++k)
 			order[k] = k;

@@ -249,6 +249,8 @@ struct Encoder
 			oper_mode(oper_mode)
 	{
 		const uint32_t *frozen_bits = nullptr;
+		int parity_stride = 0;
+		int first_parity = 0;
 		int code_cols = 0;
 		int comb_cols = 0;
 		int comb_dist = 1;
@@ -266,6 +268,8 @@ struct Encoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
+			parity_stride = 31;
+			first_parity = 3;
 			reserved_tones = 0;
 			frozen_bits = frozen_4096_2147;
 			break;
@@ -276,6 +280,8 @@ struct Encoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
+			parity_stride = 31;
+			first_parity = 5;
 			reserved_tones = 0;
 			frozen_bits = frozen_8192_4261;
 			break;
@@ -286,6 +292,8 @@ struct Encoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
+			parity_stride = 31;
+			first_parity = 9;
 			reserved_tones = 0;
 			frozen_bits = frozen_16384_8489;
 			break;
@@ -296,6 +304,8 @@ struct Encoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
+			parity_stride = 31;
+			first_parity = 3;
 			reserved_tones = 8;
 			frozen_bits = frozen_4096_2147;
 			break;
@@ -306,6 +316,8 @@ struct Encoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
+			parity_stride = 31;
+			first_parity = 5;
 			reserved_tones = 8;
 			frozen_bits = frozen_8192_4261;
 			break;
@@ -316,6 +328,8 @@ struct Encoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
+			parity_stride = 31;
+			first_parity = 9;
 			reserved_tones = 8;
 			frozen_bits = frozen_16384_8489;
 			break;
@@ -326,6 +340,8 @@ struct Encoder
 			code_order = 13;
 			code_cols = 273;
 			data_bits = 4096;
+			parity_stride = 31;
+			first_parity = 5;
 			reserved_tones = 15;
 			frozen_bits = frozen_8192_4261;
 			break;
@@ -336,6 +352,8 @@ struct Encoder
 			code_order = 14;
 			code_cols = 273;
 			data_bits = 8192;
+			parity_stride = 31;
+			first_parity = 9;
 			reserved_tones = 15;
 			frozen_bits = frozen_16384_8489;
 			break;
@@ -372,7 +390,7 @@ struct Encoder
 				crc1(inp[i]);
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc1()>>i)&1);
-			polarenc(code, mesg, frozen_bits, code_order, 31);
+			polarenc(code, mesg, frozen_bits, code_order, parity_stride, first_parity);
 			shuffle(code);
 			for (int i = 0; i < cons_cols; ++i)
 				prev[i] = fdom[bin(i+code_off)];
