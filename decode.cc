@@ -178,6 +178,7 @@ struct Decoder
 	static const int extended_len = symbol_len + guard_len;
 	static const int code_max = 14;
 	static const int bits_max = 1 << code_max;
+	static const int data_max = 1024;
 	static const int cols_max = 273 + 16;
 	static const int rows_max = 32;
 	static const int cons_max = cols_max * rows_max;
@@ -203,6 +204,7 @@ struct Decoder
 	CODE::ReverseFisherYatesShuffle<4096> shuffle_4096;
 	CODE::ReverseFisherYatesShuffle<8192> shuffle_8192;
 	CODE::ReverseFisherYatesShuffle<16384> shuffle_16384;
+	uint8_t output_data[data_max];
 	int8_t genmat[255*71];
 	mesg_type mesg[bits_max];
 	code_type code[bits_max];
@@ -299,7 +301,7 @@ struct Decoder
 			tmp = hilbert(blockdc(tmp.real()));
 		return input_hist(tmp);
 	}
-	Decoder(uint8_t *out, int *len, DSP::ReadPCM<value> *pcm, int skip_count) :
+	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) :
 		pcm(pcm), correlator(mls0_seq()), crc0(0xA8F4), crc1(0x8F6E37A0)
 	{
 		CODE::BoseChaudhuriHocquenghemGenerator<255, 71>::matrix(genmat, true, {
@@ -313,9 +315,8 @@ struct Decoder
 		blockdc.samples(filter_len);
 		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
-		bool okay;
-		do {
-			okay = false;
+		int output_index = 0;
+		while (output_index < output_count) {
 			do {
 				if (!pcm->good())
 					return;
@@ -371,258 +372,264 @@ struct Decoder
 			base37_decoder(call_sign, md>>8, 9);
 			call_sign[9] = 0;
 			std::cerr << "call sign: " << call_sign << std::endl;
-			okay = true;
-		} while (skip_count--);
+			if (!oper_mode)
+				continue;
+			int parity_stride = 0;
+			int first_parity = 0;
+			int data_bits = 0;
+			int cons_rows = 0;
+			int comb_cols = 0;
+			int code_cols = 0;
+			switch (oper_mode) {
+			case 23:
+				mod_bits = 2;
+				cons_rows = 8;
+				comb_cols = 0;
+				code_order = 12;
+				code_cols = 256;
+				data_bits = 2048;
+				parity_stride = 31;
+				first_parity = 3;
+				frozen_bits = frozen_4096_2147;
+				break;
+			case 24:
+				mod_bits = 2;
+				cons_rows = 16;
+				comb_cols = 0;
+				code_order = 13;
+				code_cols = 256;
+				data_bits = 4096;
+				parity_stride = 31;
+				first_parity = 5;
+				frozen_bits = frozen_8192_4261;
+				break;
+			case 25:
+				mod_bits = 2;
+				cons_rows = 32;
+				comb_cols = 0;
+				code_order = 14;
+				code_cols = 256;
+				data_bits = 8192;
+				parity_stride = 31;
+				first_parity = 9;
+				frozen_bits = frozen_16384_8489;
+				break;
+			case 26:
+				mod_bits = 4;
+				cons_rows = 4;
+				comb_cols = 8;
+				code_order = 12;
+				code_cols = 256;
+				data_bits = 2048;
+				parity_stride = 31;
+				first_parity = 3;
+				frozen_bits = frozen_4096_2147;
+				break;
+			case 27:
+				mod_bits = 4;
+				cons_rows = 8;
+				comb_cols = 8;
+				code_order = 13;
+				code_cols = 256;
+				data_bits = 4096;
+				parity_stride = 31;
+				first_parity = 5;
+				frozen_bits = frozen_8192_4261;
+				break;
+			case 28:
+				mod_bits = 4;
+				cons_rows = 16;
+				comb_cols = 8;
+				code_order = 14;
+				code_cols = 256;
+				data_bits = 8192;
+				parity_stride = 31;
+				first_parity = 9;
+				frozen_bits = frozen_16384_8489;
+				break;
+			case 29:
+				mod_bits = 6;
+				cons_rows = 5;
+				comb_cols = 16;
+				code_order = 13;
+				code_cols = 273;
+				data_bits = 4096;
+				parity_stride = 31;
+				first_parity = 5;
+				frozen_bits = frozen_8192_4261;
+				break;
+			case 30:
+				mod_bits = 6;
+				cons_rows = 10;
+				comb_cols = 16;
+				code_order = 14;
+				code_cols = 273;
+				data_bits = 8192;
+				parity_stride = 31;
+				first_parity = 9;
+				frozen_bits = frozen_16384_8489;
+				break;
+			default:
+				return;
+			}
+			int data_bytes = data_bits / 8;
+			int cons_cols = code_cols + comb_cols;
+			int comb_dist = comb_cols ? cons_cols / comb_cols : 1;
+			int comb_off = comb_cols ? comb_dist / 2 : 1;
+			int code_off = - cons_cols / 2;
 
-		*len = 0;
-		if (!okay || !oper_mode)
-			return;
-
-		int parity_stride = 0;
-		int first_parity = 0;
-		int data_bits = 0;
-		int cons_rows = 0;
-		int comb_cols = 0;
-		int code_cols = 0;
-		switch (oper_mode) {
-		case 23:
-			mod_bits = 2;
-			cons_rows = 8;
-			comb_cols = 0;
-			code_order = 12;
-			code_cols = 256;
-			data_bits = 2048;
-			parity_stride = 31;
-			first_parity = 3;
-			frozen_bits = frozen_4096_2147;
-			break;
-		case 24:
-			mod_bits = 2;
-			cons_rows = 16;
-			comb_cols = 0;
-			code_order = 13;
-			code_cols = 256;
-			data_bits = 4096;
-			parity_stride = 31;
-			first_parity = 5;
-			frozen_bits = frozen_8192_4261;
-			break;
-		case 25:
-			mod_bits = 2;
-			cons_rows = 32;
-			comb_cols = 0;
-			code_order = 14;
-			code_cols = 256;
-			data_bits = 8192;
-			parity_stride = 31;
-			first_parity = 9;
-			frozen_bits = frozen_16384_8489;
-			break;
-		case 26:
-			mod_bits = 4;
-			cons_rows = 4;
-			comb_cols = 8;
-			code_order = 12;
-			code_cols = 256;
-			data_bits = 2048;
-			parity_stride = 31;
-			first_parity = 3;
-			frozen_bits = frozen_4096_2147;
-			break;
-		case 27:
-			mod_bits = 4;
-			cons_rows = 8;
-			comb_cols = 8;
-			code_order = 13;
-			code_cols = 256;
-			data_bits = 4096;
-			parity_stride = 31;
-			first_parity = 5;
-			frozen_bits = frozen_8192_4261;
-			break;
-		case 28:
-			mod_bits = 4;
-			cons_rows = 16;
-			comb_cols = 8;
-			code_order = 14;
-			code_cols = 256;
-			data_bits = 8192;
-			parity_stride = 31;
-			first_parity = 9;
-			frozen_bits = frozen_16384_8489;
-			break;
-		case 29:
-			mod_bits = 6;
-			cons_rows = 5;
-			comb_cols = 16;
-			code_order = 13;
-			code_cols = 273;
-			data_bits = 4096;
-			parity_stride = 31;
-			first_parity = 5;
-			frozen_bits = frozen_8192_4261;
-			break;
-		case 30:
-			mod_bits = 6;
-			cons_rows = 10;
-			comb_cols = 16;
-			code_order = 14;
-			code_cols = 273;
-			data_bits = 8192;
-			parity_stride = 31;
-			first_parity = 9;
-			frozen_bits = frozen_16384_8489;
-			break;
-		default:
-			return;
-		}
-		int cons_cols = code_cols + comb_cols;
-		int comb_dist = comb_cols ? cons_cols / comb_cols : 1;
-		int comb_off = comb_cols ? comb_dist / 2 : 1;
-		int code_off = - cons_cols / 2;
-
-		for (int i = 0; i < symbol_pos+extended_len; ++i)
-			buf = next_sample();
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] = buf[i] * osc();
-		for (int i = 0; i < guard_len; ++i)
-			osc();
-		fwd(fdom, tdom);
-		for (int i = 0; i < cons_cols; ++i)
-			prev[i] = fdom[bin(i+code_off)];
-		std::cerr << "demod ";
-		CODE::MLS seq0(mls0_poly);
-		for (int j = 0; j < cons_rows; ++j) {
-			for (int i = 0; i < extended_len; ++i)
-				buf = next_sample();
+			for (int i = 0; i < symbol_pos+extended_len; ++i)
+				correlator(buf = next_sample());
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i] * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < cons_cols; ++i)
-				cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
-			if (oper_mode > 25) {
-				for (int i = 0; i < comb_cols; ++i)
-					cons[cons_cols*j+comb_dist*i+comb_off] *= nrz(seq0());
-				for (int i = 0; i < comb_cols; ++i) {
-					index[i] = code_off + comb_dist * i + comb_off;
-					phase[i] = arg(cons[cons_cols*j+comb_dist*i+comb_off]);
+				prev[i] = fdom[bin(i+code_off)];
+			std::cerr << "demod ";
+			CODE::MLS seq0(mls0_poly);
+			for (int j = 0; j < cons_rows; ++j) {
+				for (int i = 0; i < extended_len; ++i)
+					correlator(buf = next_sample());
+				for (int i = 0; i < symbol_len; ++i)
+					tdom[i] = buf[i] * osc();
+				for (int i = 0; i < guard_len; ++i)
+					osc();
+				fwd(fdom, tdom);
+				for (int i = 0; i < cons_cols; ++i)
+					cons[cons_cols*j+i] = demod_or_erase(fdom[bin(i+code_off)], prev[i]);
+				if (oper_mode > 25) {
+					for (int i = 0; i < comb_cols; ++i)
+						cons[cons_cols*j+comb_dist*i+comb_off] *= nrz(seq0());
+					for (int i = 0; i < comb_cols; ++i) {
+						index[i] = code_off + comb_dist * i + comb_off;
+						phase[i] = arg(cons[cons_cols*j+comb_dist*i+comb_off]);
+					}
+					tse.compute(index, phase, comb_cols);
+					//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+					//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+					for (int i = 0; i < cons_cols; ++i)
+						cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
+					for (int i = 0; i < cons_cols; ++i)
+						if (i % comb_dist == comb_off)
+							prev[i] = fdom[bin(i+code_off)];
+						else
+							prev[i] *= DSP::polar<value>(1, tse(i+code_off));
+					for (int i = 0; i < cons_cols; ++i) {
+						index[i] = code_off + i;
+						if (i % comb_dist == comb_off) {
+							phase[i] = arg(cons[cons_cols*j+i]);
+						} else {
+							code_type tmp[mod_bits];
+							mod_hard(tmp, cons[cons_cols*j+i]);
+							phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
+						}
+					}
 				}
-				tse.compute(index, phase, comb_cols);
+				tse.compute(index, phase, cons_cols);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 				for (int i = 0; i < cons_cols; ++i)
 					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
-				for (int i = 0; i < cons_cols; ++i)
-					if (i % comb_dist == comb_off)
+				if (oper_mode > 25) {
+					for (int i = 0; i < cons_cols; ++i)
+						if (i % comb_dist != comb_off)
+							prev[i] *= DSP::polar<value>(1, tse(i+code_off));
+				} else {
+					for (int i = 0; i < cons_cols; ++i)
 						prev[i] = fdom[bin(i+code_off)];
-					else
-						prev[i] *= DSP::polar<value>(1, tse(i+code_off));
-				for (int i = 0; i < cons_cols; ++i) {
-					index[i] = code_off + i;
-					if (i % comb_dist == comb_off) {
-						phase[i] = arg(cons[cons_cols*j+i]);
-					} else {
+				}
+				std::cerr << ".";
+			}
+			std::cerr << " done" << std::endl;
+			std::cerr << "Es/N0 (dB):";
+			value sp = 0, np = 0;
+			for (int j = 0, k = 0; j < cons_rows; ++j) {
+				if (oper_mode > 25) {
+					for (int i = 0; i < comb_cols; ++i) {
+						cmplx hard(1, 0);
+						cmplx error = cons[cons_cols*j+comb_dist*i+comb_off] - hard;
+						sp += norm(hard);
+						np += norm(error);
+					}
+				} else {
+					for (int i = 0; i < cons_cols; ++i) {
 						code_type tmp[mod_bits];
 						mod_hard(tmp, cons[cons_cols*j+i]);
-						phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
+						cmplx hard = mod_map(tmp);
+						cmplx error = cons[cons_cols*j+i] - hard;
+						sp += norm(hard);
+						np += norm(error);
 					}
 				}
-			}
-			tse.compute(index, phase, cons_cols);
-			//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
-			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
-			for (int i = 0; i < cons_cols; ++i)
-				cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+code_off));
-			if (oper_mode > 25) {
-				for (int i = 0; i < cons_cols; ++i)
-					if (i % comb_dist != comb_off)
-						prev[i] *= DSP::polar<value>(1, tse(i+code_off));
-			} else {
-				for (int i = 0; i < cons_cols; ++i)
-					prev[i] = fdom[bin(i+code_off)];
-			}
-			std::cerr << ".";
-		}
-		std::cerr << " done" << std::endl;
-		std::cerr << "Es/N0 (dB):";
-		value sp = 0, np = 0;
-		for (int j = 0, k = 0; j < cons_rows; ++j) {
-			if (oper_mode > 25) {
-				for (int i = 0; i < comb_cols; ++i) {
-					cmplx hard(1, 0);
-					cmplx error = cons[cons_cols*j+comb_dist*i+comb_off] - hard;
-					sp += norm(hard);
-					np += norm(error);
-				}
-			} else {
+				value precision = sp / np;
+				// precision = 8;
+				value snr = DSP::decibel(precision);
+				std::cerr << " " << snr;
 				for (int i = 0; i < cons_cols; ++i) {
-					code_type tmp[mod_bits];
-					mod_hard(tmp, cons[cons_cols*j+i]);
-					cmplx hard = mod_map(tmp);
-					cmplx error = cons[cons_cols*j+i] - hard;
-					sp += norm(hard);
-					np += norm(error);
+					if (oper_mode > 25 && i % comb_dist == comb_off)
+						continue;
+					mod_soft(code+k, cons[cons_cols*j+i], precision);
+					k += mod_bits;
 				}
 			}
-			value precision = sp / np;
-			// precision = 8;
-			value snr = DSP::decibel(precision);
-			std::cerr << " " << snr;
-			for (int i = 0; i < cons_cols; ++i) {
-				if (oper_mode > 25 && i % comb_dist == comb_off)
-					continue;
-				mod_soft(code+k, cons[cons_cols*j+i], precision);
-				k += mod_bits;
+			std::cerr << std::endl;
+			crc_bits = data_bits + 32;
+			CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
+			for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
+				code[i] = 0;
+			shuffle(code);
+			polardec(metric, mesg, code, frozen_bits, code_order, parity_stride, first_parity);
+			int order[mesg_type::SIZE];
+			for (int k = 0; k < mesg_type::SIZE; ++k)
+				order[k] = k;
+			std::sort(order, order+mesg_type::SIZE, [metric](int a, int b){ return metric[a] < metric[b]; });
+			int best = -1;
+			for (int k = 0; k < mesg_type::SIZE; ++k) {
+				crc1.reset();
+				for (int i = 0; i < crc_bits; ++i)
+					crc1(mesg[i].v[order[k]] < 0);
+				if (crc1() == 0) {
+					best = order[k];
+					break;
+				}
 			}
-		}
-		std::cerr << std::endl;
-		*len = data_bits / 8;
-		crc_bits = data_bits + 32;
-		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
-		for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
-			code[i] = 0;
-		shuffle(code);
-		polardec(metric, mesg, code, frozen_bits, code_order, parity_stride, first_parity);
-		int order[mesg_type::SIZE];
-		for (int k = 0; k < mesg_type::SIZE; ++k)
-			order[k] = k;
-		std::sort(order, order+mesg_type::SIZE, [metric](int a, int b){ return metric[a] < metric[b]; });
-		int best = -1;
-		for (int k = 0; k < mesg_type::SIZE; ++k) {
-			crc1.reset();
-			for (int i = 0; i < crc_bits; ++i)
-				crc1(mesg[i].v[order[k]] < 0);
-			if (crc1() == 0) {
-				best = order[k];
-				break;
+			if (best < 0) {
+				std::cerr << "payload decoding error." << std::endl;
+				continue;
 			}
+			for (int i = 0; i < data_bits; ++i)
+				CODE::set_le_bit(output_data, i, mesg[i].v[best] < 0);
+
+			const char *output_name = output_names[output_index++];
+			if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
+				output_name = "/dev/stdout";
+			std::ofstream output_file(output_name, std::ios::binary | std::ios::trunc);
+			if (output_file.bad()) {
+				std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
+				continue;
+			}
+			CODE::Xorshift32 scrambler;
+			for (int i = 0; i < data_bytes; ++i)
+				output_data[i] ^= scrambler();
+			for (int i = 0; i < data_bytes; ++i)
+				output_file.put(output_data[i]);
 		}
-		if (best < 0) {
-			std::cerr << "payload decoding error." << std::endl;
-			*len = 0;
-			return;
-		}
-		for (int i = 0; i < data_bits; ++i)
-			CODE::set_le_bit(out, i, mesg[i].v[best] < 0);
 	}
 };
 
 int main(int argc, char **argv)
 {
-	if (argc < 3 || argc > 4) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT INPUT [SKIP]" << std::endl;
+	if (argc < 3) {
+		std::cerr << "usage: " << argv[0] << " INPUT OUTPUT.." << std::endl;
 		return 1;
 	}
 
 	typedef float value;
 	typedef DSP::Complex<value> cmplx;
 
-	const char *output_name = argv[1];
-	if (output_name[0] == '-' && output_name[1] == 0)
-		output_name = "/dev/stdout";
-	const char *input_name = argv[2];
+	const char *input_name = argv[1];
 	if (input_name[0] == '-' && input_name[1] == 0)
 		input_name = "/dev/stdin";
 
@@ -633,43 +640,24 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int skip_count = 0;
-	if (argc > 3)
-		skip_count = std::atoi(argv[3]);
-
-	const int data_max = 1024;
-	uint8_t *output_data = new uint8_t[data_max];
-	int data_len = 0;
-
+	int output_count = argc - 2;
 	switch (input_file.rate()) {
 	case 8000:
-		delete new Decoder<value, cmplx, 8000>(output_data, &data_len, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 8000>(&input_file, argv+2, output_count);
 		break;
 	case 16000:
-		delete new Decoder<value, cmplx, 16000>(output_data, &data_len, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 16000>(&input_file, argv+2, output_count);
 		break;
 	case 44100:
-		delete new Decoder<value, cmplx, 44100>(output_data, &data_len, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 44100>(&input_file, argv+2, output_count);
 		break;
 	case 48000:
-		delete new Decoder<value, cmplx, 48000>(output_data, &data_len, &input_file, skip_count);
+		delete new Decoder<value, cmplx, 48000>(&input_file, argv+2, output_count);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
 		return 1;
 	}
-
-	std::ofstream output_file(output_name, std::ios::binary | std::ios::trunc);
-	if (output_file.bad()) {
-		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
-		return 1;
-	}
-	CODE::Xorshift32 scrambler;
-	for (int i = 0; i < data_len; ++i)
-		output_data[i] ^= scrambler();
-	for (int i = 0; i < data_len; ++i)
-		output_file.put(output_data[i]);
-	delete []output_data;
 	return 0;
 }
 
