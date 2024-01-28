@@ -337,7 +337,7 @@ long long int base37_encoder(const char *str)
 int main(int argc, char **argv)
 {
 	if (argc < 9) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET CALLSIGN MODE INPUT.." << std::endl;
+		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET MODE CALLSIGN INPUT.." << std::endl;
 		return 1;
 	}
 
