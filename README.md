@@ -1,6 +1,23 @@
 
 ### OFDM MODEM
 
+Getting source and dependencies:
+```
+git clone https://github.com/aicodix/modem
+git clone https://github.com/aicodix/dsp
+git clone https://github.com/aicodix/code
+```
+
+Building:
+```
+cd modem
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+
 Quick start:
 
 Create file ```uncoded.dat``` with ```43040``` bits of random data:
