@@ -523,20 +523,15 @@ struct Decoder
 		for (int i = 0; i < cons_cnt; ++i)
 			mod_soft(code+mod_bits*i, cons[i], precision);
 		lengthen();
-		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
-		polardec(metric, mesg, code, frozen_bits, code_order);
+		polardec(nullptr, mesg, code, frozen_bits, code_order);
 		systematic();
-		int order[mesg_type::SIZE];
-		for (int k = 0; k < mesg_type::SIZE; ++k)
-			order[k] = k;
-		std::sort(order, order+mesg_type::SIZE, [metric](int a, int b){ return metric[a] < metric[b]; });
 		int best = -1;
 		for (int k = 0; k < mesg_type::SIZE; ++k) {
 			crc1.reset();
 			for (int i = 0; i < crc_bits; ++i)
-				crc1(mesg[i].v[order[k]] < 0);
+				crc1(mesg[i].v[k] < 0);
 			if (crc1() == 0) {
-				best = order[k];
+				best = k;
 				break;
 			}
 		}
