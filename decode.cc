@@ -567,6 +567,8 @@ struct Decoder
 				// precision = 8;
 				value snr = DSP::decibel(precision);
 				std::cerr << " " << snr;
+				if (std::is_same<code_type, int8_t>::value && precision > 32)
+					precision = 32;
 				for (int i = 0; i < cons_cols; ++i) {
 					if (oper_mode > 25 && i % comb_dist == comb_off)
 						continue;
