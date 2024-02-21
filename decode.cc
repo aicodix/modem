@@ -409,6 +409,8 @@ struct Decoder
 				value precision = sp / np;
 				value snr = DSP::decibel(precision);
 				std::cerr << " " << snr;
+				if (std::is_same<code_type, int8_t>::value && precision > 32)
+					precision = 32;
 				for (int i = 0; i < cons_cols; ++i)
 					mod_soft(code+2*(cons_cols*j+i), cons[cons_cols*j+i], precision);
 			}
