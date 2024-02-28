@@ -502,41 +502,40 @@ struct Decoder
 			std::cerr << "coarse sfo: " << 1000000 * sfo_rad / Const::TwoPi() << " ppm" << std::endl;
 			std::cerr << "finer cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
 		}
-		value precision = 16;
 		if (1) {
+			std::cerr << "Es/N0 (dB):";
 			value sp = 0, np = 0;
-			for (int i = 0; i < cons_cnt; ++i) {
-				code_type tmp[mod_max];
-				mod_hard(tmp, cons[i]);
-				cmplx hard = mod_map(tmp);
-				cmplx error = cons[i] - hard;
-				sp += norm(hard);
-				np += norm(error);
+			for (int j = 0; j < cons_rows; ++j) {
+				for (int i = 0; i < cons_cols; ++i) {
+					code_type tmp[mod_max];
+					mod_hard(tmp, cons[cons_cols*j+i]);
+					cmplx hard = mod_map(tmp);
+					cmplx error = cons[cons_cols*j+i] - hard;
+					sp += norm(hard);
+					np += norm(error);
+				}
+				value precision = sp / np;
+				value snr = DSP::decibel(precision);
+				std::cerr << " " << snr;
+				for (int i = 0; i < cons_cols; ++i)
+					mod_soft(code+mod_bits*(cons_cols*j+i), cons[cons_cols*j+i], precision);
 			}
-			value snr = DSP::decibel(sp / np);
-			std::cerr << "init Es/N0: " << snr << " dB" << std::endl;
-			// $LLR=log(\frac{p(x=+1|y)}{p(x=-1|y)})$
-			// $p(x|\mu,\sigma)=\frac{1}{\sqrt{2\pi}\sigma}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$
-			value sigma = std::sqrt(np / (2 * sp));
-			precision = 1 / (sigma * sigma);
+			std::cerr << std::endl;
+		} else {
+			value precision = 8;
+			for (int i = 0; i < cons_cnt; ++i)
+				mod_soft(code+mod_bits*i, cons[i], precision);
 		}
-		for (int i = 0; i < cons_cnt; ++i)
-			mod_soft(code+mod_bits*i, cons[i], precision);
 		lengthen();
-		CODE::PolarHelper<mesg_type>::PATH metric[mesg_type::SIZE];
-		polardec(metric, mesg, code, frozen_bits, code_order);
+		polardec(nullptr, mesg, code, frozen_bits, code_order);
 		systematic();
-		int order[mesg_type::SIZE];
-		for (int k = 0; k < mesg_type::SIZE; ++k)
-			order[k] = k;
-		std::sort(order, order+mesg_type::SIZE, [metric](int a, int b){ return metric[a] < metric[b]; });
 		int best = -1;
 		for (int k = 0; k < mesg_type::SIZE; ++k) {
 			crc1.reset();
 			for (int i = 0; i < crc_bits; ++i)
-				crc1(mesg[i].v[order[k]] < 0);
+				crc1(mesg[i].v[k] < 0);
 			if (crc1() == 0) {
-				best = order[k];
+				best = k;
 				break;
 			}
 		}
@@ -544,8 +543,16 @@ struct Decoder
 			std::cerr << "payload decoding error." << std::endl;
 			return;
 		}
-		for (int i = 0; i < data_bits; ++i)
-			CODE::set_le_bit(out, i, mesg[i].v[best] < 0);
+		int flips = 0;
+		for (int i = 0, j = 0; i < data_bits; ++i, ++j) {
+			while ((frozen_bits[j / 32] >> (j % 32)) & 1)
+				++j;
+			bool received = code[j] < 0;
+			bool decoded = mesg[i].v[best] < 0;
+			flips += received != decoded;
+			CODE::set_le_bit(out, i, decoded);
+		}
+		std::cerr << "bit flips: " << flips << std::endl;
 	}
 };
 
