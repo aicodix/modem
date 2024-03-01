@@ -6,6 +6,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 
 #include <iostream>
 #include <cassert>
+#include <cstdint>
 #include <cmath>
 #include "xorshift.hh"
 #include "complex.hh"
