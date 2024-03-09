@@ -516,15 +516,15 @@ struct Decoder
 							prev[i] = fdom[bin(i+code_off)];
 						else
 							prev[i] *= DSP::polar<value>(1, tse(i+code_off));
-					for (int i = 0; i < cons_cols; ++i) {
-						index[i] = code_off + i;
-						if (i % comb_dist == comb_off) {
-							phase[i] = arg(cons[cons_cols*j+i]);
-						} else {
-							code_type tmp[mod_bits];
-							mod_hard(tmp, cons[cons_cols*j+i]);
-							phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
-						}
+				}
+				for (int i = 0; i < cons_cols; ++i) {
+					index[i] = code_off + i;
+					if (i % comb_dist == comb_off) {
+						phase[i] = arg(cons[cons_cols*j+i]);
+					} else {
+						code_type tmp[mod_bits];
+						mod_hard(tmp, cons[cons_cols*j+i]);
+						phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
 					}
 				}
 				tse.compute(index, phase, cons_cols);
