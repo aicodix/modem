@@ -4,7 +4,6 @@ OFDM modem decoder
 Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
-#include <algorithm>
 #include <iostream>
 #include <cassert>
 #include <cstdint>
