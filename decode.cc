@@ -52,6 +52,7 @@ struct Decoder
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
+	static const int mod_max = 6;
 	static const int code_max = 14;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 1024;
@@ -398,7 +399,7 @@ struct Decoder
 					if (i % comb_dist == comb_off) {
 						phase[i] = arg(cons[cons_cols*j+i]);
 					} else {
-						code_type tmp[mod_bits];
+						code_type tmp[mod_max];
 						mod_hard(tmp, cons[cons_cols*j+i]);
 						phase[i] = arg(cons[cons_cols*j+i] * conj(mod_map(tmp)));
 					}
@@ -431,7 +432,7 @@ struct Decoder
 					}
 				} else {
 					for (int i = 0; i < cons_cols; ++i) {
-						code_type tmp[mod_bits];
+						code_type tmp[mod_max];
 						mod_hard(tmp, cons[cons_cols*j+i]);
 						cmplx hard = mod_map(tmp);
 						cmplx error = cons[cons_cols*j+i] - hard;
