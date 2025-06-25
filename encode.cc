@@ -9,7 +9,6 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cmath>
 #include "xorshift.hh"
 #include "complex.hh"
-#include "permute.hh"
 #include "utils.hh"
 #include "bitman.hh"
 #include "decibel.hh"
@@ -45,11 +44,8 @@ struct Encoder
 	CODE::CRC<uint32_t> crc1;
 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bchenc;
 	CODE::PolarEncoder<code_type> polarenc;
-	CODE::FisherYatesShuffle<4096> shuffle_4096;
-	CODE::FisherYatesShuffle<8192> shuffle_8192;
-	CODE::FisherYatesShuffle<16384> shuffle_16384;
 	uint8_t input_data[data_max];
-	code_type code[bits_max], mesg[bits_max];
+	code_type code[bits_max], perm[bits_max], mesg[bits_max];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx temp[symbol_len];
@@ -226,18 +222,23 @@ struct Encoder
 		}
 		return 2;
 	}
-	void shuffle(code_type *c)
+	void shuffle(code_type *dest, const code_type *src)
 	{
-		switch (code_order) {
-		case 12:
-			shuffle_4096(c);
-			break;
-		case 13:
-			shuffle_8192(c);
-			break;
-		case 14:
-			shuffle_16384(c);
-			break;
+		if (code_order == 12) {
+			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 4096; ++i)
+				dest[i] = src[seq()];
+		} else if (code_order == 13) {
+			CODE::XorShiftMask<int, 13, 1, 1, 9, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 8192; ++i)
+				dest[i] = src[seq()];
+		} else if (code_order == 14) {
+			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 16384; ++i)
+				dest[i] = src[seq()];
 		}
 	}
 	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, uint64_t call_sign, int oper_mode) :
@@ -393,21 +394,21 @@ struct Encoder
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc1()>>i)&1);
 			polarenc(code, mesg, frozen_bits, code_order);
-			shuffle(code);
+			shuffle(perm, code);
 			for (int i = 0; i < cons_cols; ++i)
 				prev[i] = fdom[bin(i+code_off)];
 			CODE::MLS seq0(mls0_poly);
 			for (int j = 0, k = 0; j < cons_rows; ++j) {
 				for (int i = 0; i < cons_cols; ++i) {
 					if (oper_mode < 26) {
-						prev[i] *= mod_map(code+k);
+						prev[i] *= mod_map(perm+k);
 						fdom[bin(i+code_off)] = prev[i];
 						k += mod_bits;
 					} else if (i % comb_dist == comb_off) {
 						prev[i] *= nrz(seq0());
 						fdom[bin(i+code_off)] = prev[i];
 					} else {
-						fdom[bin(i+code_off)] = prev[i] * mod_map(code+k);
+						fdom[bin(i+code_off)] = prev[i] * mod_map(perm+k);
 						k += mod_bits;
 					}
 				}

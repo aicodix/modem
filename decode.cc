@@ -13,7 +13,6 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "theil_sen.hh"
 #include "xorshift.hh"
 #include "complex.hh"
-#include "permute.hh"
 #include "decibel.hh"
 #include "blockdc.hh"
 #include "hilbert.hh"
@@ -77,13 +76,10 @@ struct Decoder
 	CODE::CRC<uint32_t> crc1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
 	CODE::PolarListDecoder<mesg_type, code_max> polardec;
-	CODE::ReverseFisherYatesShuffle<4096> shuffle_4096;
-	CODE::ReverseFisherYatesShuffle<8192> shuffle_8192;
-	CODE::ReverseFisherYatesShuffle<16384> shuffle_16384;
 	uint8_t output_data[data_max];
 	int8_t genmat[255*71];
 	mesg_type mesg[bits_max];
-	code_type code[bits_max];
+	code_type code[bits_max], perm[bits_max];
 	cmplx cons[cons_max], prev[cols_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[cols_max], phase[cols_max];
@@ -155,18 +151,23 @@ struct Decoder
 			return QuadratureAmplitudeModulation<64, cmplx, code_type>::soft(b, c, precision);
 		}
 	}
-	void shuffle(code_type *c)
+	void shuffle(code_type *dest, const code_type *src)
 	{
-		switch (code_order) {
-		case 12:
-			shuffle_4096(c);
-			break;
-		case 13:
-			shuffle_8192(c);
-			break;
-		case 14:
-			shuffle_16384(c);
-			break;
+		if (code_order == 12) {
+			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 4096; ++i)
+				dest[seq()] = src[i];
+		} else if (code_order == 13) {
+			CODE::XorShiftMask<int, 13, 1, 1, 9, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 8192; ++i)
+				dest[seq()] = src[i];
+		} else if (code_order == 14) {
+			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 16384; ++i)
+				dest[seq()] = src[i];
 		}
 	}
 	const cmplx *next_sample()
@@ -430,15 +431,15 @@ struct Decoder
 				for (int i = 0; i < cons_cols; ++i) {
 					if (oper_mode > 25 && i % comb_dist == comb_off)
 						continue;
-					mod_soft(code+k, cons[cons_cols*j+i], precision);
+					mod_soft(perm+k, cons[cons_cols*j+i], precision);
 					k += mod_bits;
 				}
 			}
 			std::cerr << std::endl;
 			crc_bits = data_bits + 32;
 			for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
-				code[i] = 0;
-			shuffle(code);
+				perm[i] = 0;
+			shuffle(code, perm);
 			polardec(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
 			for (int k = 0; k < mesg_type::SIZE; ++k) {
