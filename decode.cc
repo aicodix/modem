@@ -51,7 +51,7 @@ struct Decoder
 	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
 	static const int mod_max = 6;
-	static const int code_max = 14;
+	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 1024;
 	static const int cols_max = 273 + 16;
@@ -153,7 +153,12 @@ struct Decoder
 	}
 	void shuffle(code_type *dest, const code_type *src)
 	{
-		if (code_order == 12) {
+		if (code_order == 11) {
+			CODE::XorShiftMask<int, 11, 1, 3, 4, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 2048; ++i)
+				dest[seq()] = src[i];
+		} else if (code_order == 12) {
 			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 4096; ++i)
@@ -167,6 +172,16 @@ struct Decoder
 			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 16384; ++i)
+				dest[seq()] = src[i];
+		} else if (code_order == 15) {
+			CODE::XorShiftMask<int, 15, 1, 1, 3, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 32768; ++i)
+				dest[seq()] = src[i];
+		} else if (code_order == 16) {
+			CODE::XorShiftMask<int, 16, 1, 1, 14, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 65536; ++i)
 				dest[seq()] = src[i];
 		}
 	}
