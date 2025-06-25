@@ -6,7 +6,6 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 
 #include <iostream>
 #include <cassert>
-#include <cstdint>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
 #include "schmidl_cox.hh"
@@ -30,7 +29,7 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "psk.hh"
 #include "qam.hh"
 #include "polar_tables.hh"
-#include "polar_parity_aided.hh"
+#include "polar_list_decoder.hh"
 
 void base37_decoder(char *str, long long int val, int len)
 {
@@ -77,7 +76,7 @@ struct Decoder
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
-	CODE::PolarParityDecoder<mesg_type, code_max> polardec;
+	CODE::PolarListDecoder<mesg_type, code_max> polardec;
 	CODE::ReverseFisherYatesShuffle<4096> shuffle_4096;
 	CODE::ReverseFisherYatesShuffle<8192> shuffle_8192;
 	CODE::ReverseFisherYatesShuffle<16384> shuffle_16384;
@@ -251,8 +250,6 @@ struct Decoder
 			std::cerr << "call sign: " << call_sign << std::endl;
 			if (!oper_mode)
 				continue;
-			int parity_stride = 0;
-			int first_parity = 0;
 			int data_bits = 0;
 			int cons_rows = 0;
 			int comb_cols = 0;
@@ -265,9 +262,7 @@ struct Decoder
 				code_order = 12;
 				code_cols = 256;
 				data_bits = 2048;
-				parity_stride = 31;
-				first_parity = 3;
-				frozen_bits = frozen_4096_2147;
+				frozen_bits = frozen_4096_2080;
 				break;
 			case 24:
 				mod_bits = 2;
@@ -276,9 +271,7 @@ struct Decoder
 				code_order = 13;
 				code_cols = 256;
 				data_bits = 4096;
-				parity_stride = 31;
-				first_parity = 5;
-				frozen_bits = frozen_8192_4261;
+				frozen_bits = frozen_8192_4128;
 				break;
 			case 25:
 				mod_bits = 2;
@@ -287,9 +280,7 @@ struct Decoder
 				code_order = 14;
 				code_cols = 256;
 				data_bits = 8192;
-				parity_stride = 31;
-				first_parity = 9;
-				frozen_bits = frozen_16384_8489;
+				frozen_bits = frozen_16384_8224;
 				break;
 			case 26:
 				mod_bits = 4;
@@ -298,9 +289,7 @@ struct Decoder
 				code_order = 12;
 				code_cols = 256;
 				data_bits = 2048;
-				parity_stride = 31;
-				first_parity = 3;
-				frozen_bits = frozen_4096_2147;
+				frozen_bits = frozen_4096_2080;
 				break;
 			case 27:
 				mod_bits = 4;
@@ -309,9 +298,7 @@ struct Decoder
 				code_order = 13;
 				code_cols = 256;
 				data_bits = 4096;
-				parity_stride = 31;
-				first_parity = 5;
-				frozen_bits = frozen_8192_4261;
+				frozen_bits = frozen_8192_4128;
 				break;
 			case 28:
 				mod_bits = 4;
@@ -320,9 +307,7 @@ struct Decoder
 				code_order = 14;
 				code_cols = 256;
 				data_bits = 8192;
-				parity_stride = 31;
-				first_parity = 9;
-				frozen_bits = frozen_16384_8489;
+				frozen_bits = frozen_16384_8224;
 				break;
 			case 29:
 				mod_bits = 6;
@@ -331,9 +316,7 @@ struct Decoder
 				code_order = 13;
 				code_cols = 273;
 				data_bits = 4096;
-				parity_stride = 31;
-				first_parity = 5;
-				frozen_bits = frozen_8192_4261;
+				frozen_bits = frozen_8192_4128;
 				break;
 			case 30:
 				mod_bits = 6;
@@ -342,9 +325,7 @@ struct Decoder
 				code_order = 14;
 				code_cols = 273;
 				data_bits = 8192;
-				parity_stride = 31;
-				first_parity = 9;
-				frozen_bits = frozen_16384_8489;
+				frozen_bits = frozen_16384_8224;
 				break;
 			default:
 				return;
@@ -458,7 +439,7 @@ struct Decoder
 			for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
 				code[i] = 0;
 			shuffle(code);
-			polardec(nullptr, mesg, code, frozen_bits, code_order, parity_stride, first_parity);
+			polardec(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
 			for (int k = 0; k < mesg_type::SIZE; ++k) {
 				crc1.reset();
