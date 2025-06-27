@@ -20,7 +20,7 @@ test: encode decode
 encode: encode.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
 
-decode: decode.cc
+decode: decode.cc schmidl_cox.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
 freezer: freezer.cc
