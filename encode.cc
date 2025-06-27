@@ -53,6 +53,7 @@ struct Encoder
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx prev[cols_max];
+	value weight[guard_len];
 	value papr_min, papr_max;
 	int mod_bits;
 	int oper_mode;
@@ -121,13 +122,8 @@ struct Encoder
 		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
-		for (int i = 0; i < guard_len; ++i) {
-			value x = value(i) / value(guard_len - 1);
-			value ratio(0.5);
-			x = std::min(x, ratio) / ratio;
-			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
-			guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], x);
-		}
+		for (int i = 0; i < guard_len; ++i)
+			guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
 		value peak = 0, mean = 0;
 		for (int i = 0; i < symbol_len; ++i) {
 			value power(norm(tdom[i]));
@@ -379,6 +375,13 @@ struct Encoder
 				}
 				bwd(kern, fdom);
 			}
+		}
+		for (int i = 0; i < guard_len; ++i) {
+			value x = value(i) / value(guard_len - 1);
+			value ratio(0.5);
+			x = std::min(x, ratio) / ratio;
+			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
+			weight[i] = x;
 		}
 		papr_min = 1000, papr_max = -1000;
 		pilot_block();
