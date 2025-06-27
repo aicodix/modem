@@ -57,13 +57,14 @@ struct Decoder
 	static const int cols_max = 273 + 16;
 	static const int rows_max = 32;
 	static const int cons_max = cols_max * rows_max;
-	static const int mls0_len = 127;
-	static const int mls0_off = - mls0_len + 1;
-	static const int mls0_poly = 0b10001001;
+	static const int mls0_len = 320;
+	static const int mls0_poly = 0b1100110001;
+	static const int mls0_seed = 214;
+	static const int mls0_off = - mls0_len / 2;
 	static const int mls1_len = 255;
 	static const int mls1_off = - mls1_len / 2;
 	static const int mls1_poly = 0b100101011;
-	static const int buffer_len = 4 * extended_len;
+	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
@@ -71,7 +72,7 @@ struct Decoder
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, cols_max> tse;
-	SchmidlCox<value, cmplx, search_pos, symbol_len/2, guard_len> correlator;
+	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::OrderedStatisticsDecoder<255, 71, 4> osddec;
@@ -110,11 +111,12 @@ struct Decoder
 	}
 	const cmplx *mls0_seq()
 	{
-		CODE::MLS seq0(mls0_poly);
-		for (int i = 0; i < symbol_len/2; ++i)
+		CODE::MLS seq0(mls0_poly, mls0_seed);
+		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-		for (int i = 0; i < mls0_len; ++i)
-			fdom[(i+mls0_off/2+symbol_len/2)%(symbol_len/2)] = nrz(seq0());
+		value cur = 0, prv = 0;
+		for (int i = 0; i < mls0_len; ++i, prv = cur)
+			fdom[bin(i+mls0_off)] = prv * (cur = nrz(seq0()));
 		return fdom;
 	}
 	cmplx mod_map(code_type *b)
@@ -222,7 +224,7 @@ struct Decoder
 
 			osc.omega(-cfo_rad);
 			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i+symbol_pos+extended_len] * osc();
+				tdom[i] = buf[i+symbol_pos+symbol_len+extended_len] * osc();
 			fwd(fdom, tdom);
 			CODE::MLS seq1(mls1_poly);
 			for (int i = 0; i < mls1_len; ++i)
@@ -352,7 +354,7 @@ struct Decoder
 			int comb_off = comb_cols ? comb_dist / 2 : 1;
 			int code_off = - cons_cols / 2;
 
-			for (int i = 0; i < symbol_pos+extended_len; ++i)
+			for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 				correlator(buf = next_sample());
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i] * osc();

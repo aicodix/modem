@@ -32,8 +32,9 @@ struct Encoder
 	static const int bits_max = 65536;
 	static const int data_max = 1024;
 	static const int cols_max = 273 + 16;
-	static const int mls0_len = 127;
-	static const int mls0_poly = 0b10001001;
+	static const int mls0_len = 320;
+	static const int mls0_poly = 0b1100110001;
+	static const int mls0_seed = 214;
 	static const int mls1_len = 255;
 	static const int mls1_poly = 0b100101011;
 	static const int mls2_poly = 0b100101010001;
@@ -108,7 +109,7 @@ struct Encoder
 				tdom[i] -= orig * kern[(symbol_len-peak+i)%symbol_len];
 		}
 	}
-	void symbol(bool papr_reduction = true)
+	void symbol(bool papr_reduction = true, bool guard_interval = true)
 	{
 		bwd(tdom, fdom);
 		value scale = 2;
@@ -139,7 +140,8 @@ struct Encoder
 			papr_min = std::min(papr_min, papr);
 			papr_max = std::max(papr_max, papr);
 		}
-		pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
+		if (guard_interval)
+			pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
 		pcm->write(reinterpret_cast<value *>(tdom), symbol_len, 2);
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = tdom[i];
@@ -156,16 +158,14 @@ struct Encoder
 	}
 	void schmidl_cox()
 	{
-		CODE::MLS seq0(mls0_poly);
-		value mls0_fac = std::sqrt(value(2 * symbol_len) / value(mls0_len));
+		CODE::MLS seq0(mls0_poly, mls0_seed);
+		value mls0_fac = std::sqrt(value(symbol_len) / value(mls0_len));
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
-		fdom[bin(mls0_off-2)] = mls0_fac;
 		for (int i = 0; i < mls0_len; ++i)
-			fdom[bin(2*i+mls0_off)] = nrz(seq0());
-		for (int i = 0; i < mls0_len; ++i)
-			fdom[bin(2*i+mls0_off)] *= fdom[bin(2*(i-1)+mls0_off)];
+			fdom[bin(i+mls0_off)] = mls0_fac * nrz(seq0());
 		symbol(false);
+		symbol(false, false);
 	}
 	void meta_data(uint64_t md)
 	{
@@ -363,7 +363,7 @@ struct Encoder
 		}
 		int data_bytes = data_bits / 8;
 		int offset = (freq_off * symbol_len) / rate;
-		mls0_off = offset - mls0_len + 1;
+		mls0_off = offset - mls0_len / 2;
 		mls1_off = offset - mls1_len / 2;
 		cons_cols = code_cols + comb_cols;
 		code_off = offset - cons_cols / 2;
