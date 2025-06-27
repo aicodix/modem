@@ -117,8 +117,9 @@ struct Encoder
 		clipping_and_filtering(scale, oper_mode > 25 && papr_reduction);
 		if (oper_mode > 25 && papr_reduction)
 			tone_reservation();
+		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
 		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] = cmplx(std::min(value(1), tdom[i].real()), std::min(value(1), tdom[i].imag()));
+			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
 		for (int i = 0; i < guard_len; ++i) {
 			value x = value(i) / value(guard_len - 1);
 			value ratio(0.5);
