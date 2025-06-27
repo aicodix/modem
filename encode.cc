@@ -376,13 +376,14 @@ struct Encoder
 				bwd(kern, fdom);
 			}
 		}
-		for (int i = 0; i < guard_len; ++i) {
-			value x = value(i) / value(guard_len - 1);
-			value ratio(0.5);
-			x = std::min(x, ratio) / ratio;
-			x = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
-			weight[i] = x;
+		for (int i = 0; i < guard_len / 4; ++i)
+			weight[i] = 0;
+		for (int i = guard_len / 4; i < guard_len / 4 + guard_len / 2; ++i) {
+			value x = value(i - guard_len / 4) / value(guard_len / 2 - 1);
+			weight[i] = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
 		}
+		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
+			weight[i] = 1;
 		papr_min = 1000, papr_max = -1000;
 		pilot_block();
 		if (!oper_mode) {
