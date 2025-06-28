@@ -54,7 +54,7 @@ struct Decoder
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 1024;
-	static const int cols_max = 273 + 32;
+	static const int cols_max = 256 + 32;
 	static const int rows_max = 32;
 	static const int cons_max = cols_max * rows_max;
 	static const int mls0_len = 320;
@@ -271,7 +271,7 @@ struct Decoder
 			int data_bits = 0;
 			int cons_rows = 0;
 			int comb_cols = 32;
-			int code_cols = 0;
+			int code_cols = 256;
 			int comb_dist = 9;
 			int comb_off = 4;
 			switch (oper_mode) {
@@ -279,7 +279,6 @@ struct Decoder
 				mod_bits = 2;
 				cons_rows = 8;
 				code_order = 12;
-				code_cols = 256;
 				data_bits = 2048;
 				frozen_bits = frozen_4096_2080;
 				break;
@@ -287,7 +286,6 @@ struct Decoder
 				mod_bits = 2;
 				cons_rows = 16;
 				code_order = 13;
-				code_cols = 256;
 				data_bits = 4096;
 				frozen_bits = frozen_8192_4128;
 				break;
@@ -295,7 +293,6 @@ struct Decoder
 				mod_bits = 2;
 				cons_rows = 32;
 				code_order = 14;
-				code_cols = 256;
 				data_bits = 8192;
 				frozen_bits = frozen_16384_8224;
 				break;
@@ -303,7 +300,6 @@ struct Decoder
 				mod_bits = 4;
 				cons_rows = 4;
 				code_order = 12;
-				code_cols = 256;
 				data_bits = 2048;
 				frozen_bits = frozen_4096_2080;
 				break;
@@ -311,7 +307,6 @@ struct Decoder
 				mod_bits = 4;
 				cons_rows = 8;
 				code_order = 13;
-				code_cols = 256;
 				data_bits = 4096;
 				frozen_bits = frozen_8192_4128;
 				break;
@@ -319,23 +314,20 @@ struct Decoder
 				mod_bits = 4;
 				cons_rows = 16;
 				code_order = 14;
-				code_cols = 256;
 				data_bits = 8192;
 				frozen_bits = frozen_16384_8224;
 				break;
 			case 29:
 				mod_bits = 6;
-				cons_rows = 5;
+				cons_rows = 6;
 				code_order = 13;
-				code_cols = 273;
 				data_bits = 4096;
 				frozen_bits = frozen_8192_4128;
 				break;
 			case 30:
 				mod_bits = 6;
-				cons_rows = 10;
+				cons_rows = 11;
 				code_order = 14;
-				code_cols = 273;
 				data_bits = 8192;
 				frozen_bits = frozen_16384_8224;
 				break;

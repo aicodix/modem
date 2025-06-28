@@ -31,7 +31,7 @@ struct Encoder
 	static const int guard_len = symbol_len / 8;
 	static const int bits_max = 65536;
 	static const int data_max = 1024;
-	static const int cols_max = 273 + 32;
+	static const int cols_max = 256 + 32;
 	static const int mls0_len = 320;
 	static const int mls0_poly = 0b1100110001;
 	static const int mls0_seed = 214;
@@ -264,7 +264,7 @@ struct Encoder
 			oper_mode(oper_mode)
 	{
 		const uint32_t *frozen_bits = nullptr;
-		int code_cols = 0;
+		int code_cols = 256;
 		int comb_cols = 32;
 		int comb_dist = 9;
 		int comb_off = 4;
@@ -272,7 +272,6 @@ struct Encoder
 		int reserved_tones = 32;
 		switch (oper_mode) {
 		case 0:
-			code_cols = 256;
 			comb_cols = 0;
 			reserved_tones = 0;
 			break;
@@ -280,7 +279,6 @@ struct Encoder
 			mod_bits = 2;
 			cons_rows = 8;
 			code_order = 12;
-			code_cols = 256;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
@@ -288,7 +286,6 @@ struct Encoder
 			mod_bits = 2;
 			cons_rows = 16;
 			code_order = 13;
-			code_cols = 256;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
@@ -296,7 +293,6 @@ struct Encoder
 			mod_bits = 2;
 			cons_rows = 32;
 			code_order = 14;
-			code_cols = 256;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
@@ -304,7 +300,6 @@ struct Encoder
 			mod_bits = 4;
 			cons_rows = 4;
 			code_order = 12;
-			code_cols = 256;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
@@ -312,7 +307,6 @@ struct Encoder
 			mod_bits = 4;
 			cons_rows = 8;
 			code_order = 13;
-			code_cols = 256;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
@@ -320,26 +314,21 @@ struct Encoder
 			mod_bits = 4;
 			cons_rows = 16;
 			code_order = 14;
-			code_cols = 256;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 29:
 			mod_bits = 6;
-			cons_rows = 5;
+			cons_rows = 6;
 			code_order = 13;
-			code_cols = 273;
 			data_bits = 4096;
-			reserved_tones = 15;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 30:
 			mod_bits = 6;
-			cons_rows = 10;
+			cons_rows = 11;
 			code_order = 14;
-			code_cols = 273;
 			data_bits = 8192;
-			reserved_tones = 15;
 			frozen_bits = frozen_16384_8224;
 			break;
 		default:
