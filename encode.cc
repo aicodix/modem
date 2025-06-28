@@ -269,11 +269,12 @@ struct Encoder
 		int comb_dist = 1;
 		int comb_off = 1;
 		int data_bits = 0;
-		int reserved_tones = 0;
+		int reserved_tones = 32;
 		switch (oper_mode) {
 		case 0:
 			code_cols = 256;
 			comb_cols = 0;
+			reserved_tones = 0;
 			break;
 		case 23:
 			mod_bits = 2;
@@ -281,7 +282,6 @@ struct Encoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
-			reserved_tones = 32;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 24:
@@ -290,7 +290,6 @@ struct Encoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
-			reserved_tones = 32;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 25:
@@ -299,7 +298,6 @@ struct Encoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
-			reserved_tones = 32;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 26:
@@ -308,7 +306,6 @@ struct Encoder
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
-			reserved_tones = 32;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 27:
@@ -317,7 +314,6 @@ struct Encoder
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
-			reserved_tones = 32;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 28:
@@ -326,7 +322,6 @@ struct Encoder
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
-			reserved_tones = 32;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 29:
