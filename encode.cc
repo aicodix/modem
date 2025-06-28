@@ -31,7 +31,7 @@ struct Encoder
 	static const int guard_len = symbol_len / 8;
 	static const int bits_max = 65536;
 	static const int data_max = 1024;
-	static const int cols_max = 273 + 16;
+	static const int cols_max = 273 + 32;
 	static const int mls0_len = 320;
 	static const int mls0_poly = 0b1100110001;
 	static const int mls0_seed = 214;
@@ -116,8 +116,8 @@ struct Encoder
 		value scale = 2;
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= scale * std::sqrt(value(symbol_len));
-		clipping_and_filtering(scale, oper_mode > 25 && papr_reduction);
-		if (oper_mode > 25 && papr_reduction)
+		clipping_and_filtering(scale, oper_mode > 0 && papr_reduction);
+		if (oper_mode > 0 && papr_reduction)
 			tone_reservation();
 		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
 		for (int i = 0; i < symbol_len; ++i)
@@ -186,7 +186,7 @@ struct Encoder
 			fdom[bin(i+mls1_off)] *= fdom[bin(i-1+mls1_off)];
 		for (int i = 0; i < mls1_len; ++i)
 			fdom[bin(i+mls1_off)] *= nrz(seq1());
-		if (oper_mode > 25) {
+		if (oper_mode > 0) {
 			for (int i = code_off; i < code_off + cons_cols; ++i) {
 				if (i == mls1_off-1)
 					i += mls1_len + 1;
@@ -265,7 +265,7 @@ struct Encoder
 	{
 		const uint32_t *frozen_bits = nullptr;
 		int code_cols = 0;
-		int comb_cols = 0;
+		int comb_cols = 32;
 		int comb_dist = 1;
 		int comb_off = 1;
 		int data_bits = 0;
@@ -273,71 +273,65 @@ struct Encoder
 		switch (oper_mode) {
 		case 0:
 			code_cols = 256;
+			comb_cols = 0;
 			break;
 		case 23:
 			mod_bits = 2;
 			cons_rows = 8;
-			comb_cols = 0;
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
-			reserved_tones = 0;
+			reserved_tones = 32;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 24:
 			mod_bits = 2;
 			cons_rows = 16;
-			comb_cols = 0;
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
-			reserved_tones = 0;
+			reserved_tones = 32;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 25:
 			mod_bits = 2;
 			cons_rows = 32;
-			comb_cols = 0;
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
-			reserved_tones = 0;
+			reserved_tones = 32;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 26:
 			mod_bits = 4;
 			cons_rows = 4;
-			comb_cols = 8;
 			code_order = 12;
 			code_cols = 256;
 			data_bits = 2048;
-			reserved_tones = 8;
+			reserved_tones = 32;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 27:
 			mod_bits = 4;
 			cons_rows = 8;
-			comb_cols = 8;
 			code_order = 13;
 			code_cols = 256;
 			data_bits = 4096;
-			reserved_tones = 8;
+			reserved_tones = 32;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 28:
 			mod_bits = 4;
 			cons_rows = 16;
-			comb_cols = 8;
 			code_order = 14;
 			code_cols = 256;
 			data_bits = 8192;
-			reserved_tones = 8;
+			reserved_tones = 32;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 29:
 			mod_bits = 6;
 			cons_rows = 5;
-			comb_cols = 16;
 			code_order = 13;
 			code_cols = 273;
 			data_bits = 4096;
@@ -347,7 +341,6 @@ struct Encoder
 		case 30:
 			mod_bits = 6;
 			cons_rows = 10;
-			comb_cols = 16;
 			code_order = 14;
 			code_cols = 273;
 			data_bits = 8192;
@@ -420,11 +413,7 @@ struct Encoder
 			CODE::MLS seq0(mls0_poly);
 			for (int j = 0, k = 0; j < cons_rows; ++j) {
 				for (int i = 0; i < cons_cols; ++i) {
-					if (oper_mode < 26) {
-						prev[i] *= mod_map(perm+k);
-						fdom[bin(i+code_off)] = prev[i];
-						k += mod_bits;
-					} else if (i % comb_dist == comb_off) {
+					if (i % comb_dist == comb_off) {
 						prev[i] *= nrz(seq0());
 						fdom[bin(i+code_off)] = prev[i];
 					} else {
@@ -490,39 +479,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int band_width;
-	switch (oper_mode) {
-	case 0:
-		band_width = 1600;
-		break;
-	case 23:
-		band_width = 1600;
-		break;
-	case 24:
-		band_width = 1600;
-		break;
-	case 25:
-		band_width = 1600;
-		break;
-	case 26:
-		band_width = 1700;
-		break;
-	case 27:
-		band_width = 1700;
-		break;
-	case 28:
-		band_width = 1700;
-		break;
-	case 29:
-		band_width = 1900;
-		break;
-	case 30:
-		band_width = 1900;
-		break;
-	default:
+	if (oper_mode && (oper_mode < 23 || oper_mode > 30)) {
 		std::cerr << "Unsupported operation mode." << std::endl;
 		return 1;
 	}
+	int band_width = 2000;
 	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
 		std::cerr << "Unsupported frequency offset." << std::endl;
 		return 1;
