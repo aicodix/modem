@@ -266,8 +266,8 @@ struct Encoder
 		const uint32_t *frozen_bits = nullptr;
 		int code_cols = 0;
 		int comb_cols = 32;
-		int comb_dist = 1;
-		int comb_off = 1;
+		int comb_dist = 9;
+		int comb_off = 4;
 		int data_bits = 0;
 		int reserved_tones = 32;
 		switch (oper_mode) {
@@ -352,17 +352,13 @@ struct Encoder
 		cons_cols = code_cols + comb_cols;
 		code_off = offset - cons_cols / 2;
 		if (oper_mode > 0) {
-			comb_dist = comb_cols ? cons_cols / comb_cols : 1;
-			comb_off = comb_cols ? comb_dist / 2 : 1;
-			if (reserved_tones) {
-				value kern_fac = 1 / value(10 * reserved_tones);
-				for (int i = 0, j = code_off - reserved_tones / 2; i < reserved_tones; ++i, ++j) {
-					if (j == code_off)
-						j += cons_cols;
-					fdom[bin(j)] = kern_fac;
-				}
-				bwd(kern, fdom);
+			value kern_fac = 1 / value(10 * reserved_tones);
+			for (int i = 0, j = code_off - reserved_tones / 2; i < reserved_tones; ++i, ++j) {
+				if (j == code_off)
+					j += cons_cols;
+				fdom[bin(j)] = kern_fac;
 			}
+			bwd(kern, fdom);
 		}
 		for (int i = 0; i < guard_len / 4; ++i)
 			weight[i] = 0;

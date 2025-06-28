@@ -272,6 +272,8 @@ struct Decoder
 			int cons_rows = 0;
 			int comb_cols = 32;
 			int code_cols = 0;
+			int comb_dist = 9;
+			int comb_off = 4;
 			switch (oper_mode) {
 			case 23:
 				mod_bits = 2;
@@ -342,8 +344,6 @@ struct Decoder
 			}
 			int data_bytes = data_bits / 8;
 			int cons_cols = code_cols + comb_cols;
-			int comb_dist = comb_cols ? cons_cols / comb_cols : 1;
-			int comb_off = comb_cols ? comb_dist / 2 : 1;
 			int code_off = - cons_cols / 2;
 
 			for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
