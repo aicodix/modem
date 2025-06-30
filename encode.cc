@@ -37,6 +37,12 @@ struct Encoder
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0b100101011;
 	static const int mls2_poly = 0b100101010001;
+	static const int code_cols = 256;
+	static const int comb_cols = 32;
+	static const int cons_cols = code_cols + comb_cols;
+	static const int comb_dist = 9;
+	static const int comb_off = 4;
+	static const int reserved_tones = 32;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
@@ -53,11 +59,13 @@ struct Encoder
 	cmplx guard[guard_len];
 	value weight[guard_len];
 	value papr_min, papr_max;
+	const uint32_t *frozen_bits;
 	int mod_bits;
 	int oper_mode;
+	int data_bits;
+	int data_bytes;
 	int code_order;
 	int code_off;
-	int cons_cols;
 	int cons_rows;
 	int mls0_off;
 
@@ -113,8 +121,8 @@ struct Encoder
 		value scale = 2 / std::sqrt(value(symbol_len) / value(cons_cols));
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= scale * std::sqrt(value(symbol_len));
-		clipping_and_filtering(scale, oper_mode > 0 && papr_reduction);
-		if (oper_mode > 0 && papr_reduction)
+		clipping_and_filtering(scale, papr_reduction);
+		if (papr_reduction)
 			tone_reservation();
 		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
 		for (int i = 0; i < symbol_len; ++i)
@@ -216,20 +224,11 @@ struct Encoder
 				dest[i] = src[seq()];
 		}
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) :
-		pcm(pcm), crc1(0x8F6E37A0), oper_mode(oper_mode)
+	void setup(int oper_mode, int freq_off)
 	{
-		const uint32_t *frozen_bits = nullptr;
-		int code_cols = 256;
-		int comb_cols = 32;
-		int comb_dist = 9;
-		int comb_off = 4;
-		int data_bits = 0;
-		int reserved_tones = 32;
 		switch (oper_mode) {
 		case 0:
 			cons_rows = 1;
-			reserved_tones = 0;
 			break;
 		case 1:
 			mod_bits = 2;
@@ -290,20 +289,20 @@ struct Encoder
 		default:
 			return;
 		}
-		int data_bytes = data_bits / 8;
+		data_bytes = data_bits / 8;
 		int offset = (freq_off * symbol_len) / rate;
 		mls0_off = offset - mls0_len / 2;
-		cons_cols = code_cols + comb_cols;
 		code_off = offset - cons_cols / 2;
-		if (oper_mode > 0) {
-			value mag = 1 / value(10 * reserved_tones);
-			for (int i = 0, j = code_off - reserved_tones / 2; i < reserved_tones; ++i, ++j) {
-				if (j == code_off)
-					j += cons_cols;
-				fdom[bin(j)] = mag;
-			}
-			bwd(kern, fdom);
+	}
+	void tone_reservation_kernels()
+	{
+		value mag = 1 / value(10 * reserved_tones);
+		for (int i = 0, j = code_off - reserved_tones / 2; i < reserved_tones; ++i, ++j) {
+			if (j == code_off)
+				j += cons_cols;
+			fdom[bin(j)] = mag;
 		}
+		bwd(kern, fdom);
 		for (int i = 0; i < guard_len / 4; ++i)
 			weight[i] = 0;
 		for (int i = guard_len / 4; i < guard_len / 4 + guard_len / 2; ++i) {
@@ -312,6 +311,12 @@ struct Encoder
 		}
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
+	}
+	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) :
+		pcm(pcm), crc1(0x8F6E37A0)
+	{
+		setup(oper_mode, freq_off);
+		tone_reservation_kernels();
 		papr_min = 1000, papr_max = -1000;
 		pilot_block();
 		hadamardenc(mode, oper_mode);

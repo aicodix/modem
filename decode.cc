@@ -84,6 +84,9 @@ struct Decoder
 	int symbol_pos;
 	int oper_mode;
 	int crc_bits;
+	int data_bits;
+	int data_bytes;
+	int cons_rows;
 
 	static int bin(int carrier)
 	{
@@ -188,6 +191,69 @@ struct Decoder
 			tmp = hilbert(blockdc(tmp.real()));
 		return input_hist(tmp);
 	}
+	void setup(int oper_mode) {
+		switch (oper_mode) {
+		case 1:
+			mod_bits = 2;
+			cons_rows = 8;
+			code_order = 12;
+			data_bits = 2048;
+			frozen_bits = frozen_4096_2080;
+			break;
+		case 2:
+			mod_bits = 2;
+			cons_rows = 16;
+			code_order = 13;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
+			break;
+		case 3:
+			mod_bits = 2;
+			cons_rows = 32;
+			code_order = 14;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 4:
+			mod_bits = 4;
+			cons_rows = 4;
+			code_order = 12;
+			data_bits = 2048;
+			frozen_bits = frozen_4096_2080;
+			break;
+		case 5:
+			mod_bits = 4;
+			cons_rows = 8;
+			code_order = 13;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
+			break;
+		case 6:
+			mod_bits = 4;
+			cons_rows = 16;
+			code_order = 14;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 7:
+			mod_bits = 6;
+			cons_rows = 6;
+			code_order = 13;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
+			break;
+		case 8:
+			mod_bits = 6;
+			cons_rows = 11;
+			code_order = 14;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
+			break;
+		default:
+			return;
+		}
+		data_bytes = data_bits / 8;
+	}
 	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) :
 		pcm(pcm), correlator(mls0_seq()), crc1(0x8F6E37A0)
 	{
@@ -241,71 +307,7 @@ struct Decoder
 			std::cerr << "oper mode: " << oper_mode << std::endl;
 			if (!oper_mode)
 				continue;
-
-			int data_bits = 0;
-			int cons_rows = 0;
-			switch (oper_mode) {
-			case 1:
-				mod_bits = 2;
-				cons_rows = 8;
-				code_order = 12;
-				data_bits = 2048;
-				frozen_bits = frozen_4096_2080;
-				break;
-			case 2:
-				mod_bits = 2;
-				cons_rows = 16;
-				code_order = 13;
-				data_bits = 4096;
-				frozen_bits = frozen_8192_4128;
-				break;
-			case 3:
-				mod_bits = 2;
-				cons_rows = 32;
-				code_order = 14;
-				data_bits = 8192;
-				frozen_bits = frozen_16384_8224;
-				break;
-			case 4:
-				mod_bits = 4;
-				cons_rows = 4;
-				code_order = 12;
-				data_bits = 2048;
-				frozen_bits = frozen_4096_2080;
-				break;
-			case 5:
-				mod_bits = 4;
-				cons_rows = 8;
-				code_order = 13;
-				data_bits = 4096;
-				frozen_bits = frozen_8192_4128;
-				break;
-			case 6:
-				mod_bits = 4;
-				cons_rows = 16;
-				code_order = 14;
-				data_bits = 8192;
-				frozen_bits = frozen_16384_8224;
-				break;
-			case 7:
-				mod_bits = 6;
-				cons_rows = 6;
-				code_order = 13;
-				data_bits = 4096;
-				frozen_bits = frozen_8192_4128;
-				break;
-			case 8:
-				mod_bits = 6;
-				cons_rows = 11;
-				code_order = 14;
-				data_bits = 8192;
-				frozen_bits = frozen_16384_8224;
-				break;
-			default:
-				return;
-			}
-			int data_bytes = data_bits / 8;
-
+			setup(oper_mode);
 			std::cerr << "demod ";
 			for (int j = 0; j < cons_rows; ++j) {
 				if (j) {
