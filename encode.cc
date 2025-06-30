@@ -38,10 +38,11 @@ struct Encoder
 	static const int mls2_poly = 0b100101010001;
 	static const int code_cols = 256;
 	static const int comb_cols = 32;
-	static const int cons_cols = code_cols + comb_cols;
-	static const int comb_dist = 9;
-	static const int comb_off = 4;
 	static const int reserved_tones = 32;
+	static const int cons_cols = code_cols + comb_cols + reserved_tones;
+	static const int block_len = 10;
+	static const int comb_off = 4;
+	static const int tone_off = 9;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
@@ -293,12 +294,12 @@ struct Encoder
 	void tone_reservation_kernels()
 	{
 		value mag = 1 / value(10 * reserved_tones);
-		for (int i = 0, j = cons_off - reserved_tones / 2; i < reserved_tones; ++i, ++j) {
-			if (j == cons_off)
-				j += cons_cols;
-			temp[bin(j)] = mag;
-		}
+		for (int i = 0; i < reserved_tones; ++i)
+			temp[bin(i*block_len+tone_off)] = mag;
 		bwd(kern, temp);
+	}
+	void guard_interval_weights()
+	{
 		for (int i = 0; i < guard_len / 4; ++i)
 			weight[i] = 0;
 		for (int i = guard_len / 4; i < guard_len / 4 + guard_len / 2; ++i) {
@@ -313,6 +314,7 @@ struct Encoder
 	{
 		setup(oper_mode, freq_off);
 		tone_reservation_kernels();
+		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
 		pilot_block();
 		hadamardenc(mode, oper_mode);
@@ -320,7 +322,7 @@ struct Encoder
 			schmidl_cox();
 			CODE::MLS seq1(mls1_poly);
 			for (int i = 0, m = 0; i < cons_cols; ++i) {
-				if (i % comb_dist == comb_off) {
+				if (i % block_len == comb_off) {
 					cons[i] = nrz(seq1()) * mode[m++];
 				} else {
 					cons[i] = 0;
@@ -355,8 +357,10 @@ struct Encoder
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0; j < cons_rows; ++j) {
 				for (int i = 0, m = 0; i < cons_cols; ++i) {
-					if (i % comb_dist == comb_off) {
+					if (i % block_len == comb_off) {
 						cons[i] = nrz(seq1()) * mode[m++];
+					} else if (i % block_len == tone_off) {
+						cons[i] = 0;
 					} else {
 						cons[i] = mod_map(perm+k);
 						k += mod_bits;

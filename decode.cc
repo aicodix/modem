@@ -49,26 +49,27 @@ struct Decoder
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 1024;
-	static const int cols_max = 256 + 32;
 	static const int rows_max = 32;
-	static const int cons_max = cols_max * rows_max;
 	static const int mls0_poly = 0b1100110001;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0b100101011;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
 	static const int comb_cols = 32;
+	static const int reserved_tones = 32;
 	static const int code_cols = 256;
-	static const int comb_dist = 9;
+	static const int block_len = 10;
 	static const int comb_off = 4;
-	static const int cons_cols = code_cols + comb_cols;
+	static const int tone_off = 9;
+	static const int cons_cols = code_cols + comb_cols + reserved_tones;
 	static const int cons_off = - cons_cols / 2;
+	static const int cons_max = cons_cols * rows_max;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
-	DSP::TheilSenEstimator<value, cols_max> tse;
+	DSP::TheilSenEstimator<value, cons_cols> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
 	CODE::CRC<uint32_t> crc1;
 	CODE::HadamardEncoder<6> hadamardenc;
@@ -78,9 +79,9 @@ struct Decoder
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
 	int8_t mode[32];
-	cmplx cons[cons_max], chan[cols_max], scar[cols_max];
+	cmplx cons[cons_max], chan[cons_cols], scar[cons_cols];
 	cmplx fdom[symbol_len], tdom[symbol_len];
-	value index[cols_max], phase[cols_max];
+	value index[cons_cols], phase[cons_cols];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
 	int mod_bits;
@@ -295,7 +296,7 @@ struct Decoder
 			CODE::MLS seq1(mls1_poly);
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 			for (int i = 0; i < comb_cols; ++i)
-				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(scar[i*comb_dist+comb_off], chan[i*comb_dist+comb_off]).real() * nrz(seq1())));
+				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(scar[i*block_len+comb_off], chan[i*block_len+comb_off]).real() * nrz(seq1())));
 			int oper_mode = hadamarddec(mode);
 			if (oper_mode < 0 || oper_mode > 8) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
@@ -324,12 +325,12 @@ struct Decoder
 					hadamardenc(mode, oper_mode);
 				}
 				for (int i = 0; i < comb_cols; ++i)
-					scar[comb_dist*i+comb_off] *= nrz(seq1()) * mode[i];
+					scar[block_len*i+comb_off] *= nrz(seq1()) * mode[i];
 				for (int i = 0; i < cons_cols; ++i)
 					cons[cons_cols*j+i] = demod_or_erase(scar[i], chan[i]);
 				for (int i = 0; i < comb_cols; ++i) {
-					index[i] = cons_off + comb_dist * i + comb_off;
-					phase[i] = arg(cons[cons_cols*j+comb_dist*i+comb_off]);
+					index[i] = cons_off + block_len * i + comb_off;
+					phase[i] = arg(cons[cons_cols*j+block_len*i+comb_off]);
 				}
 				tse.compute(index, phase, comb_cols);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
@@ -337,7 +338,7 @@ struct Decoder
 				for (int i = 0; i < cons_cols; ++i)
 					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+cons_off));
 				for (int i = 0; i < cons_cols; ++i)
-					if (i % comb_dist == comb_off)
+					if (i % block_len == comb_off)
 						chan[i] = scar[i];
 					else
 						chan[i] *= DSP::polar<value>(1, tse(i+cons_off));
@@ -349,7 +350,7 @@ struct Decoder
 			for (int j = 0, k = 0; j < cons_rows; ++j) {
 				for (int i = 0; i < comb_cols; ++i) {
 					cmplx hard(1, 0);
-					cmplx error = cons[cons_cols*j+comb_dist*i+comb_off] - hard;
+					cmplx error = cons[cons_cols*j+block_len*i+comb_off] - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
@@ -360,7 +361,9 @@ struct Decoder
 				if (std::is_same<code_type, int8_t>::value && precision > 32)
 					precision = 32;
 				for (int i = 0; i < cons_cols; ++i) {
-					if (i % comb_dist == comb_off)
+					if (i % block_len == comb_off)
+						continue;
+					if (i % block_len == tone_off)
 						continue;
 					mod_soft(perm+k, cons[cons_cols*j+i], precision);
 					k += mod_bits;
