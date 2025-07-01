@@ -111,7 +111,7 @@ struct Encoder
 			if (norm(orig) <= value(1))
 				break;
 			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] -= orig * kern[(symbol_len-peak+i)%symbol_len];
+				tdom[i] -= orig * kern[bin(i-peak)];
 		}
 	}
 	void symbol(bool papr_reduction = true, bool guard_interval = true)
