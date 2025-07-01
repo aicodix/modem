@@ -45,11 +45,11 @@ struct Decoder
 	static const int symbol_len = guard_len * 16;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int extended_len = symbol_len + guard_len;
-	static const int mod_max = 6;
+	static const int mod_max = 8;
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
-	static const int data_max = 1024;
-	static const int symbols_max = 32;
+	static const int data_max = 4096;
+	static const int symbols_max = 44;
 	static const int mls0_poly = 0b1100110001;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0b100101011;
@@ -127,6 +127,8 @@ struct Decoder
 			return QuadratureAmplitudeModulation<16, cmplx, code_type>::soft(b, c, precision);
 		case 6:
 			return QuadratureAmplitudeModulation<64, cmplx, code_type>::soft(b, c, precision);
+		case 8:
+			return QuadratureAmplitudeModulation<256, cmplx, code_type>::soft(b, c, precision);
 		}
 	}
 	void shuffle(code_type *dest, const code_type *src)
@@ -175,59 +177,108 @@ struct Decoder
 		switch (oper_mode) {
 		case 1:
 			mod_bits = 2;
+			symbol_count = 4;
+			code_order = 11;
+			data_bits = 1024;
+			frozen_bits = frozen_2048_1056;
+			break;
+		case 2:
+			mod_bits = 2;
 			symbol_count = 8;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
-		case 2:
+		case 3:
 			mod_bits = 2;
 			symbol_count = 16;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
-		case 3:
+		case 4:
 			mod_bits = 2;
 			symbol_count = 32;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
-		case 4:
+		case 5:
 			mod_bits = 4;
 			symbol_count = 4;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
-		case 5:
+		case 6:
 			mod_bits = 4;
 			symbol_count = 8;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
-		case 6:
+		case 7:
 			mod_bits = 4;
 			symbol_count = 16;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
-		case 7:
-			mod_bits = 6;
-			symbol_count = 6;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
 		case 8:
+			mod_bits = 4;
+			symbol_count = 32;
+			code_order = 15;
+			data_bits = 16384;
+			frozen_bits = frozen_32768_16416;
+			break;
+		case 9:
 			mod_bits = 6;
 			symbol_count = 11;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
+			break;
+		case 10:
+			mod_bits = 6;
+			symbol_count = 22;
+			code_order = 15;
+			data_bits = 16384;
+			frozen_bits = frozen_32768_16416;
+			break;
+		case 11:
+			mod_bits = 6;
+			symbol_count = 44;
+			code_order = 16;
+			data_bits = 32768;
+			frozen_bits = frozen_65536_32800;
+			break;
+		case 12:
+			mod_bits = 8;
+			symbol_count = 4;
+			code_order = 13;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
+			break;
+		case 13:
+			mod_bits = 8;
+			symbol_count = 8;
+			code_order = 14;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 14:
+			mod_bits = 8;
+			symbol_count = 16;
+			code_order = 15;
+			data_bits = 16384;
+			frozen_bits = frozen_32768_16416;
+			break;
+		case 15:
+			mod_bits = 8;
+			symbol_count = 32;
+			code_order = 16;
+			data_bits = 32768;
+			frozen_bits = frozen_65536_32800;
 			break;
 		default:
 			return;
@@ -276,7 +327,7 @@ struct Decoder
 			for (int i = 0; i < pilot_tones; ++i)
 				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(tone[i*block_length+pilot_offset], chan[i*block_length+pilot_offset]).real() * nrz(seq1())));
 			int oper_mode = hadamarddec(mode);
-			if (oper_mode < 0 || oper_mode > 8) {
+			if (oper_mode < 0 || oper_mode > 15) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
@@ -347,9 +398,7 @@ struct Decoder
 					if (i % block_length == roff)
 						continue;
 					int bits = mod_bits;
-					if (oper_mode == 7 && k % 32 == 30)
-						bits = 2;
-					else if (oper_mode == 8 && k % 64 == 60)
+					if (oper_mode >= 9 && oper_mode <= 11 && k % 64 == 60)
 						bits = 4;
 					demap_bits(perm+k, demod[tone_count*j+i], precision, bits);
 					k += bits;

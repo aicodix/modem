@@ -12,7 +12,7 @@ dd if=/dev/urandom of=uncoded.dat bs=1 count=256
 Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 8000 Hz sample rate, 16 bits and only 1 (real) channel:
 
 ```
-./encode encoded.wav 8000 16 1 1500 23 CALLSIGN uncoded.dat
+./encode encoded.wav 8000 16 1 1500 5 uncoded.dat
 ```
 
 Start recording to ```recorded.wav``` audio file and stop after 5 seconds:
@@ -41,18 +41,23 @@ diff -s uncoded.dat decoded.dat
 
 ### Supported Modes
 
-Ping:
-* Mode 0: DBPSK, 2/7-rate code, 1600 Hz bandwidth, 0.36 seconds and no payload
+All modes need a bandwidth of 2000 Hz and use a 1/2-rate forward error correction code
 
-Next:
-* Mode 23: DQPSK, 1/2-rate code, 1600 Hz bandwidth, 1.80 seconds and 256 bytes
-* Mode 24: DQPSK, 1/2-rate code, 1600 Hz bandwidth, 3.24 seconds and 512 bytes
-* Mode 25: DQPSK, 1/2-rate code, 1600 Hz bandwidth, 6.12 seconds and 1024 bytes
-* Mode 26: QAM16, 1/2-rate code, 1700 Hz bandwidth, 1.08 seconds and 256 bytes
-* Mode 27: QAM16, 1/2-rate code, 1700 Hz bandwidth, 1.80 seconds and 512 bytes
-* Mode 28: QAM16, 1/2-rate code, 1700 Hz bandwidth, 3.24 seconds and 1024 bytes
-* Mode 29: QAM64, 1/2-rate code, 1900 Hz bandwidth, 1.26 seconds and 512 bytes
-* Mode 30: QAM64, 1/2-rate code, 1900 Hz bandwidth, 2.16 seconds and 1024 bytes
+* Mode  1: QPSK, 1.02 seconds and 128 bytes
+* Mode  2: QPSK, 1.70 seconds and 256 bytes
+* Mode  3: QPSK, 3.06 seconds and 512 bytes
+* Mode  4: QPSK, 5.78 seconds and 1024 bytes
+* Mode  5: QAM16, 1.02 seconds and 256 bytes
+* Mode  6: QAM16, 1.70 seconds and 512 bytes
+* Mode  7: QAM16, 3.06 seconds and 1024 bytes
+* Mode  8: QAM16, 5.78 seconds and 2048 bytes
+* Mode  9: QAM64, 2.21 seconds and 1024 bytes
+* Mode 10: QAM64, 4.08 seconds and 2048 bytes
+* Mode 11: QAM64, 7.82 seconds and 4096 bytes
+* Mode 12: QAM256, 1.02 seconds and 512 bytes
+* Mode 13: QAM256, 1.70 seconds and 1024 bytes
+* Mode 14: QAM256, 3.06 seconds and 2048 bytes
+* Mode 15: QAM256, 5.78 seconds and 4096 bytes
 
 ### Simulating
 
@@ -61,7 +66,7 @@ Prerequisite: [disorders](https://github.com/aicodix/disorders)
 Encode ```uncoded.dat``` to [analytic](https://en.wikipedia.org/wiki/Analytic_signal) audio signal, add [multipath](https://en.wikipedia.org/wiki/Multipath_propagation), [CFO, SFO](https://en.wikipedia.org/wiki/Carrier_frequency_offset), [AWGN](https://en.wikipedia.org/wiki/Additive_white_Gaussian_noise), decode and compare:
 
 ```
-./encode - 8000 16 2 1500 23 CALLSIGN uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -30 | ./decode - - | diff -q -s uncoded.dat -
+./encode - 8000 16 2 1500 5 uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -30 | ./decode - - | diff -q -s uncoded.dat -
 ```
 
 ### Reading
