@@ -49,29 +49,29 @@ struct Decoder
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 1024;
-	static const int rows_max = 32;
+	static const int symbols_max = 32;
 	static const int mls0_poly = 0b1100110001;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0b100101011;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
-	static const int comb_cols = 32;
+	static const int pilot_tones = 32;
 	static const int reserved_tones = 32;
-	static const int code_cols = 256;
-	static const int block_len = 10;
-	static const int comb_off = 4;
-	static const int tone_off = 9;
-	static const int cons_cols = code_cols + comb_cols + reserved_tones;
-	static const int cons_off = - cons_cols / 2;
-	static const int cons_max = cons_cols * rows_max;
+	static const int data_tones = 256;
+	static const int block_length = 10;
+	static const int pilot_offset = 4;
+	static const int reserved_offset = 9;
+	static const int tone_count = data_tones + pilot_tones + reserved_tones;
+	static const int tone_off = - tone_count / 2;
+	static const int tones_max = tone_count * symbols_max;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::BlockDC<value, value> blockdc;
 	DSP::Hilbert<cmplx, filter_len> hilbert;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
-	DSP::TheilSenEstimator<value, cons_cols> tse;
+	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
-	CODE::CRC<uint32_t> crc1;
+	CODE::CRC<uint32_t> crc0;
 	CODE::HadamardEncoder<6> hadamardenc;
 	CODE::HadamardDecoder<6> hadamarddec;
 	CODE::PolarListDecoder<mesg_type, code_max> polardec;
@@ -79,9 +79,9 @@ struct Decoder
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
 	int8_t mode[32];
-	cmplx cons[cons_max], chan[cons_cols], scar[cons_cols];
+	cmplx demod[tones_max], chan[tone_count], tone[tone_count];
 	cmplx fdom[symbol_len], tdom[symbol_len];
-	value index[cons_cols], phase[cons_cols];
+	value index[tone_count], phase[tone_count];
 	value cfo_rad, sfo_rad;
 	const uint32_t *frozen_bits;
 	int mod_bits;
@@ -90,7 +90,7 @@ struct Decoder
 	int crc_bits;
 	int data_bits;
 	int data_bytes;
-	int cons_rows;
+	int symbol_count;
 
 	static int bin(int carrier)
 	{
@@ -104,17 +104,17 @@ struct Decoder
 	{
 		if (!(norm(prev) > 0))
 			return 0;
-		cmplx cons = curr / prev;
-		if (!(norm(cons) <= 4))
+		cmplx demod = curr / prev;
+		if (!(norm(demod) <= 4))
 			return 0;
-		return cons;
+		return demod;
 	}
 	const cmplx *mls0_seq()
 	{
 		CODE::MLS seq0(mls0_poly, mls0_seed);
 		value cur = 0, prv = 0;
-		for (int i = 0; i < cons_cols; ++i, prv = cur)
-			fdom[bin(i+cons_off)] = prv * (cur = nrz(seq0()));
+		for (int i = 0; i < tone_count; ++i, prv = cur)
+			fdom[bin(i+tone_off)] = prv * (cur = nrz(seq0()));
 		return fdom;
 	}
 	cmplx mod_map(code_type *b)
@@ -197,56 +197,56 @@ struct Decoder
 		switch (oper_mode) {
 		case 1:
 			mod_bits = 2;
-			cons_rows = 8;
+			symbol_count = 8;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 2:
 			mod_bits = 2;
-			cons_rows = 16;
+			symbol_count = 16;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 3:
 			mod_bits = 2;
-			cons_rows = 32;
+			symbol_count = 32;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 4:
 			mod_bits = 4;
-			cons_rows = 4;
+			symbol_count = 4;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 5:
 			mod_bits = 4;
-			cons_rows = 8;
+			symbol_count = 8;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 6:
 			mod_bits = 4;
-			cons_rows = 16;
+			symbol_count = 16;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 7:
 			mod_bits = 6;
-			cons_rows = 6;
+			symbol_count = 6;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 8:
 			mod_bits = 6;
-			cons_rows = 11;
+			symbol_count = 11;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
@@ -257,7 +257,7 @@ struct Decoder
 		data_bytes = data_bits / 8;
 	}
 	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) :
-		pcm(pcm), correlator(mls0_seq()), crc1(0x8F6E37A0)
+		pcm(pcm), correlator(mls0_seq()), crc0(0x8F6E37A0)
 	{
 		blockdc.samples(filter_len);
 		DSP::Phasor<cmplx> osc;
@@ -281,22 +281,22 @@ struct Decoder
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
-			for (int i = 0; i < cons_cols; ++i)
-				scar[i] = fdom[bin(i+cons_off)];
+			for (int i = 0; i < tone_count; ++i)
+				tone[i] = fdom[bin(i+tone_off)];
 			CODE::MLS seq0(mls0_poly, mls0_seed);
-			for (int i = 0; i < cons_cols; ++i)
-				chan[i] = nrz(seq0()) * scar[i];
+			for (int i = 0; i < tone_count; ++i)
+				chan[i] = nrz(seq0()) * tone[i];
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i+symbol_pos+symbol_len+extended_len] * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
-			for (int i = 0; i < cons_cols; ++i)
-				scar[i] = fdom[bin(i+cons_off)];
+			for (int i = 0; i < tone_count; ++i)
+				tone[i] = fdom[bin(i+tone_off)];
 			CODE::MLS seq1(mls1_poly);
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
-			for (int i = 0; i < comb_cols; ++i)
-				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(scar[i*block_len+comb_off], chan[i*block_len+comb_off]).real() * nrz(seq1())));
+			for (int i = 0; i < pilot_tones; ++i)
+				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(tone[i*block_length+pilot_offset], chan[i*block_length+pilot_offset]).real() * nrz(seq1())));
 			int oper_mode = hadamarddec(mode);
 			if (oper_mode < 0 || oper_mode > 8) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
@@ -307,7 +307,7 @@ struct Decoder
 				continue;
 			setup(oper_mode);
 			std::cerr << "demod ";
-			for (int j = 0; j < cons_rows; ++j) {
+			for (int j = 0; j < symbol_count; ++j) {
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -316,41 +316,41 @@ struct Decoder
 					for (int i = 0; i < guard_len; ++i)
 						osc();
 					fwd(fdom, tdom);
-					for (int i = 0; i < cons_cols; ++i)
-						scar[i] = fdom[bin(i+cons_off)];
+					for (int i = 0; i < tone_count; ++i)
+						tone[i] = fdom[bin(i+tone_off)];
 				} else {
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
 					seq1.reset();
 					hadamardenc(mode, oper_mode);
 				}
-				for (int i = 0; i < comb_cols; ++i)
-					scar[block_len*i+comb_off] *= nrz(seq1()) * mode[i];
-				for (int i = 0; i < cons_cols; ++i)
-					cons[cons_cols*j+i] = demod_or_erase(scar[i], chan[i]);
-				for (int i = 0; i < comb_cols; ++i) {
-					index[i] = cons_off + block_len * i + comb_off;
-					phase[i] = arg(cons[cons_cols*j+block_len*i+comb_off]);
+				for (int i = 0; i < pilot_tones; ++i)
+					tone[block_length*i+pilot_offset] *= nrz(seq1()) * mode[i];
+				for (int i = 0; i < tone_count; ++i)
+					demod[tone_count*j+i] = demod_or_erase(tone[i], chan[i]);
+				for (int i = 0; i < pilot_tones; ++i) {
+					index[i] = tone_off + block_length * i + pilot_offset;
+					phase[i] = arg(demod[tone_count*j+block_length*i+pilot_offset]);
 				}
-				tse.compute(index, phase, comb_cols);
+				tse.compute(index, phase, pilot_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
-				for (int i = 0; i < cons_cols; ++i)
-					cons[cons_cols*j+i] *= DSP::polar<value>(1, -tse(i+cons_off));
-				for (int i = 0; i < cons_cols; ++i)
-					if (i % block_len == comb_off)
-						chan[i] = scar[i];
+				for (int i = 0; i < tone_count; ++i)
+					demod[tone_count*j+i] *= DSP::polar<value>(1, -tse(i+tone_off));
+				for (int i = 0; i < tone_count; ++i)
+					if (i % block_length == pilot_offset)
+						chan[i] = tone[i];
 					else
-						chan[i] *= DSP::polar<value>(1, tse(i+cons_off));
+						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 				std::cerr << ".";
 			}
 			std::cerr << " done" << std::endl;
 			std::cerr << "Es/N0 (dB):";
 			value sp = 0, np = 0;
-			for (int j = 0, k = 0; j < cons_rows; ++j) {
-				for (int i = 0; i < comb_cols; ++i) {
+			for (int j = 0, k = 0; j < symbol_count; ++j) {
+				for (int i = 0; i < pilot_tones; ++i) {
 					cmplx hard(1, 0);
-					cmplx error = cons[cons_cols*j+block_len*i+comb_off] - hard;
+					cmplx error = demod[tone_count*j+block_length*i+pilot_offset] - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
@@ -360,27 +360,27 @@ struct Decoder
 				std::cerr << " " << snr;
 				if (std::is_same<code_type, int8_t>::value && precision > 32)
 					precision = 32;
-				for (int i = 0; i < cons_cols; ++i) {
-					if (i % block_len == comb_off)
+				for (int i = 0; i < tone_count; ++i) {
+					if (i % block_length == pilot_offset)
 						continue;
-					if (i % block_len == tone_off)
+					if (i % block_length == reserved_offset)
 						continue;
-					mod_soft(perm+k, cons[cons_cols*j+i], precision);
+					mod_soft(perm+k, demod[tone_count*j+i], precision);
 					k += mod_bits;
 				}
 			}
 			std::cerr << std::endl;
 			crc_bits = data_bits + 32;
-			for (int i = code_cols * cons_rows * mod_bits; i < bits_max; ++i)
+			for (int i = data_tones * symbol_count * mod_bits; i < bits_max; ++i)
 				perm[i] = 0;
 			shuffle(code, perm);
 			polardec(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
 			for (int k = 0; k < mesg_type::SIZE; ++k) {
-				crc1.reset();
+				crc0.reset();
 				for (int i = 0; i < crc_bits; ++i)
-					crc1(mesg[i].v[k] < 0);
-				if (crc1() == 0) {
+					crc0(mesg[i].v[k] < 0);
+				if (crc0() == 0) {
 					best = k;
 					break;
 				}

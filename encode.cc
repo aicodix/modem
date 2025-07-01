@@ -31,22 +31,21 @@ struct Encoder
 	static const int guard_len = symbol_len / 8;
 	static const int bits_max = 65536;
 	static const int data_max = 1024;
-	static const int cols_max = 256 + 32;
 	static const int mls0_poly = 0b1100110001;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0b100101011;
 	static const int mls2_poly = 0b100101010001;
-	static const int code_cols = 256;
-	static const int comb_cols = 32;
+	static const int data_tones = 256;
+	static const int pilot_tones = 32;
 	static const int reserved_tones = 32;
-	static const int cons_cols = code_cols + comb_cols + reserved_tones;
-	static const int block_len = 10;
-	static const int comb_off = 4;
-	static const int tone_off = 9;
+	static const int tone_count = data_tones + pilot_tones + reserved_tones;
+	static const int block_length = 10;
+	static const int pilot_offset = 4;
+	static const int reserved_offset = 9;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
-	CODE::CRC<uint32_t> crc1;
+	CODE::CRC<uint32_t> crc0;
 	CODE::HadamardEncoder<6> hadamardenc;
 	CODE::PolarEncoder<code_type> polarenc;
 	uint8_t input_data[data_max];
@@ -57,7 +56,7 @@ struct Encoder
 	cmplx temp[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
-	cmplx cons[cons_cols];
+	cmplx tone[tone_count];
 	value weight[guard_len];
 	value papr_min, papr_max;
 	const uint32_t *frozen_bits;
@@ -65,9 +64,8 @@ struct Encoder
 	int data_bits;
 	int data_bytes;
 	int code_order;
-	int cons_off;
-	int cons_rows;
-	int mls0_off;
+	int tone_off;
+	int symbol_count;
 
 	static int bin(int carrier)
 	{
@@ -117,10 +115,10 @@ struct Encoder
 	}
 	void symbol(bool papr_reduction = true, bool guard_interval = true)
 	{
-		for (int i = 0; i < cons_cols; ++i)
-			fdom[bin(i+cons_off)] = cons[i];
+		for (int i = 0; i < tone_count; ++i)
+			fdom[bin(i+tone_off)] = tone[i];
 		bwd(tdom, fdom);
-		value scale = 2 / std::sqrt(value(symbol_len) / value(cons_cols));
+		value scale = 2 / std::sqrt(value(symbol_len) / value(tone_count));
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] /= scale * std::sqrt(value(symbol_len));
 		clipping_and_filtering(scale, papr_reduction);
@@ -152,15 +150,15 @@ struct Encoder
 	void pilot_block()
 	{
 		CODE::MLS seq2(mls2_poly);
-		for (int i = 0; i < cons_cols; ++i)
-			cons[i] = nrz(seq2());
-		symbol();
+		for (int i = 0; i < tone_count; ++i)
+			tone[i] = nrz(seq2());
+		symbol(false);
 	}
 	void schmidl_cox()
 	{
 		CODE::MLS seq0(mls0_poly, mls0_seed);
-		for (int i = 0; i < cons_cols; ++i)
-			cons[i] = nrz(seq0());
+		for (int i = 0; i < tone_count; ++i)
+			tone[i] = nrz(seq0());
 		symbol(false);
 		symbol(false, false);
 	}
@@ -226,60 +224,60 @@ struct Encoder
 	{
 		switch (oper_mode) {
 		case 0:
-			cons_rows = 1;
+			symbol_count = 1;
 			break;
 		case 1:
 			mod_bits = 2;
-			cons_rows = 8;
+			symbol_count = 8;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 2:
 			mod_bits = 2;
-			cons_rows = 16;
+			symbol_count = 16;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 3:
 			mod_bits = 2;
-			cons_rows = 32;
+			symbol_count = 32;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 4:
 			mod_bits = 4;
-			cons_rows = 4;
+			symbol_count = 4;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
 		case 5:
 			mod_bits = 4;
-			cons_rows = 8;
+			symbol_count = 8;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 6:
 			mod_bits = 4;
-			cons_rows = 16;
+			symbol_count = 16;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
 		case 7:
 			mod_bits = 6;
-			cons_rows = 6;
+			symbol_count = 6;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
 		case 8:
 			mod_bits = 6;
-			cons_rows = 11;
+			symbol_count = 11;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
@@ -289,13 +287,13 @@ struct Encoder
 		}
 		data_bytes = data_bits / 8;
 		int offset = (freq_off * symbol_len) / rate;
-		cons_off = offset - cons_cols / 2;
+		tone_off = offset - tone_count / 2;
 	}
 	void tone_reservation_kernels()
 	{
 		value mag = 1 / value(10 * reserved_tones);
 		for (int i = 0; i < reserved_tones; ++i)
-			temp[bin(i*block_len+tone_off)] = mag;
+			temp[bin(i*block_length+reserved_offset)] = mag;
 		bwd(kern, temp);
 	}
 	void guard_interval_weights()
@@ -310,7 +308,7 @@ struct Encoder
 			weight[i] = 1;
 	}
 	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) :
-		pcm(pcm), crc1(0x8F6E37A0)
+		pcm(pcm), crc0(0x8F6E37A0)
 	{
 		setup(oper_mode, freq_off);
 		tone_reservation_kernels();
@@ -321,11 +319,11 @@ struct Encoder
 		if (!oper_mode) {
 			schmidl_cox();
 			CODE::MLS seq1(mls1_poly);
-			for (int i = 0, m = 0; i < cons_cols; ++i) {
-				if (i % block_len == comb_off) {
-					cons[i] = nrz(seq1()) * mode[m++];
+			for (int i = 0, m = 0; i < tone_count; ++i) {
+				if (i % block_length == pilot_offset) {
+					tone[i] = nrz(seq1()) * mode[m++];
 				} else {
-					cons[i] = 0;
+					tone[i] = 0;
 				}
 			}
 			symbol(false);
@@ -347,30 +345,30 @@ struct Encoder
 			schmidl_cox();
 			for (int i = 0; i < data_bits; ++i)
 				mesg[i] = nrz(CODE::get_le_bit(input_data, i));
-			crc1.reset();
+			crc0.reset();
 			for (int i = 0; i < data_bytes; ++i)
-				crc1(input_data[i]);
+				crc0(input_data[i]);
 			for (int i = 0; i < 32; ++i)
-				mesg[i+data_bits] = nrz((crc1()>>i)&1);
+				mesg[i+data_bits] = nrz((crc0()>>i)&1);
 			polarenc(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
-			for (int j = 0, k = 0; j < cons_rows; ++j) {
-				for (int i = 0, m = 0; i < cons_cols; ++i) {
-					if (i % block_len == comb_off) {
-						cons[i] = nrz(seq1()) * mode[m++];
-					} else if (i % block_len == tone_off) {
-						cons[i] = 0;
+			for (int j = 0, k = 0; j < symbol_count; ++j) {
+				for (int i = 0, m = 0; i < tone_count; ++i) {
+					if (i % block_length == pilot_offset) {
+						tone[i] = nrz(seq1()) * mode[m++];
+					} else if (i % block_length == reserved_offset) {
+						tone[i] = 0;
 					} else {
-						cons[i] = mod_map(perm+k);
+						tone[i] = mod_map(perm+k);
 						k += mod_bits;
 					}
 				}
 				symbol();
 			}
 		}
-		for (int i = 0; i < cons_cols; ++i)
-			cons[i] = 0;
+		for (int i = 0; i < tone_count; ++i)
+			tone[i] = 0;
 		symbol();
 		std::cerr << "PAPR: " << DSP::decibel(papr_min) << " .. " << DSP::decibel(papr_max) << " dB" << std::endl;
 	}
