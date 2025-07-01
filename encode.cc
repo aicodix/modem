@@ -163,9 +163,9 @@ struct Encoder
 		symbol(false);
 		symbol(false, false);
 	}
-	cmplx mod_map(code_type *b)
+	cmplx map_bits(code_type *b, int bits)
 	{
-		switch (mod_bits) {
+		switch (bits) {
 		case 2:
 			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
 		case 4:
@@ -363,8 +363,13 @@ struct Encoder
 					} else if (i % block_length == roff) {
 						tone[i] = 0;
 					} else {
-						tone[i] = mod_map(perm+k);
-						k += mod_bits;
+						int bits = mod_bits;
+						if (oper_mode == 7 && k % 32 == 30)
+							bits = 2;
+						else if (oper_mode == 8 && k % 64 == 60)
+							bits = 4;
+						tone[i] = map_bits(perm+k, bits);
+						k += bits;
 					}
 				}
 				symbol();

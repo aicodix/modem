@@ -118,32 +118,9 @@ struct Decoder
 			fdom[bin(i+tone_off)] = prv * (cur = nrz(seq0()));
 		return fdom;
 	}
-	cmplx mod_map(code_type *b)
+	void demap_bits(code_type *b, cmplx c, value precision, int bits)
 	{
-		switch (mod_bits) {
-		case 2:
-			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
-		case 4:
-			return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
-		case 6:
-			return QuadratureAmplitudeModulation<64, cmplx, code_type>::map(b);
-		}
-		return 0;
-	}
-	void mod_hard(code_type *b, cmplx c)
-	{
-		switch (mod_bits) {
-		case 2:
-			return PhaseShiftKeying<4, cmplx, code_type>::hard(b, c);
-		case 4:
-			return QuadratureAmplitudeModulation<16, cmplx, code_type>::hard(b, c);
-		case 6:
-			return QuadratureAmplitudeModulation<64, cmplx, code_type>::hard(b, c);
-		}
-	}
-	void mod_soft(code_type *b, cmplx c, value precision)
-	{
-		switch (mod_bits) {
+		switch (bits) {
 		case 2:
 			return PhaseShiftKeying<4, cmplx, code_type>::soft(b, c, precision);
 		case 4:
@@ -369,8 +346,13 @@ struct Decoder
 						continue;
 					if (i % block_length == roff)
 						continue;
-					mod_soft(perm+k, demod[tone_count*j+i], precision);
-					k += mod_bits;
+					int bits = mod_bits;
+					if (oper_mode == 7 && k % 32 == 30)
+						bits = 2;
+					else if (oper_mode == 8 && k % 64 == 60)
+						bits = 4;
+					demap_bits(perm+k, demod[tone_count*j+i], precision, bits);
+					k += bits;
 				}
 			}
 			std::cerr << std::endl;
