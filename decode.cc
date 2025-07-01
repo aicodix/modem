@@ -406,8 +406,6 @@ struct Decoder
 			}
 			std::cerr << std::endl;
 			crc_bits = data_bits + 32;
-			for (int i = data_tones * symbol_count * mod_bits; i < bits_max; ++i)
-				perm[i] = 0;
 			shuffle(code, perm);
 			polardec(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
