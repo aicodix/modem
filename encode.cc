@@ -31,10 +31,9 @@ struct Encoder
 	static const int symbol_len = guard_len * 16;
 	static const int bits_max = 65536;
 	static const int data_max = 4096;
-	static const int mls0_poly = 0b1100110001;
+	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x25;
-	static const int mls2_poly = 0b100101010001;
 	static const int data_tones = 256;
 	static const int pilot_tones = 32;
 	static const int reserved_tones = 32;
@@ -148,11 +147,11 @@ struct Encoder
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = tdom[i];
 	}
-	void pilot_block()
+	void leading_noise()
 	{
-		CODE::MLS seq2(mls2_poly);
+		CODE::MLS noise(0x163);
 		for (int i = 0; i < tone_count; ++i)
-			tone[i] = nrz(seq2());
+			tone[i] = nrz(noise());
 		symbol(false);
 	}
 	void schmidl_cox()
@@ -369,7 +368,7 @@ struct Encoder
 		setup(oper_mode, freq_off);
 		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
-		pilot_block();
+		leading_noise();
 		hadamardenc(mode, oper_mode);
 		if (!oper_mode) {
 			schmidl_cox();
