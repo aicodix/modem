@@ -27,8 +27,8 @@ template <typename value, typename cmplx, int rate>
 struct Encoder
 {
 	typedef int8_t code_type;
-	static const int symbol_len = (1280 * rate) / 8000;
-	static const int guard_len = symbol_len / 8;
+	static const int guard_len = rate / 100;
+	static const int symbol_len = guard_len * 16;
 	static const int bits_max = 65536;
 	static const int data_max = 1024;
 	static const int mls0_poly = 0b1100110001;
@@ -399,8 +399,8 @@ int main(int argc, char **argv)
 	int output_chan = std::atoi(argv[4]);
 
 	int freq_off = std::atoi(argv[5]);
-	if (freq_off % 50) {
-		std::cerr << "Frequency offset must be divisible by 50." << std::endl;
+	if (freq_off % 100) {
+		std::cerr << "Frequency offset must be divisible by 100." << std::endl;
 		return 1;
 	}
 	int input_count = argc - 7;

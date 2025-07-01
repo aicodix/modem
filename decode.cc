@@ -41,9 +41,9 @@ struct Decoder
 	typedef SIMD<code_type, 16 / sizeof(code_type)> mesg_type;
 #endif
 	typedef DSP::Const<value> Const;
-	static const int symbol_len = (1280 * rate) / 8000;
+	static const int guard_len = rate / 100;
+	static const int symbol_len = guard_len * 16;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
-	static const int guard_len = symbol_len / 8;
 	static const int extended_len = symbol_len + guard_len;
 	static const int mod_max = 6;
 	static const int code_max = 16;
