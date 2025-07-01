@@ -147,12 +147,14 @@ struct Encoder
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = tdom[i];
 	}
-	void leading_noise()
+	void leading_noise(int num = 1)
 	{
 		CODE::MLS noise(0x163);
-		for (int i = 0; i < tone_count; ++i)
-			tone[i] = nrz(noise());
-		symbol(false);
+		for (int j = 0; j < num; ++j) {
+			for (int i = 0; i < tone_count; ++i)
+				tone[i] = nrz(noise());
+			symbol(false);
+		}
 	}
 	void schmidl_cox()
 	{
