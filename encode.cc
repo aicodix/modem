@@ -290,11 +290,13 @@ struct Encoder
 		int offset = (freq_off * symbol_len) / rate;
 		tone_off = offset - tone_count / 2;
 	}
-	void tone_reservation_kernels()
+	void tone_reservation_kernel(int roff)
 	{
 		value mag = 1 / value(10 * reserved_tones);
+		for (int i = 0; i < symbol_len; ++i)
+			temp[i] = 0;
 		for (int i = 0; i < reserved_tones; ++i)
-			temp[bin(i*block_length+reserved_offset)] = mag;
+			temp[bin(i*block_length+tone_off+roff)] = mag;
 		bwd(kern, temp);
 	}
 	void guard_interval_weights()
@@ -312,7 +314,6 @@ struct Encoder
 		pcm(pcm), crc0(0x8F6E37A0)
 	{
 		setup(oper_mode, freq_off);
-		tone_reservation_kernels();
 		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
 		pilot_block();
@@ -372,12 +373,13 @@ struct Encoder
 						k += bits;
 					}
 				}
+				tone_reservation_kernel(roff);
 				symbol();
 			}
 		}
 		for (int i = 0; i < tone_count; ++i)
 			tone[i] = 0;
-		symbol();
+		symbol(false);
 		std::cerr << "PAPR: " << DSP::decibel(papr_min) << " .. " << DSP::decibel(papr_max) << " dB" << std::endl;
 	}
 };
