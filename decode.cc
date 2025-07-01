@@ -48,7 +48,7 @@ struct Decoder
 	static const int symbols_max = 44;
 	static const int mls0_poly = 0b1100110001;
 	static const int mls0_seed = 214;
-	static const int mls1_poly = 0b100101011;
+	static const int mls1_poly = 0x25;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
 	static const int pilot_tones = 32;
