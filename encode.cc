@@ -40,6 +40,7 @@ struct Encoder
 	static const int reserved_tones = 32;
 	static const int tone_count = data_tones + pilot_tones + reserved_tones;
 	static const int block_length = 10;
+	static const int block_skew = 3;
 	static const int pilot_offset = 4;
 	static const int reserved_offset = 9;
 	DSP::WritePCM<value> *pcm;
@@ -354,10 +355,12 @@ struct Encoder
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
+				int poff = (block_skew * j + pilot_offset) % block_length;
+				int roff = (block_skew * j + reserved_offset) % block_length;
 				for (int i = 0, m = 0; i < tone_count; ++i) {
-					if (i % block_length == pilot_offset) {
+					if (i % block_length == poff) {
 						tone[i] = nrz(seq1()) * mode[m++];
-					} else if (i % block_length == reserved_offset) {
+					} else if (i % block_length == roff) {
 						tone[i] = 0;
 					} else {
 						tone[i] = mod_map(perm+k);

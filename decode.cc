@@ -59,6 +59,7 @@ struct Decoder
 	static const int reserved_tones = 32;
 	static const int data_tones = 256;
 	static const int block_length = 10;
+	static const int block_skew = 3;
 	static const int pilot_offset = 4;
 	static const int reserved_offset = 9;
 	static const int tone_count = data_tones + pilot_tones + reserved_tones;
@@ -324,13 +325,14 @@ struct Decoder
 					seq1.reset();
 					hadamardenc(mode, oper_mode);
 				}
+				int poff = (block_skew * j + pilot_offset) % block_length;
 				for (int i = 0; i < pilot_tones; ++i)
-					tone[block_length*i+pilot_offset] *= nrz(seq1()) * mode[i];
+					tone[block_length*i+poff] *= nrz(seq1()) * mode[i];
 				for (int i = 0; i < tone_count; ++i)
 					demod[tone_count*j+i] = demod_or_erase(tone[i], chan[i]);
 				for (int i = 0; i < pilot_tones; ++i) {
-					index[i] = tone_off + block_length * i + pilot_offset;
-					phase[i] = arg(demod[tone_count*j+block_length*i+pilot_offset]);
+					index[i] = tone_off + block_length * i + poff;
+					phase[i] = arg(demod[tone_count*j+block_length*i+poff]);
 				}
 				tse.compute(index, phase, pilot_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
@@ -338,7 +340,7 @@ struct Decoder
 				for (int i = 0; i < tone_count; ++i)
 					demod[tone_count*j+i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length == pilot_offset)
+					if (i % block_length == poff)
 						chan[i] = tone[i];
 					else
 						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
@@ -348,9 +350,11 @@ struct Decoder
 			std::cerr << "Es/N0 (dB):";
 			value sp = 0, np = 0;
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
+				int poff = (block_skew * j + pilot_offset) % block_length;
+				int roff = (block_skew * j + reserved_offset) % block_length;
 				for (int i = 0; i < pilot_tones; ++i) {
 					cmplx hard(1, 0);
-					cmplx error = demod[tone_count*j+block_length*i+pilot_offset] - hard;
+					cmplx error = demod[tone_count*j+block_length*i+poff] - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
@@ -361,9 +365,9 @@ struct Decoder
 				if (std::is_same<code_type, int8_t>::value && precision > 32)
 					precision = 32;
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == pilot_offset)
+					if (i % block_length == poff)
 						continue;
-					if (i % block_length == reserved_offset)
+					if (i % block_length == roff)
 						continue;
 					mod_soft(perm+k, demod[tone_count*j+i], precision);
 					k += mod_bits;
