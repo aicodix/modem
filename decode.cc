@@ -34,12 +34,8 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 template <typename value, typename cmplx, int rate>
 struct Decoder
 {
-	typedef int8_t code_type;
-#ifdef __AVX2__
-	typedef SIMD<code_type, 32 / sizeof(code_type)> mesg_type;
-#else
-	typedef SIMD<code_type, 16 / sizeof(code_type)> mesg_type;
-#endif
+	typedef int16_t code_type;
+	typedef SIMD<code_type, 16> mesg_type;
 	typedef DSP::Const<value> Const;
 	static const int guard_len = rate / 100;
 	static const int symbol_len = guard_len * 16;
@@ -387,11 +383,8 @@ struct Decoder
 					np += norm(error);
 				}
 				value precision = sp / np;
-				// precision = 8;
 				value snr = DSP::decibel(precision);
 				std::cerr << " " << snr;
-				if (std::is_same<code_type, int8_t>::value && precision > 32)
-					precision = 32;
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == poff)
 						continue;

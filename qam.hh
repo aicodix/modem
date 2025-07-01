@@ -36,6 +36,8 @@ struct QuadratureAmplitudeModulation<16, TYPE, CODE>
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
 			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
+		if (std::is_same<code_type, int16_t>::value)
+			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
 		return value;
 	}
 
@@ -90,6 +92,8 @@ struct QuadratureAmplitudeModulation<64, TYPE, CODE>
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
 			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
+		if (std::is_same<code_type, int16_t>::value)
+			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
 		return value;
 	}
 
@@ -148,6 +152,8 @@ struct QuadratureAmplitudeModulation<256, TYPE, CODE>
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
 			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
+		if (std::is_same<code_type, int16_t>::value)
+			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
 		return value;
 	}
 
@@ -210,6 +216,8 @@ struct QuadratureAmplitudeModulation<1024, TYPE, CODE>
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
 			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
+		if (std::is_same<code_type, int16_t>::value)
+			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
 		return value;
 	}
 
