@@ -56,8 +56,8 @@ struct Decoder
 	static const int data_tones = 256;
 	static const int block_length = 10;
 	static const int block_skew = 3;
-	static const int pilot_offset = 4;
-	static const int reserved_offset = 9;
+	static const int first_pilot = 4;
+	static const int first_reserved = 9;
 	static const int tone_count = data_tones + pilot_tones + reserved_tones;
 	static const int tone_off = - tone_count / 2;
 	static const int tones_max = tone_count * symbols_max;
@@ -87,6 +87,8 @@ struct Decoder
 	int crc_bits;
 	int data_bits;
 	int data_bytes;
+	int pilot_off;
+	int reserved_off;
 	int symbol_count;
 
 	static int bin(int carrier)
@@ -321,7 +323,7 @@ struct Decoder
 			CODE::MLS seq1(mls1_poly);
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 			for (int i = 0; i < pilot_tones; ++i)
-				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(tone[i*block_length+pilot_offset], chan[i*block_length+pilot_offset]).real() * nrz(seq1())));
+				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(tone[i*block_length+first_pilot], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
 			int oper_mode = hadamarddec(mode);
 			if (oper_mode < 0 || oper_mode > 15) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
@@ -349,14 +351,14 @@ struct Decoder
 					seq1.reset();
 					hadamardenc(mode, oper_mode);
 				}
-				int poff = (block_skew * j + pilot_offset) % block_length;
+				pilot_off = (block_skew * j + first_pilot) % block_length;
 				for (int i = 0; i < pilot_tones; ++i)
-					tone[block_length*i+poff] *= nrz(seq1()) * mode[i];
+					tone[block_length*i+pilot_off] *= nrz(seq1()) * mode[i];
 				for (int i = 0; i < tone_count; ++i)
 					demod[tone_count*j+i] = demod_or_erase(tone[i], chan[i]);
 				for (int i = 0; i < pilot_tones; ++i) {
-					index[i] = tone_off + block_length * i + poff;
-					phase[i] = arg(demod[tone_count*j+block_length*i+poff]);
+					index[i] = tone_off + block_length * i + pilot_off;
+					phase[i] = arg(demod[tone_count*j+block_length*i+pilot_off]);
 				}
 				tse.compute(index, phase, pilot_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
@@ -364,7 +366,7 @@ struct Decoder
 				for (int i = 0; i < tone_count; ++i)
 					demod[tone_count*j+i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length == poff)
+					if (i % block_length == pilot_off)
 						chan[i] = tone[i];
 					else
 						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
@@ -374,11 +376,11 @@ struct Decoder
 			std::cerr << "Es/N0 (dB):";
 			value sp = 0, np = 0;
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
-				int poff = (block_skew * j + pilot_offset) % block_length;
-				int roff = (block_skew * j + reserved_offset) % block_length;
+				pilot_off = (block_skew * j + first_pilot) % block_length;
+				reserved_off = (block_skew * j + first_reserved) % block_length;
 				for (int i = 0; i < pilot_tones; ++i) {
 					cmplx hard(1, 0);
-					cmplx error = demod[tone_count*j+block_length*i+poff] - hard;
+					cmplx error = demod[tone_count*j+block_length*i+pilot_off] - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
@@ -386,9 +388,9 @@ struct Decoder
 				value snr = DSP::decibel(precision);
 				std::cerr << " " << snr;
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == poff)
+					if (i % block_length == pilot_off)
 						continue;
-					if (i % block_length == roff)
+					if (i % block_length == reserved_off)
 						continue;
 					int bits = mod_bits;
 					if (oper_mode >= 9 && oper_mode <= 11 && k % 64 == 60)

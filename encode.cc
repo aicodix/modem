@@ -40,8 +40,8 @@ struct Encoder
 	static const int tone_count = data_tones + pilot_tones + reserved_tones;
 	static const int block_length = 10;
 	static const int block_skew = 3;
-	static const int pilot_offset = 4;
-	static const int reserved_offset = 9;
+	static const int first_pilot = 4;
+	static const int first_reserved = 9;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
@@ -65,6 +65,8 @@ struct Encoder
 	int data_bytes;
 	int code_order;
 	int tone_off;
+	int pilot_off;
+	int reserved_off;
 	int symbol_count;
 
 	static int bin(int carrier)
@@ -344,13 +346,13 @@ struct Encoder
 		int offset = (freq_off * symbol_len) / rate;
 		tone_off = offset - tone_count / 2;
 	}
-	void tone_reservation_kernel(int roff)
+	void tone_reservation_kernel()
 	{
 		value mag = 1 / value(10 * reserved_tones);
 		for (int i = 0; i < symbol_len; ++i)
 			temp[i] = 0;
 		for (int i = 0; i < reserved_tones; ++i)
-			temp[bin(i*block_length+tone_off+roff)] = mag;
+			temp[bin(i*block_length+tone_off+reserved_off)] = mag;
 		bwd(kern, temp);
 	}
 	void guard_interval_weights()
@@ -376,7 +378,7 @@ struct Encoder
 			schmidl_cox();
 			CODE::MLS seq1(mls1_poly);
 			for (int i = 0, m = 0; i < tone_count; ++i) {
-				if (i % block_length == pilot_offset) {
+				if (i % block_length == first_pilot) {
 					tone[i] = nrz(seq1()) * mode[m++];
 				} else {
 					tone[i] = 0;
@@ -410,12 +412,12 @@ struct Encoder
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
-				int poff = (block_skew * j + pilot_offset) % block_length;
-				int roff = (block_skew * j + reserved_offset) % block_length;
+				pilot_off = (block_skew * j + first_pilot) % block_length;
+				reserved_off = (block_skew * j + first_reserved) % block_length;
 				for (int i = 0, m = 0; i < tone_count; ++i) {
-					if (i % block_length == poff) {
+					if (i % block_length == pilot_off) {
 						tone[i] = nrz(seq1()) * mode[m++];
-					} else if (i % block_length == roff) {
+					} else if (i % block_length == reserved_off) {
 						tone[i] = 0;
 					} else {
 						int bits = mod_bits;
@@ -425,7 +427,7 @@ struct Encoder
 						k += bits;
 					}
 				}
-				tone_reservation_kernel(roff);
+				tone_reservation_kernel();
 				symbol();
 			}
 		}
