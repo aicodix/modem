@@ -234,13 +234,14 @@ struct Encoder : public Common
 		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
 		leading_noise();
-		hadamard_encoder(mode, oper_mode);
-		if (!oper_mode) {
+		if (oper_mode) {
+			hadamard_encoder(mode, oper_mode);
+		} else {
 			schmidl_cox();
 			CODE::MLS seq1(mls1_poly);
-			for (int i = 0, m = 0; i < tone_count; ++i) {
+			for (int i = 0; i < tone_count; ++i) {
 				if (i % block_length == first_pilot) {
-					tone[i] = nrz(seq1()) * mode[m++];
+					tone[i] = nrz(seq1());
 				} else {
 					tone[i] = 0;
 				}
