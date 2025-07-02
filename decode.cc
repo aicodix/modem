@@ -8,6 +8,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <cassert>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
+#include "common.hh"
 #include "schmidl_cox.hh"
 #include "bip_buffer.hh"
 #include "theil_sen.hh"
@@ -26,13 +27,11 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "crc.hh"
 #include "psk.hh"
 #include "qam.hh"
-#include "polar_tables.hh"
 #include "polar_list_decoder.hh"
-#include "hadamard_encoder.hh"
 #include "hadamard_decoder.hh"
 
 template <typename value, typename cmplx, int rate>
-struct Decoder
+struct Decoder : Common
 {
 	typedef int16_t code_type;
 	typedef SIMD<code_type, 32> mesg_type;
@@ -41,26 +40,10 @@ struct Decoder
 	static const int symbol_len = guard_len * 16;
 	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
 	static const int extended_len = symbol_len + guard_len;
-	static const int mod_max = 8;
-	static const int code_max = 16;
-	static const int bits_max = 1 << code_max;
-	static const int data_max = 4096;
-	static const int symbols_max = 44;
-	static const int mls0_poly = 0x331;
-	static const int mls0_seed = 214;
-	static const int mls1_poly = 0x25;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
-	static const int pilot_tones = 32;
-	static const int reserved_tones = 32;
-	static const int data_tones = 256;
-	static const int block_length = 10;
-	static const int block_skew = 3;
-	static const int first_pilot = 4;
-	static const int first_reserved = 9;
-	static const int tone_count = data_tones + pilot_tones + reserved_tones;
-	static const int tone_off = - tone_count / 2;
 	static const int tones_max = tone_count * symbols_max;
+	static const int tone_off = - tone_count / 2;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::BlockDC<value, value> blockdc;
@@ -69,27 +52,17 @@ struct Decoder
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
 	CODE::CRC<uint32_t> crc0;
-	CODE::HadamardEncoder<6> hadamard_encoder;
 	CODE::HadamardDecoder<6> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	uint8_t output_data[data_max];
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
-	int8_t mode[32];
 	cmplx demod[tones_max], chan[tone_count], tone[tone_count];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
 	value cfo_rad, sfo_rad;
-	const uint32_t *frozen_bits;
-	int mod_bits;
-	int code_order;
 	int symbol_pos;
 	int crc_bits;
-	int data_bits;
-	int data_bytes;
-	int pilot_off;
-	int reserved_off;
-	int symbol_count;
 
 	static int bin(int carrier)
 	{
@@ -170,118 +143,6 @@ struct Decoder
 		if (pcm->channels() == 1)
 			tmp = hilbert(blockdc(tmp.real()));
 		return input_hist(tmp);
-	}
-	void setup(int oper_mode) {
-		switch (oper_mode) {
-		case 1:
-			mod_bits = 2;
-			symbol_count = 4;
-			code_order = 11;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
-			break;
-		case 2:
-			mod_bits = 2;
-			symbol_count = 8;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 3:
-			mod_bits = 2;
-			symbol_count = 16;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 4:
-			mod_bits = 2;
-			symbol_count = 32;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 5:
-			mod_bits = 4;
-			symbol_count = 4;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 6:
-			mod_bits = 4;
-			symbol_count = 8;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 7:
-			mod_bits = 4;
-			symbol_count = 16;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 8:
-			mod_bits = 4;
-			symbol_count = 32;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 9:
-			mod_bits = 6;
-			symbol_count = 11;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 10:
-			mod_bits = 6;
-			symbol_count = 22;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 11:
-			mod_bits = 6;
-			symbol_count = 44;
-			code_order = 16;
-			data_bits = 32768;
-			frozen_bits = frozen_65536_32800;
-			break;
-		case 12:
-			mod_bits = 8;
-			symbol_count = 4;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 13:
-			mod_bits = 8;
-			symbol_count = 8;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 14:
-			mod_bits = 8;
-			symbol_count = 16;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 15:
-			mod_bits = 8;
-			symbol_count = 32;
-			code_order = 16;
-			data_bits = 32768;
-			frozen_bits = frozen_65536_32800;
-			break;
-		default:
-			return;
-		}
-		data_bytes = data_bits / 8;
 	}
 	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) :
 		pcm(pcm), correlator(mls0_seq()), crc0(0x8F6E37A0)

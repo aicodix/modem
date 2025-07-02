@@ -17,10 +17,10 @@ test: encode decode
 	$(QEMU) ./encode audio.wav 8000 8 1 1500 5 /dev/urandom
 	$(QEMU) ./decode audio.wav /dev/null
 
-encode: encode.cc
+encode: encode.cc common.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
-decode: decode.cc schmidl_cox.hh
+decode: decode.cc common.hh schmidl_cox.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
 freezer: freezer.cc

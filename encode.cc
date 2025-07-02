@@ -7,6 +7,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <iostream>
 #include <cassert>
 #include <cmath>
+#include "common.hh"
 #include "xorshift.hh"
 #include "complex.hh"
 #include "utils.hh"
@@ -19,38 +20,21 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "crc.hh"
 #include "psk.hh"
 #include "qam.hh"
-#include "polar_tables.hh"
 #include "polar_encoder.hh"
-#include "hadamard_encoder.hh"
 
 template <typename value, typename cmplx, int rate>
-struct Encoder
+struct Encoder : public Common
 {
 	typedef int8_t code_type;
 	static const int guard_len = rate / 100;
 	static const int symbol_len = guard_len * 16;
-	static const int bits_max = 65536;
-	static const int data_max = 4096;
-	static const int mls0_poly = 0x331;
-	static const int mls0_seed = 214;
-	static const int mls1_poly = 0x25;
-	static const int data_tones = 256;
-	static const int pilot_tones = 32;
-	static const int reserved_tones = 32;
-	static const int tone_count = data_tones + pilot_tones + reserved_tones;
-	static const int block_length = 10;
-	static const int block_skew = 3;
-	static const int first_pilot = 4;
-	static const int first_reserved = 9;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint32_t> crc0;
-	CODE::HadamardEncoder<6> hadamard_encoder;
 	CODE::PolarEncoder<code_type> polar_encoder;
 	uint8_t input_data[data_max];
 	code_type code[bits_max], perm[bits_max], mesg[bits_max];
-	int8_t mode[32];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx kern[symbol_len];
@@ -58,15 +42,6 @@ struct Encoder
 	cmplx tone[tone_count];
 	value weight[guard_len];
 	value papr_min, papr_max;
-	const uint32_t *frozen_bits;
-	int mod_bits;
-	int data_bits;
-	int data_bytes;
-	int code_order;
-	int tone_off;
-	int pilot_off;
-	int reserved_off;
-	int symbol_count;
 
 	static int bin(int carrier)
 	{
@@ -234,124 +209,6 @@ struct Encoder
 				dest[i] = src[seq()];
 		}
 	}
-	void setup(int oper_mode, int freq_off)
-	{
-		switch (oper_mode) {
-		case 0:
-			symbol_count = 1;
-			break;
-		case 1:
-			mod_bits = 2;
-			symbol_count = 4;
-			code_order = 11;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
-			break;
-		case 2:
-			mod_bits = 2;
-			symbol_count = 8;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 3:
-			mod_bits = 2;
-			symbol_count = 16;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 4:
-			mod_bits = 2;
-			symbol_count = 32;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 5:
-			mod_bits = 4;
-			symbol_count = 4;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 6:
-			mod_bits = 4;
-			symbol_count = 8;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 7:
-			mod_bits = 4;
-			symbol_count = 16;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 8:
-			mod_bits = 4;
-			symbol_count = 32;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 9:
-			mod_bits = 6;
-			symbol_count = 11;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 10:
-			mod_bits = 6;
-			symbol_count = 22;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 11:
-			mod_bits = 6;
-			symbol_count = 44;
-			code_order = 16;
-			data_bits = 32768;
-			frozen_bits = frozen_65536_32800;
-			break;
-		case 12:
-			mod_bits = 8;
-			symbol_count = 4;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 13:
-			mod_bits = 8;
-			symbol_count = 8;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 14:
-			mod_bits = 8;
-			symbol_count = 16;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 15:
-			mod_bits = 8;
-			symbol_count = 32;
-			code_order = 16;
-			data_bits = 32768;
-			frozen_bits = frozen_65536_32800;
-			break;
-		default:
-			return;
-		}
-		data_bytes = data_bits / 8;
-		int offset = (freq_off * symbol_len) / rate;
-		tone_off = offset - tone_count / 2;
-	}
 	void tone_reservation_kernel()
 	{
 		value mag = 1 / value(10 * reserved_tones);
@@ -375,7 +232,9 @@ struct Encoder
 	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) :
 		pcm(pcm), crc0(0x8F6E37A0)
 	{
-		setup(oper_mode, freq_off);
+		setup(oper_mode);
+		int offset = (freq_off * symbol_len) / rate;
+		tone_off = offset - tone_count / 2;
 		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
 		leading_noise();
