@@ -35,7 +35,7 @@ template <typename value, typename cmplx, int rate>
 struct Decoder
 {
 	typedef int16_t code_type;
-	typedef SIMD<code_type, 16> mesg_type;
+	typedef SIMD<code_type, 32> mesg_type;
 	typedef DSP::Const<value> Const;
 	static const int guard_len = rate / 100;
 	static const int symbol_len = guard_len * 16;
