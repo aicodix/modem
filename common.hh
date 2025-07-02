@@ -6,6 +6,7 @@ Copyright 2025 Ahmet Inan <inan@aicodix.de>
 
 #pragma once
 
+#include "crc.hh"
 #include "polar_tables.hh"
 #include "hadamard_encoder.hh"
 
@@ -27,8 +28,10 @@ struct Common
 	static const int block_skew = 3;
 	static const int first_pilot = 4;
 	static const int first_reserved = 9;
+	CODE::CRC<uint32_t> crc0;
 	CODE::HadamardEncoder<6> hadamard_encoder;
 	int8_t mode[32];
+	uint8_t data[data_max];
 	const uint32_t *frozen_bits;
 	int mod_bits;
 	int data_bits;
@@ -38,6 +41,8 @@ struct Common
 	int pilot_off;
 	int reserved_off;
 	int symbol_count;
+
+	Common() : crc0(0x8F6E37A0) {}
 
 	void setup(int oper_mode)
 	{

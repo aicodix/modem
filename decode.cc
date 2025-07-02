@@ -24,7 +24,6 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "pcm.hh"
 #include "fft.hh"
 #include "mls.hh"
-#include "crc.hh"
 #include "psk.hh"
 #include "qam.hh"
 #include "polar_list_decoder.hh"
@@ -51,10 +50,8 @@ struct Decoder : Common
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
-	CODE::CRC<uint32_t> crc0;
 	CODE::HadamardDecoder<6> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
-	uint8_t output_data[data_max];
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
 	cmplx demod[tones_max], chan[tone_count], tone[tone_count];
@@ -144,8 +141,7 @@ struct Decoder : Common
 			tmp = hilbert(blockdc(tmp.real()));
 		return input_hist(tmp);
 	}
-	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) :
-		pcm(pcm), correlator(mls0_seq()), crc0(0x8F6E37A0)
+	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) : pcm(pcm), correlator(mls0_seq())
 	{
 		blockdc.samples(filter_len);
 		DSP::Phasor<cmplx> osc;
@@ -279,7 +275,7 @@ struct Decoder : Common
 				continue;
 			}
 			for (int i = 0; i < data_bits; ++i)
-				CODE::set_le_bit(output_data, i, mesg[i].v[best] < 0);
+				CODE::set_le_bit(data, i, mesg[i].v[best] < 0);
 
 			const char *output_name = output_names[output_index++];
 			if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
@@ -291,9 +287,9 @@ struct Decoder : Common
 			}
 			CODE::Xorshift32 scrambler;
 			for (int i = 0; i < data_bytes; ++i)
-				output_data[i] ^= scrambler();
+				data[i] ^= scrambler();
 			for (int i = 0; i < data_bytes; ++i)
-				output_file.put(output_data[i]);
+				output_file.put(data[i]);
 		}
 	}
 };

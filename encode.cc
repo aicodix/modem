@@ -17,7 +17,6 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "wav.hh"
 #include "pcm.hh"
 #include "mls.hh"
-#include "crc.hh"
 #include "psk.hh"
 #include "qam.hh"
 #include "polar_encoder.hh"
@@ -31,9 +30,7 @@ struct Encoder : public Common
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
-	CODE::CRC<uint32_t> crc0;
 	CODE::PolarEncoder<code_type> polar_encoder;
-	uint8_t input_data[data_max];
 	code_type code[bits_max], perm[bits_max], mesg[bits_max];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
@@ -229,8 +226,7 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) :
-		pcm(pcm), crc0(0x8F6E37A0)
+	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) : pcm(pcm)
 	{
 		setup(oper_mode);
 		int offset = (freq_off * symbol_len) / rate;
@@ -261,16 +257,16 @@ struct Encoder : public Common
 				continue;
 			}
 			for (int i = 0; i < data_bytes; ++i)
-				input_data[i] = std::max(input_file.get(), 0);
+				data[i] = std::max(input_file.get(), 0);
 			CODE::Xorshift32 scrambler;
 			for (int i = 0; i < data_bytes; ++i)
-				input_data[i] ^= scrambler();
+				data[i] ^= scrambler();
 			schmidl_cox();
 			for (int i = 0; i < data_bits; ++i)
-				mesg[i] = nrz(CODE::get_le_bit(input_data, i));
+				mesg[i] = nrz(CODE::get_le_bit(data, i));
 			crc0.reset();
 			for (int i = 0; i < data_bytes; ++i)
-				crc0(input_data[i]);
+				crc0(data[i]);
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc0()>>i)&1);
 			polar_encoder(code, mesg, frozen_bits, code_order);
