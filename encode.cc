@@ -46,8 +46,8 @@ struct Encoder
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::CRC<uint32_t> crc0;
-	CODE::HadamardEncoder<6> hadamardenc;
-	CODE::PolarEncoder<code_type> polarenc;
+	CODE::HadamardEncoder<6> hadamard_encoder;
+	CODE::PolarEncoder<code_type> polar_encoder;
 	uint8_t input_data[data_max];
 	code_type code[bits_max], perm[bits_max], mesg[bits_max];
 	int8_t mode[32];
@@ -379,7 +379,7 @@ struct Encoder
 		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
 		leading_noise();
-		hadamardenc(mode, oper_mode);
+		hadamard_encoder(mode, oper_mode);
 		if (!oper_mode) {
 			schmidl_cox();
 			CODE::MLS seq1(mls1_poly);
@@ -414,7 +414,7 @@ struct Encoder
 				crc0(input_data[i]);
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc0()>>i)&1);
-			polarenc(code, mesg, frozen_bits, code_order);
+			polar_encoder(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0; j < symbol_count; ++j) {

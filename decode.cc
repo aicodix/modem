@@ -69,9 +69,9 @@ struct Decoder
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
 	CODE::CRC<uint32_t> crc0;
-	CODE::HadamardEncoder<6> hadamardenc;
-	CODE::HadamardDecoder<6> hadamarddec;
-	CODE::PolarListDecoder<mesg_type, code_max> polardec;
+	CODE::HadamardEncoder<6> hadamard_encoder;
+	CODE::HadamardDecoder<6> hadamard_decoder;
+	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	uint8_t output_data[data_max];
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
@@ -324,7 +324,7 @@ struct Decoder
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 			for (int i = 0; i < pilot_tones; ++i)
 				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(tone[i*block_length+first_pilot], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
-			int oper_mode = hadamarddec(mode);
+			int oper_mode = hadamard_decoder(mode);
 			if (oper_mode < 0 || oper_mode > 15) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
@@ -349,7 +349,7 @@ struct Decoder
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
 					seq1.reset();
-					hadamardenc(mode, oper_mode);
+					hadamard_encoder(mode, oper_mode);
 				}
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				for (int i = 0; i < pilot_tones; ++i)
@@ -402,7 +402,7 @@ struct Decoder
 			std::cerr << std::endl;
 			crc_bits = data_bits + 32;
 			shuffle(code, perm);
-			polardec(nullptr, mesg, code, frozen_bits, code_order);
+			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
 			for (int k = 0; k < mesg_type::SIZE; ++k) {
 				crc0.reset();
