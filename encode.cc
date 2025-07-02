@@ -53,7 +53,6 @@ struct Encoder
 	int8_t mode[32];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
-	cmplx temp[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
@@ -84,25 +83,25 @@ struct Encoder
 			if (pwr > value(1))
 				tdom[i] /= sqrt(pwr);
 		}
-		fwd(temp, tdom);
+		fwd(fdom, tdom);
 		for (int i = 0; i < symbol_len; ++i) {
 			int j = bin(i + tone_off);
 			if (i >= tone_count) {
-				temp[j] = 0;
+				fdom[j] = 0;
 			} else if (i % block_length == pilot_off) {
-				temp[j] = fdom[j];
+				fdom[j] = tone[i];
 			} else if (i % block_length == reserved_off) {
-				temp[j] = 0;
+				fdom[j] = 0;
 			} else {
-				temp[j] *= 1 / (scale * symbol_len);
-				cmplx err = temp[j] - fdom[j];
+				fdom[j] *= 1 / (scale * symbol_len);
+				cmplx err = fdom[j] - tone[i];
 				value mag = abs(err);
 				value lim = 0.1 * mod_distance();
 				if (limit && mag > lim)
-					temp[j] -= ((mag - lim) / mag) * err;
+					fdom[j] -= ((mag - lim) / mag) * err;
 			}
 		}
-		bwd(tdom, temp);
+		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] *= scale;
 	}
@@ -122,6 +121,8 @@ struct Encoder
 	}
 	void symbol(bool papr_reduction = true, bool guard_interval = true)
 	{
+		for (int i = 0; i < symbol_len; ++i)
+			fdom[i] = 0;
 		for (int i = 0; i < tone_count; ++i)
 			fdom[bin(i+tone_off)] = tone[i];
 		bwd(tdom, fdom);
@@ -355,10 +356,10 @@ struct Encoder
 	{
 		value mag = 1 / value(10 * reserved_tones);
 		for (int i = 0; i < symbol_len; ++i)
-			temp[i] = 0;
+			fdom[i] = 0;
 		for (int i = 0; i < reserved_tones; ++i)
-			temp[bin(i*block_length+tone_off+reserved_off)] = mag;
-		bwd(kern, temp);
+			fdom[bin(i*block_length+tone_off+reserved_off)] = mag;
+		bwd(kern, fdom);
 	}
 	void guard_interval_weights()
 	{
