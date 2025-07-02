@@ -86,15 +86,20 @@ struct Encoder
 		}
 		fwd(temp, tdom);
 		for (int i = 0; i < symbol_len; ++i) {
-			if (norm(fdom[i])) {
-				temp[i] *= 1 / (scale * symbol_len);
-				cmplx err = temp[i] - fdom[i];
+			int j = bin(i + tone_off);
+			if (i >= tone_count) {
+				temp[j] = 0;
+			} else if (i % block_length == pilot_off) {
+				temp[j] = fdom[j];
+			} else if (i % block_length == reserved_off) {
+				temp[j] = 0;
+			} else {
+				temp[j] *= 1 / (scale * symbol_len);
+				cmplx err = temp[j] - fdom[j];
 				value mag = abs(err);
 				value lim = 0.1 * mod_distance();
 				if (limit && mag > lim)
-					temp[i] -= ((mag - lim) / mag) * err;
-			} else {
-				temp[i] = 0;
+					temp[j] -= ((mag - lim) / mag) * err;
 			}
 		}
 		bwd(tdom, temp);
