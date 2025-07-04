@@ -234,8 +234,8 @@ struct Decoder : Common
 					np += norm(error);
 				}
 				value precision = sp / np;
-				value snr = DSP::decibel(precision);
-				std::cerr << " " << snr;
+				std::cerr << " " << DSP::decibel(precision);
+				precision = std::min(precision, value(127));
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == pilot_off)
 						continue;
