@@ -70,12 +70,12 @@ struct Decoder : Common
 	}
 	static cmplx demod_or_erase(cmplx curr, cmplx prev)
 	{
-		if (!(norm(prev) > 0))
-			return 0;
-		cmplx demod = curr / prev;
-		if (!(norm(demod) <= 4))
-			return 0;
-		return demod;
+		if (norm(prev) > 0) {
+			cmplx demod = curr / prev;
+			if (norm(demod) < 4)
+				return demod;
+		}
+		return 0;
 	}
 	const cmplx *mls0_seq()
 	{
