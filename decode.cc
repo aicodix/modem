@@ -223,10 +223,9 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					demod[tone_count*j+i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length == pilot_off)
-						chan[i] = tone[i];
-					else
-						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
+					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
+				for (int i = pilot_off; i < tone_count; i += block_length)
+					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				std::cerr << ".";
 			}
 			std::cerr << " done" << std::endl;
