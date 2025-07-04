@@ -41,7 +41,6 @@ struct Decoder : Common
 	static const int extended_len = symbol_len + guard_len;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
-	static const int tones_max = tone_count * symbols_max;
 	static const int tone_off = - tone_count / 2;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
@@ -54,7 +53,7 @@ struct Decoder : Common
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
-	cmplx demod[tones_max], chan[tone_count], tone[tone_count];
+	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
 	value cfo_rad, sfo_rad;
@@ -190,8 +189,8 @@ struct Decoder : Common
 			if (!oper_mode)
 				continue;
 			setup(oper_mode);
-			std::cerr << "demod ";
-			for (int j = 0; j < symbol_count; ++j) {
+			std::cerr << "Es/N0 (dB):";
+			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -209,34 +208,28 @@ struct Decoder : Common
 					hadamard_encoder(mode, oper_mode);
 				}
 				pilot_off = (block_skew * j + first_pilot) % block_length;
+				reserved_off = (block_skew * j + first_reserved) % block_length;
 				for (int i = 0; i < pilot_tones; ++i)
 					tone[block_length*i+pilot_off] *= nrz(seq1()) * mode[i];
 				for (int i = 0; i < tone_count; ++i)
-					demod[tone_count*j+i] = demod_or_erase(tone[i], chan[i]);
+					demod[i] = demod_or_erase(tone[i], chan[i]);
 				for (int i = 0; i < pilot_tones; ++i) {
 					index[i] = tone_off + block_length * i + pilot_off;
-					phase[i] = arg(demod[tone_count*j+block_length*i+pilot_off]);
+					phase[i] = arg(demod[block_length*i+pilot_off]);
 				}
 				tse.compute(index, phase, pilot_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 				for (int i = 0; i < tone_count; ++i)
-					demod[tone_count*j+i] *= DSP::polar<value>(1, -tse(i+tone_off));
+					demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 				for (int i = pilot_off; i < tone_count; i += block_length)
 					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-				std::cerr << ".";
-			}
-			std::cerr << " done" << std::endl;
-			std::cerr << "Es/N0 (dB):";
-			value sp = 0, np = 0;
-			for (int j = 0, k = 0; j < symbol_count; ++j) {
-				pilot_off = (block_skew * j + first_pilot) % block_length;
-				reserved_off = (block_skew * j + first_reserved) % block_length;
+				value sp = 0, np = 0;
 				for (int i = 0; i < pilot_tones; ++i) {
 					cmplx hard(1, 0);
-					cmplx error = demod[tone_count*j+block_length*i+pilot_off] - hard;
+					cmplx error = demod[block_length*i+pilot_off] - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
@@ -251,7 +244,7 @@ struct Decoder : Common
 					int bits = mod_bits;
 					if (oper_mode >= 9 && oper_mode <= 11 && k % 64 == 60)
 						bits = 4;
-					demap_bits(perm+k, demod[tone_count*j+i], precision, bits);
+					demap_bits(perm+k, demod[i], precision, bits);
 					k += bits;
 				}
 			}
