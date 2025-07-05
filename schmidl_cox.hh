@@ -48,7 +48,7 @@ public:
 	value cfo_rad = 0;
 	value frac_cfo = 0;
 
-	SchmidlCox(const cmplx *sequence) : threshold(value(0.17 * match_len), value(0.19 * match_len)) {
+	SchmidlCox(const cmplx *sequence) : threshold(value(0.07 * match_len), value(0.09 * match_len)) {
 		fwd(kern, sequence);
 		for (int i = 0; i < symbol_len; ++i)
 			kern[i] = conj(kern[i]) / value(symbol_len);
