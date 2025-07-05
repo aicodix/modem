@@ -37,6 +37,7 @@ struct Encoder : public Common
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
+	cmplx prev[tone_count];
 	value weight[guard_len];
 	value papr_min, papr_max;
 
@@ -93,6 +94,11 @@ struct Encoder : public Common
 	}
 	void symbol(bool papr_reduction = true, bool guard_interval = true)
 	{
+		for (int i = 0; differential && i < tone_count; ++i)
+			if (!papr_reduction)
+				prev[i] = 1;
+			else if (i % block_length != reserved_off)
+				prev[i] = tone[i] *= prev[i];
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		for (int i = 0; i < tone_count; ++i)

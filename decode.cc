@@ -226,8 +226,14 @@ struct Decoder : Common
 					demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
-				for (int i = pilot_off; i < tone_count; i += block_length)
-					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+				if (differential) {
+					for (int i = 0; i < tone_count; ++i)
+						if (i % block_length != reserved_off)
+							chan[i] = fdom[bin(i+tone_off)];
+				} else {
+					for (int i = pilot_off; i < tone_count; i += block_length)
+						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+				}
 				value sp = 0, np = 0;
 				for (int i = 0; i < pilot_tones; ++i) {
 					cmplx hard(1, 0);
