@@ -43,21 +43,37 @@ diff -s uncoded.dat decoded.dat
 
 All modes need a bandwidth of 2000 Hz and use a 1/2-rate forward error correction code
 
-* Mode  1: QPSK, 1.02 seconds and 128 bytes
-* Mode  2: QPSK, 1.70 seconds and 256 bytes
-* Mode  3: QPSK, 3.06 seconds and 512 bytes
-* Mode  4: QPSK, 5.78 seconds and 1024 bytes
-* Mode  5: QAM16, 1.02 seconds and 256 bytes
-* Mode  6: QAM16, 1.70 seconds and 512 bytes
-* Mode  7: QAM16, 3.06 seconds and 1024 bytes
-* Mode  8: QAM16, 5.78 seconds and 2048 bytes
-* Mode  9: QAM64, 2.21 seconds and 1024 bytes
-* Mode 10: QAM64, 4.08 seconds and 2048 bytes
-* Mode 11: QAM64, 7.82 seconds and 4096 bytes
-* Mode 12: QAM256, 1.02 seconds and 512 bytes
-* Mode 13: QAM256, 1.70 seconds and 1024 bytes
-* Mode 14: QAM256, 3.06 seconds and 2048 bytes
-* Mode 15: QAM256, 5.78 seconds and 4096 bytes
+These use a differential modulation scheme:
+* Mode 0: DBPSK, 1.70 seconds and 128 bytes
+* Mode 1: DBPSK, 3.06 seconds and 256 bytes
+* Mode 2: DBPSK, 5.78 seconds and 512 bytes
+* Mode 3: DQPSK, 1.02 seconds and 128 bytes
+* Mode 4: DQPSK, 1.70 seconds and 256 bytes
+* Mode 5: DQPSK, 3.06 seconds and 512 bytes
+* Mode 6: DQPSK, 5.78 seconds and 1024 bytes
+* Mode 7: D8PSK, 2.21 seconds and 512 bytes
+* Mode 8: D8PSK, 4.08 seconds and 1024 bytes
+* Mode 9: D8PSK, 7.82 seconds and 2048 bytes
+
+And these a coherent modulation scheme:
+* Mode 10: BPSK, 1.70 seconds and 128 bytes
+* Mode 11: BPSK, 3.06 seconds and 256 bytes
+* Mode 12: BPSK, 5.78 seconds and 512 bytes
+* Mode 13: QPSK, 1.02 seconds and 128 bytes
+* Mode 14: QPSK, 1.70 seconds and 256 bytes
+* Mode 15: QPSK, 3.06 seconds and 512 bytes
+* Mode 16: QPSK, 5.78 seconds and 1024 bytes
+* Mode 17: QAM16, 1.02 seconds and 256 bytes
+* Mode 18: QAM16, 1.70 seconds and 512 bytes
+* Mode 19: QAM16, 3.06 seconds and 1024 bytes
+* Mode 20: QAM16, 5.78 seconds and 2048 bytes
+* Mode 21: QAM64, 2.21 seconds and 1024 bytes
+* Mode 22: QAM64, 4.08 seconds and 2048 bytes
+* Mode 23: QAM64, 7.82 seconds and 4096 bytes
+* Mode 24: QAM256, 1.02 seconds and 512 bytes
+* Mode 25: QAM256, 1.70 seconds and 1024 bytes
+* Mode 26: QAM256, 3.06 seconds and 2048 bytes
+* Mode 27: QAM256, 5.78 seconds and 4096 bytes
 
 ### Simulating
 

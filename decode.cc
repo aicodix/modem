@@ -88,8 +88,12 @@ struct Decoder : Common
 	void demap_bits(code_type *b, cmplx c, value precision, int bits)
 	{
 		switch (bits) {
+		case 1:
+			return PhaseShiftKeying<2, cmplx, code_type>::soft(b, c, precision);
 		case 2:
 			return PhaseShiftKeying<4, cmplx, code_type>::soft(b, c, precision);
+		case 3:
+			return PhaseShiftKeying<8, cmplx, code_type>::soft(b, c, precision);
 		case 4:
 			return QuadratureAmplitudeModulation<16, cmplx, code_type>::soft(b, c, precision);
 		case 6:
@@ -181,13 +185,11 @@ struct Decoder : Common
 			for (int i = 0; i < pilot_tones; ++i)
 				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(tone[i*block_length+first_pilot], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
 			int oper_mode = hadamard_decoder(mode);
-			if (oper_mode < 0 || oper_mode > 15) {
+			if (oper_mode < 0 || oper_mode > 27) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
 			std::cerr << "oper mode: " << oper_mode << std::endl;
-			if (!oper_mode)
-				continue;
 			setup(oper_mode);
 			std::cerr << "Es/N0 (dB):";
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
@@ -242,7 +244,9 @@ struct Decoder : Common
 					if (i % block_length == reserved_off)
 						continue;
 					int bits = mod_bits;
-					if (oper_mode >= 9 && oper_mode <= 11 && k % 64 == 60)
+					if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
+						bits = 2;
+					if (oper_mode >= 21 && oper_mode <= 23 && k % 64 == 60)
 						bits = 4;
 					demap_bits(perm+k, demod[i], precision, bits);
 					k += bits;

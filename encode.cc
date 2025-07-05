@@ -147,8 +147,12 @@ struct Encoder : public Common
 	cmplx map_bits(code_type *b, int bits)
 	{
 		switch (bits) {
+		case 1:
+			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
 		case 2:
 			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+		case 3:
+			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
 		case 4:
 			return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
 		case 6:
@@ -161,8 +165,12 @@ struct Encoder : public Common
 	value mod_distance()
 	{
 		switch (mod_bits) {
+		case 1:
+			return PhaseShiftKeying<2, cmplx, code_type>::DIST;
 		case 2:
 			return PhaseShiftKeying<4, cmplx, code_type>::DIST;
+		case 3:
+			return PhaseShiftKeying<8, cmplx, code_type>::DIST;
 		case 4:
 			return QuadratureAmplitudeModulation<16, cmplx, code_type>::DIST;
 		case 6:
@@ -234,20 +242,7 @@ struct Encoder : public Common
 		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
 		leading_noise();
-		if (oper_mode) {
-			hadamard_encoder(mode, oper_mode);
-		} else {
-			schmidl_cox();
-			CODE::MLS seq1(mls1_poly);
-			for (int i = 0; i < tone_count; ++i) {
-				if (i % block_length == first_pilot) {
-					tone[i] = nrz(seq1());
-				} else {
-					tone[i] = 0;
-				}
-			}
-			symbol(false);
-		}
+		hadamard_encoder(mode, oper_mode);
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
 			if (input_count == 1 && input_name[0] == '-' && input_name[1] == 0)
@@ -283,7 +278,9 @@ struct Encoder : public Common
 						tone[i] = 0;
 					} else {
 						int bits = mod_bits;
-						if (oper_mode >= 9 && oper_mode <= 11 && k % 64 == 60)
+						if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
+							bits = 2;
+						if (oper_mode >= 21 && oper_mode <= 23 && k % 64 == 60)
 							bits = 4;
 						tone[i] = map_bits(perm+k, bits);
 						k += bits;
@@ -302,7 +299,7 @@ struct Encoder : public Common
 
 int main(int argc, char **argv)
 {
-	if (argc < 7) {
+	if (argc < 8) {
 		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET MODE INPUT.." << std::endl;
 		return 1;
 	}
@@ -321,11 +318,7 @@ int main(int argc, char **argv)
 	}
 	int input_count = argc - 7;
 	int oper_mode = std::atoi(argv[6]);
-	if (!oper_mode != !input_count) {
-		std::cerr << "Using operation mode " << oper_mode << " but " << input_count << " input file" << (input_count == 1 ? "" : "s") << " provided." << std::endl;
-		return 1;
-	}
-	if (oper_mode < 0 || oper_mode > 15) {
+	if (oper_mode < 0 || oper_mode > 27) {
 		std::cerr << "Unsupported operation mode." << std::endl;
 		return 1;
 	}
