@@ -164,12 +164,28 @@ struct Decoder : Common
 
 			osc.omega(-cfo_rad);
 			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] = buf[i+symbol_pos] * osc();
+			fwd(fdom, tdom);
+			for (int i = 0; i < tone_count; ++i)
+				chan[i] = fdom[bin(i+tone_off)];
+			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i+symbol_pos+symbol_len] * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < tone_count; ++i)
 				tone[i] = fdom[bin(i+tone_off)];
+			for (int i = 0; i < tone_count; ++i) {
+				index[i] = tone_off + i;
+				phase[i] = arg(demod_or_erase(tone[i], chan[i]));
+			}
+			tse.compute(index, phase, tone_count);
+			//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+			for (int i = 0; i < tone_count; ++i)
+				chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
+			for (int i = pilot_off; i < tone_count; i += block_length)
+				chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			CODE::MLS seq0(mls0_poly, mls0_seed);
 			for (int i = 0; i < tone_count; ++i)
 				chan[i] = nrz(seq0()) * tone[i];
