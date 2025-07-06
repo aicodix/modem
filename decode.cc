@@ -180,8 +180,8 @@ struct Decoder : Common
 				phase[i] = arg(demod_or_erase(tone[i], chan[i]));
 			}
 			tse.compute(index, phase, tone_count);
-			//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
-			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+			std::cerr << "coarse sfo: " << -1000000 * tse.slope() / Const::TwoPi() << " ppm" << std::endl;
+			std::cerr << "residual cfo: " << tse.yint() * rate / (Const::TwoPi() * symbol_len) << " Hz" << std::endl;
 			for (int i = 0; i < tone_count; ++i)
 				chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 			for (int i = pilot_off; i < tone_count; i += block_length)
