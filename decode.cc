@@ -190,7 +190,7 @@ struct Decoder : Common
 				chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			CODE::MLS seq0(mls0_poly, mls0_seed);
 			for (int i = 0; i < tone_count; ++i)
-				chan[i] = nrz(seq0()) * tone[i];
+				chan[i] *= nrz(seq0());
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i+symbol_pos+symbol_len+extended_len] * osc();
 			for (int i = 0; i < guard_len; ++i)
