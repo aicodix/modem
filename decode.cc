@@ -150,16 +150,18 @@ struct Decoder : Common
 		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
 		int output_index = 0;
+		int sample_count = 0;
 		while (output_index < output_count) {
 			do {
 				if (!pcm->good())
 					return;
 				buf = next_sample();
+				++sample_count;
 			} while (!correlator(buf));
 
 			symbol_pos = correlator.symbol_pos;
 			cfo_rad = correlator.cfo_rad;
-			std::cerr << "symbol pos: " << symbol_pos << std::endl;
+			std::cerr << "symbol pos: " << sample_count - buffer_len + symbol_pos << std::endl;
 			std::cerr << "coarse cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
 
 			osc.omega(-cfo_rad);
