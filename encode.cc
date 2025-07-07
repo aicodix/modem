@@ -107,9 +107,10 @@ struct Encoder : public Common
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] *= scale;
-		clipping_and_filtering(scale, papr_reduction);
-		if (papr_reduction)
+		if (papr_reduction) {
+			clipping_and_filtering(scale, true);
 			tone_reservation();
+		}
 		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
