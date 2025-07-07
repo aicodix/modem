@@ -1,5 +1,6 @@
 
 CXXFLAGS = -std=c++17 -W -Wall -O3 -ffast-math -fno-exceptions -fno-rtti -I../dsp -I../code
+#CXXFLAGS += -g -fsanitize=address
 CXX = clang++ -stdlib=libc++ -march=native
 #CXX = g++ -march=native
 
