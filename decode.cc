@@ -169,45 +169,48 @@ struct Decoder : Common
 				tdom[i] = buf[i+symbol_pos] * osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < tone_count; ++i)
-				chan[i] = fdom[bin(i+tone_off)];
+				tone[i] = fdom[bin(i+tone_off)];
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i+symbol_pos+symbol_len] * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
 			for (int i = 0; i < tone_count; ++i)
-				tone[i] = fdom[bin(i+tone_off)];
+				chan[i] = fdom[bin(i+tone_off)];
+			CODE::MLS seq0(mls0_poly, mls0_seed);
+			for (int i = 0; i < tone_count; ++i) {
+				value sign = nrz(seq0());
+				tone[i] *= sign;
+				chan[i] *= sign;
+			}
 			for (int i = 0; i < tone_count; ++i) {
 				index[i] = tone_off + i;
-				phase[i] = arg(demod_or_erase(tone[i], chan[i]));
+				phase[i] = arg(demod_or_erase(chan[i], tone[i]));
 			}
 			tse.compute(index, phase, tone_count);
 			std::cerr << "coarse sfo: " << -1000000 * tse.slope() / Const::TwoPi() << " ppm" << std::endl;
 			std::cerr << "residual cfo: " << tse.yint() * rate / (Const::TwoPi() * symbol_len) << " Hz" << std::endl;
-			for (int i = 0; i < tone_count; ++i)
-				chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
-			for (int i = pilot_off; i < tone_count; i += block_length)
-				chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-			CODE::MLS seq0(mls0_poly, mls0_seed);
-			for (int i = 0; i < tone_count; ++i)
-				chan[i] *= nrz(seq0());
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i+symbol_pos+symbol_len+extended_len] * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
-			for (int i = 0; i < tone_count; ++i)
-				tone[i] = fdom[bin(i+tone_off)];
 			CODE::MLS seq1(mls1_poly);
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 			for (int i = 0; i < pilot_tones; ++i)
-				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(tone[i*block_length+first_pilot], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
+				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(fdom[bin(i*block_length+first_pilot+tone_off)], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
 			int oper_mode = hadamard_decoder(mode);
 			if (oper_mode < 0 || oper_mode > 27) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
 			}
 			std::cerr << "oper mode: " << oper_mode << std::endl;
+			if (oper_mode >= 10) {
+				for (int i = 0; i < tone_count; ++i)
+					tone[i] *= DSP::polar<value>(1, tse(i+tone_off));
+				for (int i = 0; i < tone_count; ++i)
+					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+			}
 			setup(oper_mode);
 			std::cerr << "Es/N0 (dB):";
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
@@ -219,14 +222,14 @@ struct Decoder : Common
 					for (int i = 0; i < guard_len; ++i)
 						osc();
 					fwd(fdom, tdom);
-					for (int i = 0; i < tone_count; ++i)
-						tone[i] = fdom[bin(i+tone_off)];
 				} else {
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
 					seq1.reset();
 					hadamard_encoder(mode, oper_mode);
 				}
+				for (int i = 0; i < tone_count; ++i)
+					tone[i] = fdom[bin(i+tone_off)];
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				reserved_off = (block_skew * j + first_reserved) % block_length;
 				for (int i = 0; i < pilot_tones; ++i)
