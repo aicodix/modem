@@ -69,7 +69,7 @@ struct Encoder : public Common
 				fdom[j] *= 1 / (scale * symbol_len);
 				cmplx err = fdom[j] - tone[i];
 				value mag = abs(err);
-				value lim = 0.1 * mod_distance();
+				value lim = 0.5 * mod_distance();
 				if (limit && mag > lim)
 					fdom[j] -= ((mag - lim) / mag) * err;
 			}
