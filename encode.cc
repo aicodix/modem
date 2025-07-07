@@ -275,12 +275,14 @@ struct Encoder : public Common
 			polar_encoder(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
-			for (int j = 0, k = 0; j < symbol_count; ++j) {
+			for (int j = 0, k = 0, m = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				reserved_off = (block_skew * j + first_reserved) % block_length;
-				for (int i = 0, m = 0; i < tone_count; ++i) {
+				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == pilot_off) {
-						tone[i] = nrz(seq1()) * mode[m++];
+						tone[i] = nrz(seq1());
+						if (j == 0)
+							tone[i] *= mode[m++];
 					} else if (i % block_length == reserved_off) {
 						tone[i] = 0;
 					} else {

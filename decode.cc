@@ -214,6 +214,8 @@ struct Decoder : Common
 			setup(oper_mode);
 			std::cerr << "Es/N0 (dB):";
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
+				pilot_off = (block_skew * j + first_pilot) % block_length;
+				reserved_off = (block_skew * j + first_reserved) % block_length;
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -222,18 +224,20 @@ struct Decoder : Common
 					for (int i = 0; i < guard_len; ++i)
 						osc();
 					fwd(fdom, tdom);
+					for (int i = 0; i < tone_count; ++i)
+						tone[i] = fdom[bin(i+tone_off)];
 				} else {
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
-					seq1.reset();
 					hadamard_encoder(mode, oper_mode);
+					for (int i = 0; i < tone_count; ++i)
+						tone[i] = fdom[bin(i+tone_off)];
+					for (int i = 0; i < pilot_tones; ++i)
+						tone[block_length*i+pilot_off] *= mode[i];
+					seq1.reset();
 				}
-				for (int i = 0; i < tone_count; ++i)
-					tone[i] = fdom[bin(i+tone_off)];
-				pilot_off = (block_skew * j + first_pilot) % block_length;
-				reserved_off = (block_skew * j + first_reserved) % block_length;
 				for (int i = 0; i < pilot_tones; ++i)
-					tone[block_length*i+pilot_off] *= nrz(seq1()) * mode[i];
+					tone[block_length*i+pilot_off] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
 				for (int i = 0; i < pilot_tones; ++i) {
