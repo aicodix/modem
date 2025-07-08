@@ -85,7 +85,25 @@ struct Decoder : Common
 			fdom[bin(i+tone_off)] = prv * (cur = nrz(seq0()));
 		return fdom;
 	}
-	void demap_bits(code_type *b, cmplx c, value precision, int bits)
+	cmplx map_bits(code_type *b, int bits)
+	{
+		switch (bits) {
+		case 1:
+			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
+		case 2:
+			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+		case 3:
+			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
+		case 4:
+			return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
+		case 6:
+			return QuadratureAmplitudeModulation<64, cmplx, code_type>::map(b);
+		case 8:
+			return QuadratureAmplitudeModulation<256, cmplx, code_type>::map(b);
+		}
+		return 0;
+	}
+	void demap_soft(code_type *b, cmplx c, value precision, int bits)
 	{
 		switch (bits) {
 		case 1:
@@ -100,6 +118,23 @@ struct Decoder : Common
 			return QuadratureAmplitudeModulation<64, cmplx, code_type>::soft(b, c, precision);
 		case 8:
 			return QuadratureAmplitudeModulation<256, cmplx, code_type>::soft(b, c, precision);
+		}
+	}
+	void demap_hard(code_type *b, cmplx c, int bits)
+	{
+		switch (bits) {
+		case 1:
+			return PhaseShiftKeying<2, cmplx, code_type>::hard(b, c);
+		case 2:
+			return PhaseShiftKeying<4, cmplx, code_type>::hard(b, c);
+		case 3:
+			return PhaseShiftKeying<8, cmplx, code_type>::hard(b, c);
+		case 4:
+			return QuadratureAmplitudeModulation<16, cmplx, code_type>::hard(b, c);
+		case 6:
+			return QuadratureAmplitudeModulation<64, cmplx, code_type>::hard(b, c);
+		case 8:
+			return QuadratureAmplitudeModulation<256, cmplx, code_type>::hard(b, c);
 		}
 	}
 	void shuffle(code_type *dest, const code_type *src)
@@ -260,9 +295,21 @@ struct Decoder : Common
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
 				value sp = 0, np = 0;
-				for (int i = 0; i < pilot_tones; ++i) {
+				for (int i = 0, l = k; i < tone_count; ++i) {
+					if (i % block_length == reserved_off)
+						continue;
 					cmplx hard(1, 0);
-					cmplx error = demod[block_length*i+pilot_off] - hard;
+					if (i % block_length != pilot_off) {
+						int bits = mod_bits;
+						if (oper_mode >= 7 && oper_mode <= 9 && l % 32 == 30)
+							bits = 2;
+						if (oper_mode >= 21 && oper_mode <= 23 && l % 64 == 60)
+							bits = 4;
+						demap_hard(perm+l, demod[i], bits);
+						hard = map_bits(perm+l, bits);
+						l += bits;
+					}
+					cmplx error = demod[i] - hard;
 					sp += norm(hard);
 					np += norm(error);
 				}
@@ -279,7 +326,7 @@ struct Decoder : Common
 						bits = 2;
 					if (oper_mode >= 21 && oper_mode <= 23 && k % 64 == 60)
 						bits = 4;
-					demap_bits(perm+k, demod[i], precision, bits);
+					demap_soft(perm+k, demod[i], precision, bits);
 					k += bits;
 				}
 			}
