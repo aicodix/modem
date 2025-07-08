@@ -80,7 +80,7 @@ struct Encoder : public Common
 	}
 	void tone_reservation()
 	{
-		for (int n = 0; n < 100; ++n) {
+		for (int n = 0; n < 10; ++n) {
 			int peak = 0;
 			for (int i = 1; i < symbol_len; ++i)
 				if (norm(tdom[peak]) < norm(tdom[i]))
