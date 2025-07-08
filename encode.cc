@@ -223,7 +223,7 @@ struct Encoder : public Common
 	}
 	void tone_reservation_kernel()
 	{
-		value mag = 1 / value(10 * reserved_tones);
+		value mag(0.001);
 		for (int i = 0; i < symbol_len; ++i)
 			fdom[i] = 0;
 		for (int i = 0; i < reserved_tones; ++i)
