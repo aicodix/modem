@@ -116,17 +116,19 @@ struct Encoder : public Common
 			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
-		value peak = 0, mean = 0;
-		for (int i = 0; i < symbol_len; ++i) {
-			value power(norm(tdom[i]));
-			peak = std::max(peak, power);
-			mean += power;
-		}
-		mean /= symbol_len;
-		if (mean > 0) {
-			value papr(peak / mean);
-			papr_min = std::min(papr_min, papr);
-			papr_max = std::max(papr_max, papr);
+		if (papr_reduction) {
+			value peak = 0, mean = 0;
+			for (int i = 0; i < symbol_len; ++i) {
+				value power(norm(tdom[i]));
+				peak = std::max(peak, power);
+				mean += power;
+			}
+			mean /= symbol_len;
+			if (mean > 0) {
+				value papr(peak / mean);
+				papr_min = std::min(papr_min, papr);
+				papr_max = std::max(papr_max, papr);
+			}
 		}
 		if (guard_interval)
 			pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
