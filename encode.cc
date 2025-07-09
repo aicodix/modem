@@ -251,7 +251,6 @@ struct Encoder : public Common
 		guard_interval_weights();
 		papr_min = 1000, papr_max = -1000;
 		leading_noise();
-		hadamard_encoder(mode, oper_mode);
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
 			if (input_count == 1 && input_name[0] == '-' && input_name[1] == 0)
@@ -277,14 +276,13 @@ struct Encoder : public Common
 			polar_encoder(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
-			for (int j = 0, k = 0, m = 0; j < symbol_count; ++j) {
+			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				reserved_off = (block_skew * j + first_reserved) % block_length;
-				for (int i = 0; i < tone_count; ++i) {
+				hadamard_encoder(meta, j ? j : oper_mode);
+				for (int i = 0, m = 0; i < tone_count; ++i) {
 					if (i % block_length == pilot_off) {
-						tone[i] = nrz(seq1());
-						if (j == 0)
-							tone[i] *= mode[m++];
+						tone[i] = nrz(seq1()) * meta[m++];
 					} else if (i % block_length == reserved_off) {
 						tone[i] = 0;
 					} else {

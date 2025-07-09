@@ -233,8 +233,8 @@ struct Decoder : Common
 			CODE::MLS seq1(mls1_poly);
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 			for (int i = 0; i < pilot_tones; ++i)
-				mode[i] = clamp(std::nearbyint(127 * demod_or_erase(fdom[bin(i*block_length+first_pilot+tone_off)], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
-			int oper_mode = hadamard_decoder(mode);
+				meta[i] = clamp(std::nearbyint(127 * demod_or_erase(fdom[bin(i*block_length+first_pilot+tone_off)], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
+			int oper_mode = hadamard_decoder(meta);
 			if (oper_mode < 0 || oper_mode > 27) {
 				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
 				continue;
@@ -264,17 +264,22 @@ struct Decoder : Common
 				} else {
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
-					hadamard_encoder(mode, oper_mode);
-					for (int i = 0; i < tone_count; ++i)
-						tone[i] = fdom[bin(i+tone_off)];
-					for (int i = 0; i < pilot_tones; ++i)
-						tone[block_length*i+pilot_off] *= mode[i];
 					seq1.reset();
 				}
+				for (int i = 0; i < tone_count; ++i)
+					tone[i] = fdom[bin(i+tone_off)];
 				for (int i = 0; i < pilot_tones; ++i)
 					tone[block_length*i+pilot_off] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
+				for (int i = 0; i < pilot_tones; ++i)
+					meta[i] = clamp(std::nearbyint(127 * demod[i*block_length+pilot_off].real()));
+				int meta_data = hadamard_decoder(meta);
+				hadamard_encoder(meta, meta_data);
+				for (int i = 0; i < pilot_tones; ++i) {
+					tone[block_length*i+pilot_off] *= meta[i];
+					demod[block_length*i+pilot_off] *= meta[i];
+				}
 				for (int i = 0; i < pilot_tones; ++i) {
 					index[i] = tone_off + block_length * i + pilot_off;
 					phase[i] = arg(demod[block_length*i+pilot_off]);

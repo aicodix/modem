@@ -29,7 +29,7 @@ struct Common
 	static const int first_reserved = 9;
 	CODE::CRC<uint32_t> crc0;
 	CODE::HadamardEncoder<6> hadamard_encoder;
-	int8_t mode[32];
+	int8_t meta[32];
 	uint8_t data[data_max];
 	const uint32_t *frozen_bits;
 	int mod_bits;
