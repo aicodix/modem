@@ -92,10 +92,10 @@ struct Encoder : public Common
 				tdom[i] -= orig * kern[bin(i-peak)];
 		}
 	}
-	void symbol(bool papr_reduction = true, bool guard_interval = true)
+	void symbol(int symbol_number)
 	{
 		for (int i = 0; differential && i < tone_count; ++i)
-			if (!papr_reduction)
+			if (symbol_number < 0)
 				prev[i] = 1;
 			else if (i % block_length != reserved_off)
 				prev[i] = tone[i] *= prev[i];
@@ -107,6 +107,7 @@ struct Encoder : public Common
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] *= scale;
+		bool papr_reduction = symbol_number >= 0;
 		if (papr_reduction) {
 			clipping_and_filtering(scale, true);
 			tone_reservation();
@@ -114,8 +115,6 @@ struct Encoder : public Common
 		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
-		for (int i = 0; i < guard_len; ++i)
-			guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
 		if (papr_reduction) {
 			value peak = 0, mean = 0;
 			for (int i = 0; i < symbol_len; ++i) {
@@ -130,11 +129,22 @@ struct Encoder : public Common
 				papr_max = std::max(papr_max, papr);
 			}
 		}
-		if (guard_interval)
+		if (symbol_number != -1) {
+			for (int i = 0; i < guard_len; ++i)
+				guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
 			pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
-		pcm->write(reinterpret_cast<value *>(tdom), symbol_len, 2);
+		}
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = tdom[i];
+		pcm->write(reinterpret_cast<value *>(tdom), symbol_len, 2);
+	}
+	void finish()
+	{
+		for (int i = 0; i < guard_len; ++i)
+			guard[i] *= 1 - weight[i];
+		pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
+		for (int i = 0; i < guard_len; ++i)
+			guard[i] = 0;
 	}
 	void leading_noise(int num = 1)
 	{
@@ -142,7 +152,7 @@ struct Encoder : public Common
 		for (int j = 0; j < num; ++j) {
 			for (int i = 0; i < tone_count; ++i)
 				tone[i] = nrz(noise());
-			symbol(false);
+			symbol(-3);
 		}
 	}
 	void schmidl_cox()
@@ -150,8 +160,8 @@ struct Encoder : public Common
 		CODE::MLS seq0(mls0_poly, mls0_seed);
 		for (int i = 0; i < tone_count; ++i)
 			tone[i] = nrz(seq0());
-		symbol(false);
-		symbol(false, false);
+		symbol(-2);
+		symbol(-1);
 	}
 	cmplx map_bits(code_type *b, int bits)
 	{
@@ -296,12 +306,10 @@ struct Encoder : public Common
 					}
 				}
 				tone_reservation_kernel();
-				symbol();
+				symbol(j);
 			}
 		}
-		for (int i = 0; i < tone_count; ++i)
-			tone[i] = 0;
-		symbol(false);
+		finish();
 		std::cerr << "PAPR: " << DSP::decibel(papr_min) << " .. " << DSP::decibel(papr_max) << " dB" << std::endl;
 	}
 };
