@@ -73,11 +73,12 @@ struct Encoder : public Common
 	{
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= temp[i];
-		for (int trial = 63; trial >= 0; --trial) {
+		int trials = symbol_number ? 128 : 4;
+		for (int trial = trials - 1; trial >= 0; --trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
-				int meta_data = symbol_number ? trial : oper_mode;
+				int meta_data = symbol_number ? trial : (oper_mode | (trial << 5));
 				hadamard_encoder(meta, meta_data);
 				CODE::MLS seq(0x163, meta_data);
 				for (int i = 0, m = 0; i < tone_count; ++i)
@@ -110,7 +111,7 @@ struct Encoder : public Common
 			}
 			mean /= symbol_len;
 			value papr(peak / mean);
-			if (symbol_number == 0 || papr < 5 || trial == 0) {
+			if (papr < 5 || trial == 0) {
 				std::cerr << " " << DSP::decibel(papr);
 				break;
 			}
