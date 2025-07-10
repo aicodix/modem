@@ -300,6 +300,10 @@ struct Decoder : Common
 					for (int i = pilot_off; i < tone_count; i += block_length)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
+				CODE::MLS seq(0x163, meta_data);
+				for (int i = 0; i < tone_count; ++i)
+					if (i % block_length != pilot_off && i % block_length != reserved_off)
+						demod[i] *= nrz(seq());
 				value sp = 0, np = 0;
 				for (int i = 0, l = k; i < tone_count; ++i) {
 					if (i % block_length == reserved_off)

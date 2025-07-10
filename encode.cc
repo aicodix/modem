@@ -37,9 +37,8 @@ struct Encoder : public Common
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
-	cmplx prev[tone_count];
+	cmplx temp[tone_count];
 	value weight[guard_len];
-	value papr_min, papr_max;
 
 	static int bin(int carrier)
 	{
@@ -62,12 +61,12 @@ struct Encoder : public Common
 			if (i >= tone_count) {
 				fdom[j] = 0;
 			} else if (i % block_length == pilot_off) {
-				fdom[j] = tone[i];
+				fdom[j] = temp[i];
 			} else if (i % block_length == reserved_off) {
 				fdom[j] = 0;
 			} else {
 				fdom[j] *= 1 / (scale * symbol_len);
-				cmplx err = fdom[j] - tone[i];
+				cmplx err = fdom[j] - temp[i];
 				value mag = abs(err);
 				value lim = 0.5 * mod_distance();
 				if (limit && mag > lim)
@@ -94,33 +93,39 @@ struct Encoder : public Common
 	}
 	void symbol(int symbol_number)
 	{
-		if (symbol_number >= 0) {
-			hadamard_encoder(meta, symbol_number ? symbol_number : oper_mode);
-			for (int i = 0; i < pilot_tones; ++i)
-				tone[block_length*i+pilot_off] *= meta[i];
-		}
-		for (int i = 0; differential && i < tone_count; ++i)
-			if (symbol_number < 0)
-				prev[i] = 1;
-			else if (i % block_length != reserved_off)
-				prev[i] = tone[i] *= prev[i];
-		for (int i = 0; i < symbol_len; ++i)
-			fdom[i] = 0;
-		for (int i = 0; i < tone_count; ++i)
-			fdom[bin(i+tone_off)] = tone[i];
-		bwd(tdom, fdom);
-		value scale = value(0.5) / std::sqrt(value(tone_count));
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] *= scale;
-		bool papr_reduction = symbol_number >= 0;
-		if (papr_reduction) {
-			clipping_and_filtering(scale, true);
-			tone_reservation();
-		}
-		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
-		if (papr_reduction) {
+		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
+			tone[i] *= temp[i];
+		for (int trial = 63; trial >= 0; --trial) {
+			for (int i = 0; i < tone_count; ++i)
+				temp[i] = tone[i];
+			if (symbol_number >= 0) {
+				int meta_data = symbol_number ? trial : oper_mode;
+				hadamard_encoder(meta, meta_data);
+				CODE::MLS seq(0x163, meta_data);
+				for (int i = 0, m = 0; i < tone_count; ++i)
+					if (i % block_length == pilot_off)
+						temp[i] *= meta[m++];
+					else if (i % block_length != reserved_off)
+						temp[i] *= nrz(seq());
+			}
+			for (int i = 0; i < symbol_len; ++i)
+				fdom[i] = 0;
+			for (int i = 0; i < tone_count; ++i)
+				fdom[bin(i+tone_off)] = temp[i];
+			bwd(tdom, fdom);
+			value scale = value(0.5) / std::sqrt(value(tone_count));
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] *= scale;
+			bool papr_reduction = symbol_number >= 0;
+			if (papr_reduction) {
+				clipping_and_filtering(scale, true);
+				tone_reservation();
+			}
+			auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
+			if (!papr_reduction)
+				break;
 			value peak = 0, mean = 0;
 			for (int i = 0; i < symbol_len; ++i) {
 				value power(norm(tdom[i]));
@@ -128,10 +133,10 @@ struct Encoder : public Common
 				mean += power;
 			}
 			mean /= symbol_len;
-			if (mean > 0) {
-				value papr(peak / mean);
-				papr_min = std::min(papr_min, papr);
-				papr_max = std::max(papr_max, papr);
+			value papr(peak / mean);
+			if (symbol_number == 0 || papr < 5 || trial == 0) {
+				std::cerr << " " << DSP::decibel(papr);
+				break;
 			}
 		}
 		if (symbol_number != -1) {
@@ -264,7 +269,6 @@ struct Encoder : public Common
 		int offset = (freq_off * symbol_len) / rate;
 		tone_off = offset - tone_count / 2;
 		guard_interval_weights();
-		papr_min = 1000, papr_max = -1000;
 		leading_noise();
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
@@ -291,6 +295,7 @@ struct Encoder : public Common
 			polar_encoder(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
+			std::cerr << "PAPR (dB):";
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				reserved_off = (block_skew * j + first_reserved) % block_length;
@@ -312,9 +317,9 @@ struct Encoder : public Common
 				tone_reservation_kernel();
 				symbol(j);
 			}
+			std::cerr << std::endl;
 		}
 		finish();
-		std::cerr << "PAPR: " << DSP::decibel(papr_min) << " .. " << DSP::decibel(papr_max) << " dB" << std::endl;
 	}
 };
 
