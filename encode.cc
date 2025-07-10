@@ -94,6 +94,11 @@ struct Encoder : public Common
 	}
 	void symbol(int symbol_number)
 	{
+		if (symbol_number >= 0) {
+			hadamard_encoder(meta, symbol_number ? symbol_number : oper_mode);
+			for (int i = 0; i < pilot_tones; ++i)
+				tone[block_length*i+pilot_off] *= meta[i];
+		}
 		for (int i = 0; differential && i < tone_count; ++i)
 			if (symbol_number < 0)
 				prev[i] = 1;
@@ -289,10 +294,9 @@ struct Encoder : public Common
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				reserved_off = (block_skew * j + first_reserved) % block_length;
-				hadamard_encoder(meta, j ? j : oper_mode);
-				for (int i = 0, m = 0; i < tone_count; ++i) {
+				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == pilot_off) {
-						tone[i] = nrz(seq1()) * meta[m++];
+						tone[i] = nrz(seq1());
 					} else if (i % block_length == reserved_off) {
 						tone[i] = 0;
 					} else {
