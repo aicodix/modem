@@ -234,11 +234,12 @@ struct Decoder : Common
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 			for (int i = 0; i < pilot_tones; ++i)
 				meta[i] = clamp(std::nearbyint(127 * demod_or_erase(fdom[bin(i*block_length+first_pilot+tone_off)], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
-			int oper_mode = hadamard_decoder(meta);
-			if (oper_mode < 0 || oper_mode > 27) {
-				std::cerr << "operation mode " << oper_mode << " unsupported." << std::endl;
+			int mode = hadamard_decoder(meta);
+			if (mode < 0 || mode > 27) {
+				std::cerr << "operation mode " << mode << " unsupported." << std::endl;
 				continue;
 			}
+			oper_mode = mode;
 			std::cerr << "oper mode: " << oper_mode << std::endl;
 			if (oper_mode >= 10) {
 				for (int i = 0; i < tone_count; ++i)

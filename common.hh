@@ -36,6 +36,7 @@ struct Common
 	int data_bits;
 	int data_bytes;
 	int code_order;
+	int oper_mode;
 	int tone_off;
 	int pilot_off;
 	int reserved_off;
@@ -44,9 +45,9 @@ struct Common
 
 	Common() : crc0(0x8F6E37A0) {}
 
-	void setup(int oper_mode)
+	void setup(int mode)
 	{
-		switch (oper_mode) {
+		switch (mode) {
 		case 0:
 			mod_bits = 1;
 			symbol_count = 8;
@@ -274,6 +275,7 @@ struct Common
 		default:
 			return;
 		}
+		oper_mode = mode;
 		data_bytes = data_bits / 8;
 	}
 };
