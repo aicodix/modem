@@ -48,7 +48,7 @@ struct Encoder : public Common
 	{
 		return 1 - 2 * bit;
 	}
-	void clipping_and_filtering(value scale, bool limit)
+	void clipping_and_filtering(value scale)
 	{
 		for (int i = 0; i < symbol_len; ++i) {
 			value pwr = norm(tdom[i]);
@@ -58,38 +58,16 @@ struct Encoder : public Common
 		fwd(fdom, tdom);
 		for (int i = 0; i < symbol_len; ++i) {
 			int j = bin(i + tone_off);
-			if (i >= tone_count) {
+			if (i >= tone_count)
 				fdom[j] = 0;
-			} else if (i % block_length == pilot_off) {
+			else if (i % block_length == pilot_off)
 				fdom[j] = temp[i];
-			} else if (i % block_length == reserved_off) {
-				fdom[j] = 0;
-			} else {
+			else
 				fdom[j] *= 1 / (scale * symbol_len);
-				cmplx err = fdom[j] - temp[i];
-				value mag = abs(err);
-				value lim = 0.5 * mod_distance();
-				if (limit && mag > lim)
-					fdom[j] -= ((mag - lim) / mag) * err;
-			}
 		}
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] *= scale;
-	}
-	void tone_reservation()
-	{
-		for (int n = 0; n < 10; ++n) {
-			int peak = 0;
-			for (int i = 1; i < symbol_len; ++i)
-				if (norm(tdom[peak]) < norm(tdom[i]))
-					peak = i;
-			cmplx orig = tdom[peak];
-			if (norm(orig) <= value(1))
-				break;
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] -= orig * kern[bin(i-peak)];
-		}
 	}
 	void symbol(int symbol_number)
 	{
@@ -105,7 +83,7 @@ struct Encoder : public Common
 				for (int i = 0, m = 0; i < tone_count; ++i)
 					if (i % block_length == pilot_off)
 						temp[i] *= meta[m++];
-					else if (i % block_length != reserved_off)
+					else
 						temp[i] *= nrz(seq());
 			}
 			for (int i = 0; i < symbol_len; ++i)
@@ -117,10 +95,8 @@ struct Encoder : public Common
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] *= scale;
 			bool papr_reduction = symbol_number >= 0;
-			if (papr_reduction) {
-				clipping_and_filtering(scale, true);
-				tone_reservation();
-			}
+			if (papr_reduction)
+				clipping_and_filtering(scale);
 			auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
@@ -243,15 +219,6 @@ struct Encoder : public Common
 				dest[i] = src[seq()];
 		}
 	}
-	void tone_reservation_kernel()
-	{
-		value mag(0.001);
-		for (int i = 0; i < symbol_len; ++i)
-			fdom[i] = 0;
-		for (int i = 0; i < reserved_tones; ++i)
-			fdom[bin(i*block_length+tone_off+reserved_off)] = mag;
-		bwd(kern, fdom);
-	}
 	void guard_interval_weights()
 	{
 		for (int i = 0; i < guard_len / 4; ++i)
@@ -298,12 +265,9 @@ struct Encoder : public Common
 			std::cerr << "PAPR (dB):";
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
-				reserved_off = (block_skew * j + first_reserved) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == pilot_off) {
 						tone[i] = nrz(seq1());
-					} else if (i % block_length == reserved_off) {
-						tone[i] = 0;
 					} else {
 						int bits = mod_bits;
 						if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
@@ -314,7 +278,6 @@ struct Encoder : public Common
 						k += bits;
 					}
 				}
-				tone_reservation_kernel();
 				symbol(j);
 			}
 			std::cerr << std::endl;

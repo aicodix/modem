@@ -49,7 +49,7 @@ struct Decoder : Common
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
-	CODE::HadamardDecoder<6> hadamard_decoder;
+	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
@@ -251,7 +251,6 @@ struct Decoder : Common
 			std::cerr << "Es/N0 (dB):";
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
-				reserved_off = (block_skew * j + first_reserved) % block_length;
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -294,20 +293,17 @@ struct Decoder : Common
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 				if (differential) {
 					for (int i = 0; i < tone_count; ++i)
-						if (i % block_length != reserved_off)
-							chan[i] = fdom[bin(i+tone_off)];
+						chan[i] = fdom[bin(i+tone_off)];
 				} else {
 					for (int i = pilot_off; i < tone_count; i += block_length)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
 				CODE::MLS seq(0x163, meta_data);
 				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length != pilot_off && i % block_length != reserved_off)
+					if (i % block_length != pilot_off)
 						demod[i] *= nrz(seq());
 				value sp = 0, np = 0;
 				for (int i = 0, l = k; i < tone_count; ++i) {
-					if (i % block_length == reserved_off)
-						continue;
 					cmplx hard(1, 0);
 					if (i % block_length != pilot_off) {
 						int bits = mod_bits;
@@ -328,8 +324,6 @@ struct Decoder : Common
 				precision = std::min(precision, value(127));
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == pilot_off)
-						continue;
-					if (i % block_length == reserved_off)
 						continue;
 					int bits = mod_bits;
 					if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
