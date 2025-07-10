@@ -131,7 +131,7 @@ struct Common
 		case 10:
 			mod_bits = 1;
 			symbol_count = 8;
-			differential = true;
+			differential = false;
 			code_order = 11;
 			data_bits = 1024;
 			frozen_bits = frozen_2048_1056;
@@ -139,7 +139,7 @@ struct Common
 		case 11:
 			mod_bits = 1;
 			symbol_count = 16;
-			differential = true;
+			differential = false;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
@@ -147,7 +147,7 @@ struct Common
 		case 12:
 			mod_bits = 1;
 			symbol_count = 32;
-			differential = true;
+			differential = false;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
