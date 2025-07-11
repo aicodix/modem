@@ -48,7 +48,7 @@ struct Encoder : public Common
 	{
 		return 1 - 2 * bit;
 	}
-	void clipping_and_filtering(value scale)
+	void clipping_and_filtering(value scale, bool limit)
 	{
 		for (int i = 0; i < symbol_len; ++i) {
 			value pwr = norm(tdom[i]);
@@ -58,12 +58,18 @@ struct Encoder : public Common
 		fwd(fdom, tdom);
 		for (int i = 0; i < symbol_len; ++i) {
 			int j = bin(i + tone_off);
-			if (i >= tone_count)
+			if (i >= tone_count) {
 				fdom[j] = 0;
-			else if (i % block_length == pilot_off)
+			} else if (i % block_length == pilot_off) {
 				fdom[j] = temp[i];
-			else
+			} else {
 				fdom[j] *= 1 / (scale * symbol_len);
+				cmplx err = fdom[j] - temp[i];
+				value mag = abs(err);
+				value lim = 0.5 * mod_distance();
+				if (limit && mag > lim)
+					fdom[j] -= ((mag - lim) / mag) * err;
+			}
 		}
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
@@ -71,6 +77,7 @@ struct Encoder : public Common
 	}
 	void symbol(int symbol_number)
 	{
+		value scale = value(0.5) / std::sqrt(value(tone_count));
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= temp[i];
 		int trials = symbol_number ? 128 : 4;
@@ -92,17 +99,11 @@ struct Encoder : public Common
 			for (int i = 0; i < tone_count; ++i)
 				fdom[bin(i+tone_off)] = temp[i];
 			bwd(tdom, fdom);
-			value scale = value(0.5) / std::sqrt(value(tone_count));
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] *= scale;
-			bool papr_reduction = symbol_number >= 0;
-			if (papr_reduction)
-				clipping_and_filtering(scale);
-			auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
-			if (!papr_reduction)
+			if (symbol_number < 0)
 				break;
+			clipping_and_filtering(scale, true);
 			value peak = 0, mean = 0;
 			for (int i = 0; i < symbol_len; ++i) {
 				value power(norm(tdom[i]));
@@ -116,6 +117,11 @@ struct Encoder : public Common
 				break;
 			}
 		}
+		if (symbol_number >= 0)
+			clipping_and_filtering(scale, false);
+		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
 		if (symbol_number != -1) {
 			for (int i = 0; i < guard_len; ++i)
 				guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
