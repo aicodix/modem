@@ -11,6 +11,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "xorshift.hh"
 #include "complex.hh"
 #include "utils.hh"
+#include "quick.hh"
 #include "bitman.hh"
 #include "decibel.hh"
 #include "fft.hh"
@@ -41,7 +42,7 @@ struct Encoder : public Common
 	cmplx prev[tone_count];
 	cmplx temp[tone_count];
 	value weight[guard_len];
-	value worst_papr = -1000;
+	value papr[symbols_max];
 
 	static int bin(int carrier)
 	{
@@ -112,9 +113,9 @@ struct Encoder : public Common
 				mean += power;
 			}
 			mean /= symbol_len;
-			value papr(peak / mean);
-			if (papr < best_papr) {
-				best_papr = papr;
+			value cand_papr(peak / mean);
+			if (cand_papr < best_papr) {
+				best_papr = cand_papr;
 				for (int i = 0; differential && symbol_number >= 0 && i < tone_count; ++i)
 					prev[i] = temp[i];
 				for (int i = 0; i < symbol_len; ++i)
@@ -124,7 +125,7 @@ struct Encoder : public Common
 		if (symbol_number >= 0) {
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = best[i];
-			worst_papr = std::max(worst_papr, best_papr);
+			papr[symbol_number] = best_papr;
 		}
 		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
@@ -292,9 +293,10 @@ struct Encoder : public Common
 				}
 				symbol(j);
 			}
+			DSP::quick_sort(papr, symbol_count);
+			std::cerr << "PAPR (dB): " << std::fixed << std::setprecision(1) << DSP::decibel(papr[0]) << " .. " << DSP::decibel(papr[symbol_count/2]) << " .. " << DSP::decibel(papr[symbol_count-1]) << std::endl;
 		}
 		finish();
-		std::cerr << "PAPR (dB): " << DSP::decibel(worst_papr) << std::endl;
 	}
 };
 
