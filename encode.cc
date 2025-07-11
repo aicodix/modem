@@ -294,7 +294,7 @@ struct Encoder : public Common
 				symbol(j);
 			}
 			DSP::quick_sort(papr, symbol_count);
-			std::cerr << "PAPR (dB): " << std::fixed << std::setprecision(1) << DSP::decibel(papr[0]) << " .. " << DSP::decibel(papr[symbol_count/2]) << " .. " << DSP::decibel(papr[symbol_count-1]) << std::endl;
+			std::cerr << "PAPR (dB): " << DSP::decibel(papr[0]) << " .. " << DSP::decibel(papr[symbol_count/2]) << " .. " << DSP::decibel(papr[symbol_count-1]) << std::endl;
 		}
 		finish();
 	}
@@ -330,6 +330,7 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported frequency offset." << std::endl;
 		return 1;
 	}
+	std::cerr << std::fixed << std::setprecision(1);
 	typedef float value;
 	typedef DSP::Complex<value> cmplx;
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);

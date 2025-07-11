@@ -352,7 +352,7 @@ struct Decoder : Common
 				}
 			}
 			DSP::quick_sort(snr, symbol_count);
-			std::cerr << "Es/N0 (dB): " << std::fixed << std::setprecision(1) << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count-1]) << std::endl;
+			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count-1]) << std::endl;
 			crc_bits = data_bits + 32;
 			shuffle(code, perm);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
@@ -411,6 +411,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	std::cerr << std::fixed << std::setprecision(1);
 	int output_count = argc - 2;
 	switch (input_file.rate()) {
 	case 8000:
