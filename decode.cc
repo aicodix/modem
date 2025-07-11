@@ -56,6 +56,7 @@ struct Decoder : Common
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
+	value snr[symbols_max];
 	value cfo_rad, sfo_rad;
 	int symbol_pos;
 	int crc_bits;
@@ -249,7 +250,6 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
-			value worst = 1000;
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				meta_off = (block_skew * j + first_meta) % block_length;
 				seed_off = (block_skew * j + first_seed) % block_length;
@@ -337,7 +337,7 @@ struct Decoder : Common
 					np += norm(error);
 				}
 				value precision = sp / np;
-				worst = std::min(worst, precision);
+				snr[j] = precision;
 				precision = std::min(precision, value(127));
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length != meta_off && i % block_length != seed_off) {
@@ -351,7 +351,8 @@ struct Decoder : Common
 					}
 				}
 			}
-			std::cerr << "Es/N0 (dB): " << DSP::decibel(worst) << std::endl;
+			DSP::quick_sort(snr, symbol_count);
+			std::cerr << "Es/N0 (dB): " << std::fixed << std::setprecision(1) << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count-1]) << std::endl;
 			crc_bits = data_bits + 32;
 			shuffle(code, perm);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
