@@ -34,9 +34,11 @@ struct Encoder : public Common
 	code_type code[bits_max], perm[bits_max], mesg[bits_max];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
+	cmplx best[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
+	cmplx prev[tone_count];
 	cmplx temp[tone_count];
 	value weight[guard_len];
 
@@ -74,8 +76,9 @@ struct Encoder : public Common
 	{
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
-			tone[i] *= temp[i];
+			tone[i] *= prev[i];
 		int trials = symbol_number ? 128 : 4;
+		value best_papr = 1000;
 		for (int trial = trials - 1; trial >= 0; --trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
@@ -106,10 +109,18 @@ struct Encoder : public Common
 			}
 			mean /= symbol_len;
 			value papr(peak / mean);
-			if (papr < 5 || trial == 0) {
-				std::cerr << " " << DSP::decibel(papr);
-				break;
+			if (papr < best_papr) {
+				best_papr = papr;
+				for (int i = 0; differential && symbol_number >= 0 && i < tone_count; ++i)
+					prev[i] = temp[i];
+				for (int i = 0; i < symbol_len; ++i)
+					best[i] = tdom[i];
 			}
+		}
+		if (symbol_number >= 0) {
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] = best[i];
+			std::cerr << " " << DSP::decibel(best_papr);
 		}
 		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
