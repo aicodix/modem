@@ -248,7 +248,7 @@ struct Decoder : Common
 					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
 			setup(oper_mode);
-			std::cerr << "Es/N0 (dB):";
+			value worst = 1000;
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				if (j) {
@@ -320,7 +320,7 @@ struct Decoder : Common
 					np += norm(error);
 				}
 				value precision = sp / np;
-				std::cerr << " " << DSP::decibel(precision);
+				worst = std::min(worst, precision);
 				precision = std::min(precision, value(127));
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == pilot_off)
@@ -334,7 +334,7 @@ struct Decoder : Common
 					k += bits;
 				}
 			}
-			std::cerr << std::endl;
+			std::cerr << "Es/N0 (dB): " << DSP::decibel(worst) << std::endl;
 			crc_bits = data_bits + 32;
 			shuffle(code, perm);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
