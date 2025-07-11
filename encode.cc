@@ -48,7 +48,7 @@ struct Encoder : public Common
 	{
 		return 1 - 2 * bit;
 	}
-	void clipping_and_filtering(value scale, bool limit)
+	void clipping_and_filtering(value scale)
 	{
 		for (int i = 0; i < symbol_len; ++i) {
 			value pwr = norm(tdom[i]);
@@ -58,22 +58,17 @@ struct Encoder : public Common
 		fwd(fdom, tdom);
 		for (int i = 0; i < symbol_len; ++i) {
 			int j = bin(i + tone_off);
-			if (i >= tone_count) {
+			if (i >= tone_count)
 				fdom[j] = 0;
-			} else if (i % block_length == pilot_off) {
-				fdom[j] = temp[i];
-			} else {
+			else
 				fdom[j] *= 1 / (scale * symbol_len);
-				cmplx err = fdom[j] - temp[i];
-				value mag = abs(err);
-				value lim = 0.5 * mod_distance();
-				if (limit && mag > lim)
-					fdom[j] -= ((mag - lim) / mag) * err;
-			}
 		}
 		bwd(tdom, fdom);
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] *= scale;
+		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
 	}
 	void symbol(int symbol_number)
 	{
@@ -103,7 +98,6 @@ struct Encoder : public Common
 				tdom[i] *= scale;
 			if (symbol_number < 0)
 				break;
-			clipping_and_filtering(scale, true);
 			value peak = 0, mean = 0;
 			for (int i = 0; i < symbol_len; ++i) {
 				value power(norm(tdom[i]));
@@ -117,11 +111,7 @@ struct Encoder : public Common
 				break;
 			}
 		}
-		if (symbol_number >= 0)
-			clipping_and_filtering(scale, false);
-		auto clamp = [](value v){ return v < value(-1) ? value(-1) : v > value(1) ? value(1) : v; };
-		for (int i = 0; i < symbol_len; ++i)
-			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
+		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
 			for (int i = 0; i < guard_len; ++i)
 				guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
