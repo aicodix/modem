@@ -41,6 +41,7 @@ struct Encoder : public Common
 	cmplx prev[tone_count];
 	cmplx temp[tone_count];
 	value weight[guard_len];
+	value worst_papr = -1000;
 
 	static int bin(int carrier)
 	{
@@ -120,7 +121,7 @@ struct Encoder : public Common
 		if (symbol_number >= 0) {
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = best[i];
-			std::cerr << " " << DSP::decibel(best_papr);
+			worst_papr = std::max(worst_papr, best_papr);
 		}
 		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
@@ -270,7 +271,6 @@ struct Encoder : public Common
 			polar_encoder(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
-			std::cerr << "PAPR (dB):";
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				pilot_off = (block_skew * j + first_pilot) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
@@ -288,9 +288,9 @@ struct Encoder : public Common
 				}
 				symbol(j);
 			}
-			std::cerr << std::endl;
 		}
 		finish();
+		std::cerr << "PAPR (dB): " << DSP::decibel(worst_papr) << std::endl;
 	}
 };
 
