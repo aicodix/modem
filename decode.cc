@@ -49,7 +49,7 @@ struct Decoder : Common
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
-	CODE::HadamardDecoder<7> hadamard_decoder;
+	CODE::HadamardDecoder<6> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
@@ -232,14 +232,16 @@ struct Decoder : Common
 			fwd(fdom, tdom);
 			CODE::MLS seq1(mls1_poly);
 			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
-			for (int i = 0; i < pilot_tones; ++i)
-				meta[i] = clamp(std::nearbyint(127 * demod_or_erase(fdom[bin(i*block_length+first_pilot+tone_off)], chan[i*block_length+first_pilot]).real() * nrz(seq1())));
-			int mode = hadamard_decoder(meta) & 31;
+			for (int i = 0; i < meta_tones; ++i) {
+				meta[i] = clamp(std::nearbyint(127 * demod_or_erase(fdom[bin(i*block_length+first_meta+tone_off)], chan[i*block_length+first_meta]).real() * nrz(seq1())));
+				seq1();
+			}
+			int mode = hadamard_decoder(meta);
 			if (mode < 0 || mode > 27) {
 				std::cerr << "operation mode " << mode << " unsupported." << std::endl;
 				continue;
 			}
-			oper_mode = mode;
+			setup(mode);
 			std::cerr << "oper mode: " << oper_mode << std::endl;
 			if (oper_mode >= 10) {
 				for (int i = 0; i < tone_count; ++i)
@@ -247,10 +249,10 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
-			setup(oper_mode);
 			value worst = 1000;
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
-				pilot_off = (block_skew * j + first_pilot) % block_length;
+				meta_off = (block_skew * j + first_meta) % block_length;
+				seed_off = (block_skew * j + first_seed) % block_length;
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -268,23 +270,36 @@ struct Decoder : Common
 				}
 				for (int i = 0; i < tone_count; ++i)
 					tone[i] = fdom[bin(i+tone_off)];
-				for (int i = 0; i < pilot_tones; ++i)
-					tone[block_length*i+pilot_off] *= nrz(seq1());
+				for (int i = 0; i < tone_count; ++i)
+					if (i % block_length == meta_off || i % block_length == seed_off)
+						tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
-				for (int i = 0; i < pilot_tones; ++i)
-					meta[i] = clamp(std::nearbyint(127 * demod[i*block_length+pilot_off].real()));
+				for (int i = 0; i < meta_tones; ++i)
+					meta[i] = clamp(std::nearbyint(127 * demod[i*block_length+meta_off].real()));
 				int meta_data = hadamard_decoder(meta);
 				hadamard_encoder(meta, meta_data);
-				for (int i = 0; i < pilot_tones; ++i) {
-					tone[block_length*i+pilot_off] *= meta[i];
-					demod[block_length*i+pilot_off] *= meta[i];
+				for (int i = 0; i < meta_tones; ++i) {
+					tone[block_length*i+meta_off] *= meta[i];
+					demod[block_length*i+meta_off] *= meta[i];
 				}
-				for (int i = 0; i < pilot_tones; ++i) {
-					index[i] = tone_off + block_length * i + pilot_off;
-					phase[i] = arg(demod[block_length*i+pilot_off]);
+				for (int i = 0; i < meta_tones; ++i) {
+					index[i] = tone_off + block_length * i + meta_off;
+					phase[i] = arg(demod[block_length*i+meta_off]);
 				}
-				tse.compute(index, phase, pilot_tones);
+				for (int i = 0; i < seed_tones; ++i)
+					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
+				int seed_data = hadamard_decoder(seed);
+				hadamard_encoder(seed, seed_data);
+				for (int i = 0; i < seed_tones; ++i) {
+					tone[block_length*i+seed_off] *= seed[i];
+					demod[block_length*i+seed_off] *= seed[i];
+				}
+				for (int i = 0; i < seed_tones; ++i) {
+					index[i+meta_tones] = tone_off + block_length * i + seed_off;
+					phase[i+meta_tones] = arg(demod[block_length*i+seed_off]);
+				}
+				tse.compute(index, phase, meta_tones + seed_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 				for (int i = 0; i < tone_count; ++i)
@@ -295,17 +310,19 @@ struct Decoder : Common
 					for (int i = 0; i < tone_count; ++i)
 						chan[i] = fdom[bin(i+tone_off)];
 				} else {
-					for (int i = pilot_off; i < tone_count; i += block_length)
+					for (int i = meta_off; i < tone_count; i += block_length)
+						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+					for (int i = seed_off; i < tone_count; i += block_length)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
-				CODE::MLS seq2(mls2_poly, meta_data);
+				CODE::MLS seq2(mls2_poly, seed_data);
 				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length != pilot_off)
+					if (i % block_length != meta_off && i % block_length != seed_off)
 						demod[i] *= nrz(seq2());
 				value sp = 0, np = 0;
 				for (int i = 0, l = k; i < tone_count; ++i) {
 					cmplx hard(1, 0);
-					if (i % block_length != pilot_off) {
+					if (i % block_length != meta_off && i % block_length != seed_off) {
 						int bits = mod_bits;
 						if (oper_mode >= 7 && oper_mode <= 9 && l % 32 == 30)
 							bits = 2;
@@ -323,15 +340,15 @@ struct Decoder : Common
 				worst = std::min(worst, precision);
 				precision = std::min(precision, value(127));
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == pilot_off)
-						continue;
-					int bits = mod_bits;
-					if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
-						bits = 2;
-					if (oper_mode >= 21 && oper_mode <= 23 && k % 64 == 60)
-						bits = 4;
-					demap_soft(perm+k, demod[i], precision, bits);
-					k += bits;
+					if (i % block_length != meta_off && i % block_length != seed_off) {
+						int bits = mod_bits;
+						if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
+							bits = 2;
+						if (oper_mode >= 21 && oper_mode <= 23 && k % 64 == 60)
+							bits = 4;
+						demap_soft(perm+k, demod[i], precision, bits);
+						k += bits;
+					}
 				}
 			}
 			std::cerr << "Es/N0 (dB): " << DSP::decibel(worst) << std::endl;

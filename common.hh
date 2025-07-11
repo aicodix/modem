@@ -21,14 +21,17 @@ struct Common
 	static const int mls1_poly = 0x43;
 	static const int mls2_poly = 0x163;
 	static const int data_tones = 256;
-	static const int pilot_tones = 64;
-	static const int tone_count = data_tones + pilot_tones;
-	static const int block_length = 5;
+	static const int meta_tones = 32;
+	static const int seed_tones = 32;
+	static const int tone_count = data_tones + meta_tones + seed_tones;
+	static const int block_length = 10;
 	static const int block_skew = 3;
-	static const int first_pilot = 4;
+	static const int first_meta = 4;
+	static const int first_seed = 9;
 	CODE::CRC<uint32_t> crc0;
-	CODE::HadamardEncoder<7> hadamard_encoder;
-	int8_t meta[64];
+	CODE::HadamardEncoder<6> hadamard_encoder;
+	int8_t meta[32];
+	int8_t seed[32];
 	uint8_t data[data_max];
 	const uint32_t *frozen_bits;
 	int mod_bits;
@@ -37,8 +40,8 @@ struct Common
 	int code_order;
 	int oper_mode;
 	int tone_off;
-	int pilot_off;
-	int reserved_off;
+	int meta_off;
+	int seed_off;
 	int symbol_count;
 	bool differential;
 

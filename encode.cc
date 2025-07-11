@@ -78,19 +78,22 @@ struct Encoder : public Common
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= prev[i];
-		int trials = symbol_number ? 128 : 4;
+		if (symbol_number >= 0) {
+			hadamard_encoder(meta, symbol_number ? symbol_number : oper_mode);
+			for (int i = 0; i < meta_tones; ++i)
+				tone[block_length*i+meta_off] *= meta[i];
+		}
 		value best_papr = 1000;
-		for (int trial = trials - 1; trial >= 0; --trial) {
+		for (int trial = 0; trial < 64; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
-				int meta_data = symbol_number ? trial : (oper_mode | (trial << 5));
-				hadamard_encoder(meta, meta_data);
-				CODE::MLS seq2(mls2_poly, meta_data);
-				for (int i = 0, m = 0; i < tone_count; ++i)
-					if (i % block_length == pilot_off)
-						temp[i] *= meta[m++];
-					else
+				hadamard_encoder(seed, trial);
+				CODE::MLS seq2(mls2_poly, trial);
+				for (int i = 0, s = 0; i < tone_count; ++i)
+					if (i % block_length == seed_off)
+						temp[i] *= seed[s++];
+					else if (i % block_length != meta_off)
 						temp[i] *= nrz(seq2());
 			}
 			for (int i = 0; i < symbol_len; ++i)
@@ -272,9 +275,10 @@ struct Encoder : public Common
 			shuffle(perm, code);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
-				pilot_off = (block_skew * j + first_pilot) % block_length;
+				meta_off = (block_skew * j + first_meta) % block_length;
+				seed_off = (block_skew * j + first_seed) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == pilot_off) {
+					if (i % block_length == meta_off || i % block_length == seed_off) {
 						tone[i] = nrz(seq1());
 					} else {
 						int bits = mod_bits;
