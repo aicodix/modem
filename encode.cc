@@ -86,12 +86,12 @@ struct Encoder : public Common
 			if (symbol_number >= 0) {
 				int meta_data = symbol_number ? trial : (oper_mode | (trial << 5));
 				hadamard_encoder(meta, meta_data);
-				CODE::MLS seq(0x163, meta_data);
+				CODE::MLS seq2(mls2_poly, meta_data);
 				for (int i = 0, m = 0; i < tone_count; ++i)
 					if (i % block_length == pilot_off)
 						temp[i] *= meta[m++];
 					else
-						temp[i] *= nrz(seq());
+						temp[i] *= nrz(seq2());
 			}
 			for (int i = 0; i < symbol_len; ++i)
 				fdom[i] = 0;
@@ -143,7 +143,7 @@ struct Encoder : public Common
 	}
 	void leading_noise(int num = 1)
 	{
-		CODE::MLS noise(0x163);
+		CODE::MLS noise(mls2_poly);
 		for (int j = 0; j < num; ++j) {
 			for (int i = 0; i < tone_count; ++i)
 				tone[i] = nrz(noise());

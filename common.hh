@@ -19,6 +19,7 @@ struct Common
 	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
+	static const int mls2_poly = 0x163;
 	static const int data_tones = 256;
 	static const int pilot_tones = 64;
 	static const int tone_count = data_tones + pilot_tones;
