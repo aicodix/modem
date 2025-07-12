@@ -278,6 +278,10 @@ struct Decoder : Common
 				for (int i = 0; i < meta_tones; ++i)
 					meta[i] = clamp(std::nearbyint(127 * demod[i*block_length+meta_off].real()));
 				int meta_data = hadamard_decoder(meta);
+				if (meta_data < 0) {
+					std::cerr << "meta data damaged" << std::endl;
+					meta_data = 0;
+				}
 				hadamard_encoder(meta, meta_data);
 				for (int i = 0; i < meta_tones; ++i) {
 					tone[block_length*i+meta_off] *= meta[i];
@@ -290,6 +294,10 @@ struct Decoder : Common
 				for (int i = 0; i < seed_tones; ++i)
 					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
 				int seed_data = hadamard_decoder(seed);
+				if (seed_data < 0) {
+					std::cerr << "seed data damaged" << std::endl;
+					seed_data = 0;
+				}
 				hadamard_encoder(seed, seed_data);
 				for (int i = 0; i < seed_tones; ++i) {
 					tone[block_length*i+seed_off] *= seed[i];
@@ -315,10 +323,15 @@ struct Decoder : Common
 					for (int i = seed_off; i < tone_count; i += block_length)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
-				CODE::MLS seq2(mls2_poly, seed_data);
+				int poly_index = j ? meta_data : 0;
+				if (poly_index < 0 || poly_index > 15) {
+					std::cerr << "poly index damaged" << std::endl;
+					meta_data = 0;
+				}
+				CODE::MLS seq(slm_poly[poly_index], seed_data+1);
 				for (int i = 0; i < tone_count; ++i)
 					if (i % block_length != meta_off && i % block_length != seed_off)
-						demod[i] *= nrz(seq2());
+						demod[i] *= nrz(seq());
 				value sp = 0, np = 0;
 				for (int i = 0, l = k; i < tone_count; ++i) {
 					cmplx hard(1, 0);

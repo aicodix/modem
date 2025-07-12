@@ -79,23 +79,25 @@ struct Encoder : public Common
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= prev[i];
-		if (symbol_number >= 0) {
-			hadamard_encoder(meta, symbol_number ? symbol_number : oper_mode);
-			for (int i = 0; i < meta_tones; ++i)
-				tone[block_length*i+meta_off] *= meta[i];
-		}
 		value best_papr = 1000;
-		for (int trial = 0; trial < 64; ++trial) {
+		int trials = symbol_number ? 16 * 64 : 64;
+		for (int trial = 0; trial < trials; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
-				hadamard_encoder(seed, trial);
-				CODE::MLS seq2(mls2_poly, trial);
-				for (int i = 0, s = 0; i < tone_count; ++i)
-					if (i % block_length == seed_off)
+				int poly_index = trial >> 6;
+				int meta_data = symbol_number ? poly_index : oper_mode;
+				hadamard_encoder(meta, meta_data);
+				int seed_data = trial & 63;
+				hadamard_encoder(seed, seed_data);
+				CODE::MLS seq(slm_poly[poly_index], seed_data + 1);
+				for (int i = 0, m = 0, s = 0; i < tone_count; ++i)
+					if (i % block_length == meta_off)
+						temp[i] *= meta[m++];
+					else if (i % block_length == seed_off)
 						temp[i] *= seed[s++];
-					else if (i % block_length != meta_off)
-						temp[i] *= nrz(seq2());
+					else
+						temp[i] *= nrz(seq());
 			}
 			for (int i = 0; i < symbol_len; ++i)
 				fdom[i] = 0;
