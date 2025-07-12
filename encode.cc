@@ -80,19 +80,19 @@ struct Encoder : public Common
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= prev[i];
 		value best_papr = 1000;
-		int trials = symbol_number ? 16 * 256 : 64;
+		int trials = symbol_number ? 256 : 64;
+		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
 		for (int trial = 0; trial < trials; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
-				int seed_value = trial & 255;
-				if (seed_value == 0)
-					continue;
-				int poly_index = trial >> 8;
-				int meta_data = symbol_number ? (poly_index << 2 | ((trial >> 6) & 3)) : oper_mode;
+				int comb = combination();
+				int meta_data = symbol_number ? trial >> 6 : oper_mode;
 				hadamard_encoder(meta, meta_data);
 				int seed_data = trial & 63;
 				hadamard_encoder(seed, seed_data);
+				int poly_index = comb & 15;
+				int seed_value = comb >> 4;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0, m = 0, s = 0; i < tone_count; ++i)
 					if (i % block_length == meta_off)

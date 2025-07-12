@@ -323,15 +323,13 @@ struct Decoder : Common
 					for (int i = seed_off; i < tone_count; i += block_length)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
-				int poly_index = j ? meta_data >> 2 : 0;
-				if (poly_index < 0 || poly_index > 15) {
-					std::cerr << "poly index damaged" << std::endl;
-					meta_data = 0;
-				}
-				int seed_value = j ? ((meta_data & 3) << 6) | seed_data : seed_data;
-				if (seed_value == 0) {
-					std::cerr << "reserved seed value detected" << std::endl;
-				}
+				CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
+				int trial = j ? (meta_data << 6) | seed_data : seed_data;
+				int comb = 0;
+				for (int i = 0; i <= trial; ++i)
+					comb = combination();
+				int poly_index = comb & 15;
+				int seed_value = comb >> 4;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0; i < tone_count; ++i)
 					if (i % block_length != meta_off && i % block_length != seed_off)
