@@ -225,7 +225,7 @@ struct Decoder : Common
 			}
 			tse.compute(index, phase, tone_count);
 			std::cerr << "coarse sfo: " << -1000000 * tse.slope() / Const::TwoPi() << " ppm" << std::endl;
-			std::cerr << "residual cfo: " << tse.yint() * rate / (Const::TwoPi() * symbol_len) << " Hz" << std::endl;
+			std::cerr << "residual cfo: " << 1000 * tse.yint() * rate / (Const::TwoPi() * symbol_len) << " mHz" << std::endl;
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = buf[i+symbol_pos+symbol_len+extended_len] * osc();
 			for (int i = 0; i < guard_len; ++i)
