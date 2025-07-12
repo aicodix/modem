@@ -80,7 +80,7 @@ struct Encoder : public Common
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= prev[i];
 		value best_papr = 1000;
-		int trials = symbol_number ? 256 : 64;
+		int trials = symbol_number ? 4096 : 64;
 		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
 		for (int trial = 0; trial < trials; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
@@ -125,6 +125,8 @@ struct Encoder : public Common
 					prev[i] = temp[i];
 				for (int i = 0; i < symbol_len; ++i)
 					best[i] = tdom[i];
+				if (cand_papr < 5)
+					break;
 			}
 		}
 		if (symbol_number >= 0) {
