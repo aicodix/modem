@@ -93,6 +93,8 @@ struct Encoder : public Common
 				hadamard_encoder(seed, seed_data);
 				int poly_index = comb & 15;
 				int seed_value = comb >> 4;
+				if (seed_value == 0)
+					continue;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0, m = 0, s = 0; i < tone_count; ++i)
 					if (i % block_length == meta_off)

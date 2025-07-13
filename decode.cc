@@ -325,6 +325,8 @@ struct Decoder : Common
 					comb = combination();
 				int poly_index = comb & 15;
 				int seed_value = comb >> 4;
+				if (seed_value == 0)
+					std::cerr << "reserved seed value detected" << std::endl;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0; i < tone_count; ++i)
 					if (i % block_length != meta_off && i % block_length != seed_off)
