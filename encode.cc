@@ -207,12 +207,7 @@ struct Encoder : public Common
 	}
 	void shuffle(code_type *dest, const code_type *src)
 	{
-		if (code_order == 11) {
-			CODE::XorShiftMask<int, 11, 1, 3, 4, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 2048; ++i)
-				dest[i] = src[seq()];
-		} else if (code_order == 12) {
+		if (code_order == 12) {
 			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 4096; ++i)
@@ -290,9 +285,9 @@ struct Encoder : public Common
 						tone[i] = nrz(seq1());
 					} else {
 						int bits = mod_bits;
-						if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
+						if (oper_mode == 2 && k % 32 == 30)
 							bits = 2;
-						if (oper_mode >= 21 && oper_mode <= 23 && k % 64 == 60)
+						if (oper_mode == 6 && k % 64 == 60)
 							bits = 4;
 						tone[i] = map_bits(perm+k, bits);
 						k += bits;
@@ -328,7 +323,7 @@ int main(int argc, char **argv)
 	}
 	int input_count = argc - 7;
 	int oper_mode = std::atoi(argv[6]);
-	if (oper_mode < 0 || oper_mode > 27) {
+	if (oper_mode < 0 || oper_mode > 7) {
 		std::cerr << "Unsupported operation mode." << std::endl;
 		return 1;
 	}

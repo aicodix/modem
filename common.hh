@@ -16,7 +16,7 @@ struct Common
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 4096;
-	static const int symbols_max = 44;
+	static const int symbols_max = 32;
 	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
@@ -56,221 +56,61 @@ struct Common
 		switch (mode) {
 		case 0:
 			mod_bits = 1;
-			symbol_count = 8;
-			differential = true;
-			code_order = 11;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
-			break;
-		case 1:
-			mod_bits = 1;
 			symbol_count = 16;
 			differential = true;
 			code_order = 12;
 			data_bits = 2048;
 			frozen_bits = frozen_4096_2080;
 			break;
-		case 2:
-			mod_bits = 1;
-			symbol_count = 32;
+		case 1:
+			mod_bits = 2;
+			symbol_count = 16;
 			differential = true;
 			code_order = 13;
 			data_bits = 4096;
 			frozen_bits = frozen_8192_4128;
 			break;
-		case 3:
-			mod_bits = 2;
-			symbol_count = 4;
+		case 2:
+			mod_bits = 3;
+			symbol_count = 22;
 			differential = true;
-			code_order = 11;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
+			code_order = 14;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
+			break;
+		case 3:
+			mod_bits = 1;
+			symbol_count = 16;
+			differential = false;
+			code_order = 12;
+			data_bits = 2048;
+			frozen_bits = frozen_4096_2080;
 			break;
 		case 4:
 			mod_bits = 2;
-			symbol_count = 8;
-			differential = true;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
+			symbol_count = 16;
+			differential = false;
+			code_order = 13;
+			data_bits = 4096;
+			frozen_bits = frozen_8192_4128;
 			break;
 		case 5:
-			mod_bits = 2;
+			mod_bits = 4;
 			symbol_count = 16;
-			differential = true;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
+			differential = false;
+			code_order = 14;
+			data_bits = 8192;
+			frozen_bits = frozen_16384_8224;
 			break;
 		case 6:
-			mod_bits = 2;
-			symbol_count = 32;
-			differential = true;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
+			mod_bits = 6;
+			symbol_count = 22;
+			differential = false;
+			code_order = 15;
+			data_bits = 16384;
+			frozen_bits = frozen_32768_16416;
 			break;
 		case 7:
-			mod_bits = 3;
-			symbol_count = 11;
-			differential = true;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 8:
-			mod_bits = 3;
-			symbol_count = 22;
-			differential = true;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 9:
-			mod_bits = 3;
-			symbol_count = 44;
-			differential = true;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 10:
-			mod_bits = 1;
-			symbol_count = 8;
-			differential = false;
-			code_order = 11;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
-			break;
-		case 11:
-			mod_bits = 1;
-			symbol_count = 16;
-			differential = false;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 12:
-			mod_bits = 1;
-			symbol_count = 32;
-			differential = false;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 13:
-			mod_bits = 2;
-			symbol_count = 4;
-			differential = false;
-			code_order = 11;
-			data_bits = 1024;
-			frozen_bits = frozen_2048_1056;
-			break;
-		case 14:
-			mod_bits = 2;
-			symbol_count = 8;
-			differential = false;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 15:
-			mod_bits = 2;
-			symbol_count = 16;
-			differential = false;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 16:
-			mod_bits = 2;
-			symbol_count = 32;
-			differential = false;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 17:
-			mod_bits = 4;
-			symbol_count = 4;
-			differential = false;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 18:
-			mod_bits = 4;
-			symbol_count = 8;
-			differential = false;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 19:
-			mod_bits = 4;
-			symbol_count = 16;
-			differential = false;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 20:
-			mod_bits = 4;
-			symbol_count = 32;
-			differential = false;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 21:
-			mod_bits = 6;
-			symbol_count = 11;
-			differential = false;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 22:
-			mod_bits = 6;
-			symbol_count = 22;
-			differential = false;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 23:
-			mod_bits = 6;
-			symbol_count = 44;
-			differential = false;
-			code_order = 16;
-			data_bits = 32768;
-			frozen_bits = frozen_65536_32800;
-			break;
-		case 24:
-			mod_bits = 8;
-			symbol_count = 4;
-			differential = false;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 25:
-			mod_bits = 8;
-			symbol_count = 8;
-			differential = false;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
-			break;
-		case 26:
-			mod_bits = 8;
-			symbol_count = 16;
-			differential = false;
-			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
-			break;
-		case 27:
 			mod_bits = 8;
 			symbol_count = 32;
 			differential = false;

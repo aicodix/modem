@@ -140,12 +140,7 @@ struct Decoder : Common
 	}
 	void shuffle(code_type *dest, const code_type *src)
 	{
-		if (code_order == 11) {
-			CODE::XorShiftMask<int, 11, 1, 3, 4, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 2048; ++i)
-				dest[seq()] = src[i];
-		} else if (code_order == 12) {
+		if (code_order == 12) {
 			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 4096; ++i)
@@ -238,13 +233,13 @@ struct Decoder : Common
 				seq1();
 			}
 			int mode = hadamard_decoder(meta);
-			if (mode < 0 || mode > 27) {
+			if (mode < 0 || mode > 7) {
 				std::cerr << "operation mode " << mode << " unsupported." << std::endl;
 				continue;
 			}
 			setup(mode);
 			std::cerr << "oper mode: " << oper_mode << std::endl;
-			if (oper_mode >= 10) {
+			if (oper_mode >= 3) {
 				for (int i = 0; i < tone_count; ++i)
 					tone[i] *= DSP::polar<value>(1, tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
@@ -339,9 +334,9 @@ struct Decoder : Common
 					cmplx hard(1, 0);
 					if (i % block_length != meta_off && i % block_length != seed_off) {
 						int bits = mod_bits;
-						if (oper_mode >= 7 && oper_mode <= 9 && l % 32 == 30)
+						if (oper_mode == 2 && l % 32 == 30)
 							bits = 2;
-						if (oper_mode >= 21 && oper_mode <= 23 && l % 64 == 60)
+						if (oper_mode == 6 && l % 64 == 60)
 							bits = 4;
 						demap_hard(perm+l, demod[i], bits);
 						hard = map_bits(perm+l, bits);
@@ -357,9 +352,9 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length != meta_off && i % block_length != seed_off) {
 						int bits = mod_bits;
-						if (oper_mode >= 7 && oper_mode <= 9 && k % 32 == 30)
+						if (oper_mode == 2 && k % 32 == 30)
 							bits = 2;
-						if (oper_mode >= 21 && oper_mode <= 23 && k % 64 == 60)
+						if (oper_mode == 6 && k % 64 == 60)
 							bits = 4;
 						demap_soft(perm+k, demod[i], precision, bits);
 						k += bits;
