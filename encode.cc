@@ -80,14 +80,14 @@ struct Encoder : public Common
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= prev[i];
 		value best_papr = 1000;
-		int trials = symbol_number ? 4096 : 64;
+		int trials = symbol_number ? 4096 : 512;
 		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
 		for (int trial = 0; trial < trials; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
 				int comb = combination();
-				int meta_data = symbol_number ? trial >> 6 : oper_mode;
+				int meta_data = symbol_number ? trial >> 6 : (oper_mode << 3) | (trial >> 6);
 				hadamard_encoder(meta, meta_data);
 				int seed_data = trial & 63;
 				hadamard_encoder(seed, seed_data);

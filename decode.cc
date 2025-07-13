@@ -232,12 +232,12 @@ struct Decoder : Common
 				meta[i] = clamp(std::nearbyint(127 * demod_or_erase(fdom[bin(i*block_length+first_meta+tone_off)], chan[i*block_length+first_meta]).real() * nrz(seq1())));
 				seq1();
 			}
-			int mode = hadamard_decoder(meta);
-			if (mode < 0 || mode > 7) {
-				std::cerr << "operation mode " << mode << " unsupported." << std::endl;
+			int meta_data = hadamard_decoder(meta);
+			if (meta_data < 0) {
+				std::cerr << "meta data damaged" << std::endl;
 				continue;
 			}
-			setup(mode);
+			setup(meta_data >> 3);
 			std::cerr << "oper mode: " << oper_mode << std::endl;
 			if (oper_mode >= 3) {
 				for (int i = 0; i < tone_count; ++i)
@@ -319,7 +319,7 @@ struct Decoder : Common
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
 				CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
-				int trial = j ? (meta_data << 6) | seed_data : seed_data;
+				int trial = j ? (meta_data << 6) | seed_data : (meta_data & 7) << 6 | seed_data;
 				int comb = 0;
 				for (int i = 0; i <= trial; ++i)
 					comb = combination();
