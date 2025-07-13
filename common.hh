@@ -13,10 +13,10 @@ Copyright 2025 Ahmet Inan <inan@aicodix.de>
 struct Common
 {
 	static const int mod_max = 8;
-	static const int code_max = 16;
+	static const int code_max = 15;
 	static const int bits_max = 1 << code_max;
-	static const int data_max = 4096;
-	static const int symbols_max = 32;
+	static const int data_max = 2048;
+	static const int symbols_max = 22;
 	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
@@ -96,27 +96,27 @@ struct Common
 			break;
 		case 5:
 			mod_bits = 4;
+			symbol_count = 4;
+			differential = false;
+			code_order = 12;
+			data_bits = 2048;
+			frozen_bits = frozen_4096_2080;
+			break;
+		case 6:
+			mod_bits = 4;
 			symbol_count = 16;
 			differential = false;
 			code_order = 14;
 			data_bits = 8192;
 			frozen_bits = frozen_16384_8224;
 			break;
-		case 6:
+		case 7:
 			mod_bits = 6;
 			symbol_count = 22;
 			differential = false;
 			code_order = 15;
 			data_bits = 16384;
 			frozen_bits = frozen_32768_16416;
-			break;
-		case 7:
-			mod_bits = 8;
-			symbol_count = 32;
-			differential = false;
-			code_order = 16;
-			data_bits = 32768;
-			frozen_bits = frozen_65536_32800;
 			break;
 		default:
 			return;

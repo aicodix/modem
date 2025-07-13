@@ -3,10 +3,10 @@
 
 Quick start:
 
-Create file ```uncoded.dat``` with ```8192``` bits of random data:
+Create file ```uncoded.dat``` with ```2048``` bits of random data:
 
 ```
-dd if=/dev/urandom of=uncoded.dat bs=1 count=1024
+dd if=/dev/urandom of=uncoded.dat bs=1 count=256
 ```
 
 Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 8000 Hz sample rate, 16 bits and only 1 (real) channel:
@@ -44,16 +44,16 @@ diff -s uncoded.dat decoded.dat
 All modes need a bandwidth of 2000 Hz and use a 1/2-rate forward error correction code
 
 These use a differential modulation scheme:
-* Mode 0: DBPSK, 3.06 seconds and 256 bytes
-* Mode 1: DQPSK, 3.06 seconds and 512 bytes
-* Mode 2: D8PSK, 4.08 seconds and 1024 bytes
+* Mode 0: DBPSK, 3 seconds and 256 bytes
+* Mode 1: DQPSK, 3 seconds and 512 bytes
+* Mode 2: D8PSK, 4 seconds and 1024 bytes
 
 And these a coherent modulation scheme:
-* Mode 3: BPSK, 3.06 seconds and 256 bytes
-* Mode 4: QPSK, 3.06 seconds and 512 bytes
-* Mode 5: QAM16, 3.06 seconds and 1024 bytes
-* Mode 6: QAM64, 4.08 seconds and 2048 bytes
-* Mode 7: QAM256, 5.78 seconds and 4096 bytes
+* Mode 3: BPSK, 3 seconds and 256 bytes
+* Mode 4: QPSK, 3 seconds and 512 bytes
+* Mode 5: QAM16, 1 second and 256 bytes
+* Mode 6: QAM16, 3 seconds and 1024 bytes
+* Mode 7: QAM64, 4 seconds and 2048 bytes
 
 ### Simulating
 

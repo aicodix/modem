@@ -160,11 +160,6 @@ struct Decoder : Common
 			dest[0] = src[0];
 			for (int i = 1; i < 32768; ++i)
 				dest[seq()] = src[i];
-		} else if (code_order == 16) {
-			CODE::XorShiftMask<int, 16, 1, 1, 14, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 65536; ++i)
-				dest[seq()] = src[i];
 		}
 	}
 	const cmplx *next_sample()
@@ -338,7 +333,7 @@ struct Decoder : Common
 						int bits = mod_bits;
 						if (oper_mode == 2 && l % 32 == 30)
 							bits = 2;
-						if (oper_mode == 6 && l % 64 == 60)
+						if (oper_mode == 7 && l % 64 == 60)
 							bits = 4;
 						demap_hard(perm+l, demod[i], bits);
 						hard = map_bits(perm+l, bits);
@@ -356,7 +351,7 @@ struct Decoder : Common
 						int bits = mod_bits;
 						if (oper_mode == 2 && k % 32 == 30)
 							bits = 2;
-						if (oper_mode == 6 && k % 64 == 60)
+						if (oper_mode == 7 && k % 64 == 60)
 							bits = 4;
 						demap_soft(perm+k, demod[i], precision, bits);
 						k += bits;
