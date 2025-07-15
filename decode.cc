@@ -4,7 +4,9 @@ OFDM modem decoder
 Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
+#include <iomanip>
 #include <iostream>
+#include <cstdint>
 #include <cassert>
 #include <cmath>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }

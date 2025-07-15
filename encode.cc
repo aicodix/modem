@@ -4,7 +4,9 @@ OFDM modem encoder
 Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
+#include <iomanip>
 #include <iostream>
+#include <cstdint>
 #include <cassert>
 #include <cmath>
 #include "common.hh"
