@@ -41,7 +41,7 @@ diff -s uncoded.dat decoded.dat
 
 ### Supported Modes
 
-All modes need a bandwidth of 2000 Hz and use a 1/2-rate forward error correction code
+All modes need a bandwidth of 2400 Hz and use a 1/2-rate forward error correction code
 
 These use a differential modulation scheme:
 * Mode 0: DBPSK, 3 seconds and 256 bytes
