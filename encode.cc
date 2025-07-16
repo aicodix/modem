@@ -28,8 +28,8 @@ template <typename value, typename cmplx, int rate>
 struct Encoder : public Common
 {
 	typedef int8_t code_type;
-	static const int guard_len = rate / 100;
-	static const int symbol_len = guard_len * 16;
+	static const int guard_len = rate / 300;
+	static const int symbol_len = guard_len * 40;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
@@ -316,8 +316,8 @@ int main(int argc, char **argv)
 	int output_chan = std::atoi(argv[4]);
 
 	int freq_off = std::atoi(argv[5]);
-	if (freq_off % 100) {
-		std::cerr << "Frequency offset must be divisible by 100." << std::endl;
+	if (freq_off % 300) {
+		std::cerr << "Frequency offset must be divisible by 300." << std::endl;
 		return 1;
 	}
 	int input_count = argc - 7;
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported operation mode." << std::endl;
 		return 1;
 	}
-	int band_width = 2000;
+	int band_width = 2400;
 	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
 		std::cerr << "Unsupported frequency offset." << std::endl;
 		return 1;
@@ -337,12 +337,6 @@ int main(int argc, char **argv)
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
 	output_file.silence(output_rate);
 	switch (output_rate) {
-	case 8000:
-		delete new Encoder<value, cmplx, 8000>(&output_file, argv+7, input_count, freq_off, oper_mode);
-		break;
-	case 16000:
-		delete new Encoder<value, cmplx, 16000>(&output_file, argv+7, input_count, freq_off, oper_mode);
-		break;
 	case 44100:
 		delete new Encoder<value, cmplx, 44100>(&output_file, argv+7, input_count, freq_off, oper_mode);
 		break;

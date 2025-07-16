@@ -37,9 +37,9 @@ struct Decoder : Common
 	typedef int16_t code_type;
 	typedef SIMD<code_type, 32> mesg_type;
 	typedef DSP::Const<value> Const;
-	static const int guard_len = rate / 100;
-	static const int symbol_len = guard_len * 16;
-	static const int filter_len = (((21 * rate) / 8000) & ~3) | 1;
+	static const int guard_len = rate / 300;
+	static const int symbol_len = guard_len * 40;
+	static const int filter_len = 129;
 	static const int extended_len = symbol_len + guard_len;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
@@ -423,12 +423,6 @@ int main(int argc, char **argv)
 	std::cerr << std::fixed << std::setprecision(1);
 	int output_count = argc - 2;
 	switch (input_file.rate()) {
-	case 8000:
-		delete new Decoder<value, cmplx, 8000>(&input_file, argv+2, output_count);
-		break;
-	case 16000:
-		delete new Decoder<value, cmplx, 16000>(&input_file, argv+2, output_count);
-		break;
 	case 44100:
 		delete new Decoder<value, cmplx, 44100>(&input_file, argv+2, output_count);
 		break;
