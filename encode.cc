@@ -209,24 +209,29 @@ struct Encoder : public Common
 		}
 		return 2;
 	}
-	void shuffle(code_type *dest, const code_type *src)
+	void shuffle(code_type *dest, const code_type *src, int order)
 	{
-		if (code_order == 12) {
+		if (order == 8) {
+			CODE::XorShiftMask<int, 8, 1, 1, 2, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 256; ++i)
+				dest[i] = src[seq()];
+		} else if (order == 12) {
 			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 4096; ++i)
 				dest[i] = src[seq()];
-		} else if (code_order == 13) {
+		} else if (order == 13) {
 			CODE::XorShiftMask<int, 13, 1, 1, 9, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 8192; ++i)
 				dest[i] = src[seq()];
-		} else if (code_order == 14) {
+		} else if (order == 14) {
 			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 16384; ++i)
 				dest[i] = src[seq()];
-		} else if (code_order == 15) {
+		} else if (order == 15) {
 			CODE::XorShiftMask<int, 15, 1, 1, 3, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 32768; ++i)
@@ -274,7 +279,7 @@ struct Encoder : public Common
 			for (int i = 0; i < 32; ++i)
 				mesg[i+data_bits] = nrz((crc0()>>i)&1);
 			polar_encoder(code, mesg, frozen_bits, code_order);
-			shuffle(perm, code);
+			shuffle(perm, code, code_order);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
 				meta_off = (block_skew * j + first_meta) % block_length;

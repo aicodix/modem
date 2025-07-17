@@ -140,24 +140,29 @@ struct Decoder : Common
 			return QuadratureAmplitudeModulation<256, cmplx, code_type>::hard(b, c);
 		}
 	}
-	void shuffle(code_type *dest, const code_type *src)
+	void shuffle(code_type *dest, const code_type *src, int order)
 	{
-		if (code_order == 12) {
+		if (order == 8) {
+			CODE::XorShiftMask<int, 8, 1, 1, 2, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 256; ++i)
+				dest[seq()] = src[i];
+		} else if (order == 12) {
 			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 4096; ++i)
 				dest[seq()] = src[i];
-		} else if (code_order == 13) {
+		} else if (order == 13) {
 			CODE::XorShiftMask<int, 13, 1, 1, 9, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 8192; ++i)
 				dest[seq()] = src[i];
-		} else if (code_order == 14) {
+		} else if (order == 14) {
 			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 16384; ++i)
 				dest[seq()] = src[i];
-		} else if (code_order == 15) {
+		} else if (order == 15) {
 			CODE::XorShiftMask<int, 15, 1, 1, 3, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 32768; ++i)
@@ -363,7 +368,7 @@ struct Decoder : Common
 			DSP::quick_sort(snr, symbol_count);
 			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count-1]) << std::endl;
 			crc_bits = data_bits + 32;
-			shuffle(code, perm);
+			shuffle(code, perm, code_order);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
 			for (int k = 0; k < mesg_type::SIZE; ++k) {
