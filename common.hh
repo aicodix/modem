@@ -32,7 +32,8 @@ struct Common
 	static constexpr int slm_poly[16] = {
 			0x11d, 0x12b, 0x12d, 0x14d, 0x15f, 0x163, 0x165, 0x169,
 			0x171, 0x187, 0x18d, 0x1a9, 0x1c3, 0x1cf, 0x1e7, 0x1f5 };
-	CODE::CRC<uint32_t> crc0;
+	CODE::CRC<uint16_t> crc0;
+	CODE::CRC<uint32_t> crc1;
 	CODE::HadamardEncoder<6> hadamard_encoder;
 	int8_t head[32];
 	int8_t tail[32];
@@ -49,7 +50,7 @@ struct Common
 	int symbol_count;
 	bool differential;
 
-	Common() : crc0(0x8F6E37A0) {}
+	Common() : crc0(0xA8F4), crc1(0x8F6E37A0) {}
 
 	void setup(int mode)
 	{

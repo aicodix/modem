@@ -372,10 +372,10 @@ struct Decoder : Common
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
 			for (int k = 0; k < mesg_type::SIZE; ++k) {
-				crc0.reset();
+				crc1.reset();
 				for (int i = 0; i < crc_bits; ++i)
-					crc0(mesg[i].v[k] < 0);
-				if (crc0() == 0) {
+					crc1(mesg[i].v[k] < 0);
+				if (crc1() == 0) {
 					best = k;
 					break;
 				}

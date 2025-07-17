@@ -273,11 +273,11 @@ struct Encoder : public Common
 			schmidl_cox();
 			for (int i = 0; i < data_bits; ++i)
 				mesg[i] = nrz(CODE::get_le_bit(data, i));
-			crc0.reset();
+			crc1.reset();
 			for (int i = 0; i < data_bytes; ++i)
-				crc0(data[i]);
+				crc1(data[i]);
 			for (int i = 0; i < 32; ++i)
-				mesg[i+data_bits] = nrz((crc0()>>i)&1);
+				mesg[i+data_bits] = nrz((crc1()>>i)&1);
 			polar_encoder(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code, code_order);
 			CODE::MLS seq1(mls1_poly);
