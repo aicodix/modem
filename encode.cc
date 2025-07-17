@@ -34,7 +34,7 @@ struct Encoder : public Common
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::PolarEncoder<code_type> polar_encoder;
-	code_type code[bits_max], perm[bits_max], mesg[bits_max];
+	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[256];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx best[symbol_len];
@@ -82,14 +82,13 @@ struct Encoder : public Common
 		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
 			tone[i] *= prev[i];
 		value best_papr = 1000;
-		int trials = symbol_number ? 4096 : 512;
 		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
-		for (int trial = 0; trial < trials; ++trial) {
+		for (int trial = 0; trial < 4096; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
 				int comb = combination();
-				int head_data = symbol_number ? trial >> 6 : (oper_mode << 3) | (trial >> 6);
+				int head_data = trial >> 6;
 				hadamard_encoder(head, head_data);
 				int tail_data = trial & 63;
 				hadamard_encoder(tail, tail_data);
@@ -173,6 +172,17 @@ struct Encoder : public Common
 		symbol(-2);
 		symbol(-1);
 	}
+	void meta_data(uint64_t md)
+	{
+		for (int i = 0; i < 55; ++i)
+			mesg[i] = nrz((md >> i) & 1);
+		crc0.reset();
+		crc0(md << 9);
+		for (int i = 0; i < 16; ++i)
+			mesg[i+55] = nrz((crc0() >> i) & 1);
+		polar_encoder(code, mesg, frozen_256_71, 8);
+		shuffle(meta, code, 8);
+	}
 	cmplx map_bits(code_type *b, int bits)
 	{
 		switch (bits) {
@@ -255,6 +265,7 @@ struct Encoder : public Common
 		int offset = (freq_off * symbol_len) / rate;
 		tone_off = offset - tone_count / 2;
 		guard_interval_weights();
+		meta_data(oper_mode);
 		leading_noise();
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
@@ -281,13 +292,13 @@ struct Encoder : public Common
 			polar_encoder(code, mesg, frozen_bits, code_order);
 			shuffle(perm, code, code_order);
 			CODE::MLS seq1(mls1_poly);
-			for (int j = 0, k = 0; j < symbol_count; ++j) {
+			for (int j = 0, k = 0, m = 0; j < symbol_count + 1; ++j) {
 				head_off = (block_skew * j + first_head) % block_length;
 				tail_off = (block_skew * j + first_tail) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == head_off || i % block_length == tail_off) {
 						tone[i] = nrz(seq1());
-					} else {
+					} else if (j) {
 						int bits = mod_bits;
 						if (oper_mode == 2 && k % 32 == 30)
 							bits = 2;
@@ -295,6 +306,8 @@ struct Encoder : public Common
 							bits = 4;
 						tone[i] = map_bits(perm+k, bits);
 						k += bits;
+					} else {
+						tone[i] = map_bits(meta+m++, 1);
 					}
 				}
 				symbol(j);
