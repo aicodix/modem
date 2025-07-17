@@ -89,20 +89,20 @@ struct Encoder : public Common
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
 				int comb = combination();
-				int meta_data = symbol_number ? trial >> 6 : (oper_mode << 3) | (trial >> 6);
-				hadamard_encoder(meta, meta_data);
-				int seed_data = trial & 63;
-				hadamard_encoder(seed, seed_data);
+				int head_data = symbol_number ? trial >> 6 : (oper_mode << 3) | (trial >> 6);
+				hadamard_encoder(head, head_data);
+				int tail_data = trial & 63;
+				hadamard_encoder(tail, tail_data);
 				int poly_index = comb & 15;
 				int seed_value = comb >> 4;
 				if (seed_value == 0)
 					continue;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0, m = 0, s = 0; i < tone_count; ++i)
-					if (i % block_length == meta_off)
-						temp[i] *= meta[m++];
-					else if (i % block_length == seed_off)
-						temp[i] *= seed[s++];
+					if (i % block_length == head_off)
+						temp[i] *= head[m++];
+					else if (i % block_length == tail_off)
+						temp[i] *= tail[s++];
 					else
 						temp[i] *= nrz(seq());
 			}
@@ -282,10 +282,10 @@ struct Encoder : public Common
 			shuffle(perm, code, code_order);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0; j < symbol_count; ++j) {
-				meta_off = (block_skew * j + first_meta) % block_length;
-				seed_off = (block_skew * j + first_seed) % block_length;
+				head_off = (block_skew * j + first_head) % block_length;
+				tail_off = (block_skew * j + first_tail) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == meta_off || i % block_length == seed_off) {
+					if (i % block_length == head_off || i % block_length == tail_off) {
 						tone[i] = nrz(seq1());
 					} else {
 						int bits = mod_bits;
