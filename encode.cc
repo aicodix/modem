@@ -226,6 +226,11 @@ struct Encoder : public Common
 			dest[0] = src[0];
 			for (int i = 1; i < 256; ++i)
 				dest[i] = src[seq()];
+		} else if (order == 11) {
+			CODE::XorShiftMask<int, 11, 1, 3, 4, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 2048; ++i)
+				dest[i] = src[seq()];
 		} else if (order == 12) {
 			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
 			dest[0] = src[0];
@@ -245,6 +250,11 @@ struct Encoder : public Common
 			CODE::XorShiftMask<int, 15, 1, 1, 3, 1> seq;
 			dest[0] = src[0];
 			for (int i = 1; i < 32768; ++i)
+				dest[i] = src[seq()];
+		} else if (order == 16) {
+			CODE::XorShiftMask<int, 16, 1, 1, 14, 1> seq;
+			dest[0] = src[0];
+			for (int i = 1; i < 65536; ++i)
 				dest[i] = src[seq()];
 		}
 	}

@@ -13,7 +13,7 @@ Copyright 2025 Ahmet Inan <inan@aicodix.de>
 struct Common
 {
 	static const int mod_max = 8;
-	static const int code_max = 15;
+	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 2048;
 	static const int symbols_max = 22 + 1;
