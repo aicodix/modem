@@ -12,7 +12,7 @@ dd if=/dev/urandom of=uncoded.dat bs=1 count=256
 Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 48000 Hz sample rate, 16 bits and only 1 (real) channel:
 
 ```
-./encode encoded.wav 48000 16 1 1500 5 uncoded.dat
+./encode encoded.wav 48000 16 1 1500 ANONYMOUS 176 uncoded.dat
 ```
 
 Start recording to ```recorded.wav``` audio file and stop after 5 seconds:
@@ -41,19 +41,53 @@ diff -s uncoded.dat decoded.dat
 
 ### Supported Modes
 
-All modes need a bandwidth of 2400 Hz and use a 1/2-rate forward error correction code
+All modes need a bandwidth of 2400 Hz.
 
-These use a differential modulation scheme:
-* Mode 0: DBPSK, 2.6 seconds and 256 bytes
-* Mode 1: DQPSK, 2.6 seconds and 512 bytes
-* Mode 2: D8PSK, 3.4 seconds and 1024 bytes
+These are the durations for each differential modulation scheme:
 
-And these a coherent modulation scheme:
-* Mode 3: BPSK, 2.6 seconds and 256 bytes
-* Mode 4: QPSK, 2.6 seconds and 512 bytes
-* Mode 5: QAM16, 1 second and 256 bytes
-* Mode 6: QAM16, 2.6 seconds and 1024 bytes
-* Mode 7: QAM64, 3.4 seconds and 2048 bytes
+| Modulation | Short | Normal |
+| ---------- | ----- | ------ |
+| DBPSK      |  1.5s |   2.6s |
+| DQPSK      |  1.0s |   1.5s |
+| D8PSK      |  1.9s |   3.4s |
+
+And these are the durations for each coherent modulation scheme:
+
+| Modulation | Short | Normal |
+| ---------- | ----- | ------ |
+| QAM16      |  1.0s |   1.5s |
+| QAM64      |  1.9s |   3.4s |
+| QAM256     |  1.5s |   2.6s |
+| QAM1024    |  2.2s |   4.0s |
+| QAM4096    |  1.9s |   3.4s |
+
+Currently all digital modes use a 1/2-rate forward error correction code.
+
+Therefore we have the following byte payloads for each modulation:
+
+| Modulation | Short | Normal |
+| ---------- | ----- | ------ |
+| DBPSK      |  128B |   256B |
+| DQPSK      |  128B |   256B |
+| D8PSK      |  512B |  1024B |
+| QAM16      |  256B |   512B |
+| QAM64      | 1024B |  2048B |
+| QAM256     | 1024B |  2048B |
+| QAM1024    | 2048B |  4096B |
+| QAM4096    | 2048B |  4096B |
+
+Which give us the following bitrates for each modulation:
+
+| Modulation |   Short |  Normal |
+| ---------- | ------- | ------- |
+| DBPSK      |  681b/s |  789b/s |
+| DQPSK      | 1070b/s | 1362b/s |
+| D8PSK      | 2141b/s | 2398b/s |
+| QAM16      | 2141b/s | 2725b/s |
+| QAM64      | 4282b/s | 4795b/s |
+| QAM256     | 5449b/s | 6310b/s |
+| QAM1024    | 7493b/s | 8268b/s |
+| QAM4096    | 8563b/s | 9591b/s |
 
 ### Simulating
 
@@ -62,7 +96,7 @@ Prerequisite: [disorders](https://github.com/aicodix/disorders)
 Encode ```uncoded.dat``` to [analytic](https://en.wikipedia.org/wiki/Analytic_signal) audio signal, add [multipath](https://en.wikipedia.org/wiki/Multipath_propagation), [CFO, SFO](https://en.wikipedia.org/wiki/Carrier_frequency_offset), [AWGN](https://en.wikipedia.org/wiki/Additive_white_Gaussian_noise), decode and compare:
 
 ```
-./encode - 48000 16 2 1500 5 uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -20 | ./decode - - | diff -q -s uncoded.dat -
+./encode - 48000 16 2 1500 ANONYMOUS 176 uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -20 | ./decode - - | diff -q -s uncoded.dat -
 ```
 
 ### Reading
