@@ -371,7 +371,7 @@ struct Decoder : Common
 				}
 				value precision = sp / np;
 				snr[j] = precision;
-				precision = std::min(precision, value(127));
+				precision = std::min(precision, value(1023));
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length != head_off && i % block_length != tail_off) {
 						int bits = mod_bits;
