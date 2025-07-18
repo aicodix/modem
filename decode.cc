@@ -103,6 +103,8 @@ struct Decoder : Common
 			return QuadratureAmplitudeModulation<64, cmplx, code_type>::map(b);
 		case 8:
 			return QuadratureAmplitudeModulation<256, cmplx, code_type>::map(b);
+		case 10:
+			return QuadratureAmplitudeModulation<1024, cmplx, code_type>::map(b);
 		}
 		return 0;
 	}
@@ -121,6 +123,8 @@ struct Decoder : Common
 			return QuadratureAmplitudeModulation<64, cmplx, code_type>::soft(b, c, precision);
 		case 8:
 			return QuadratureAmplitudeModulation<256, cmplx, code_type>::soft(b, c, precision);
+		case 10:
+			return QuadratureAmplitudeModulation<1024, cmplx, code_type>::soft(b, c, precision);
 		}
 	}
 	void demap_hard(code_type *b, cmplx c, int bits)
@@ -138,6 +142,8 @@ struct Decoder : Common
 			return QuadratureAmplitudeModulation<64, cmplx, code_type>::hard(b, c);
 		case 8:
 			return QuadratureAmplitudeModulation<256, cmplx, code_type>::hard(b, c);
+		case 10:
+			return QuadratureAmplitudeModulation<1024, cmplx, code_type>::hard(b, c);
 		}
 	}
 	void shuffle(code_type *dest, const code_type *src, int order)
