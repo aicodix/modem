@@ -383,7 +383,7 @@ struct Decoder : Common
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
 			}
-			if (oper_mode < 1)
+			if (oper_mode < 0)
 				continue;
 			DSP::quick_sort(snr, symbol_count + 1);
 			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count]) << std::endl;
