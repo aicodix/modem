@@ -200,6 +200,8 @@ struct Encoder : public Common
 			return QuadratureAmplitudeModulation<256, cmplx, code_type>::map(b);
 		case 10:
 			return QuadratureAmplitudeModulation<1024, cmplx, code_type>::map(b);
+		case 12:
+			return QuadratureAmplitudeModulation<4096, cmplx, code_type>::map(b);
 		}
 		return 0;
 	}
@@ -220,6 +222,8 @@ struct Encoder : public Common
 			return QuadratureAmplitudeModulation<256, cmplx, code_type>::DIST;
 		case 10:
 			return QuadratureAmplitudeModulation<1024, cmplx, code_type>::DIST;
+		case 12:
+			return QuadratureAmplitudeModulation<4096, cmplx, code_type>::DIST;
 		}
 		return 2;
 	}
