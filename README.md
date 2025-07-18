@@ -44,16 +44,16 @@ diff -s uncoded.dat decoded.dat
 All modes need a bandwidth of 2400 Hz and use a 1/2-rate forward error correction code
 
 These use a differential modulation scheme:
-* Mode 0: DBPSK, 3 seconds and 256 bytes
-* Mode 1: DQPSK, 3 seconds and 512 bytes
-* Mode 2: D8PSK, 4 seconds and 1024 bytes
+* Mode 0: DBPSK, 2.6 seconds and 256 bytes
+* Mode 1: DQPSK, 2.6 seconds and 512 bytes
+* Mode 2: D8PSK, 3.4 seconds and 1024 bytes
 
 And these a coherent modulation scheme:
-* Mode 3: BPSK, 3 seconds and 256 bytes
-* Mode 4: QPSK, 3 seconds and 512 bytes
+* Mode 3: BPSK, 2.6 seconds and 256 bytes
+* Mode 4: QPSK, 2.6 seconds and 512 bytes
 * Mode 5: QAM16, 1 second and 256 bytes
-* Mode 6: QAM16, 3 seconds and 1024 bytes
-* Mode 7: QAM64, 4 seconds and 2048 bytes
+* Mode 6: QAM16, 2.6 seconds and 1024 bytes
+* Mode 7: QAM64, 3.4 seconds and 2048 bytes
 
 ### Simulating
 
