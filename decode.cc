@@ -385,8 +385,8 @@ struct Decoder : Common
 			}
 			if (oper_mode < 1)
 				continue;
-			DSP::quick_sort(snr, symbol_count);
-			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count-1]) << std::endl;
+			DSP::quick_sort(snr, symbol_count + 1);
+			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count]) << std::endl;
 			crc_bits = data_bits + 32;
 			shuffle(code, perm, code_order);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);

@@ -16,7 +16,7 @@ struct Common
 	static const int code_max = 15;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 2048;
-	static const int symbols_max = 23;
+	static const int symbols_max = 22 + 1;
 	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;

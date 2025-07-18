@@ -312,8 +312,8 @@ struct Encoder : public Common
 				}
 				symbol(j);
 			}
-			DSP::quick_sort(papr, symbol_count);
-			std::cerr << "PAPR (dB): " << DSP::decibel(papr[0]) << " .. " << DSP::decibel(papr[symbol_count/2]) << " .. " << DSP::decibel(papr[symbol_count-1]) << std::endl;
+			DSP::quick_sort(papr, symbol_count + 1);
+			std::cerr << "PAPR (dB): " << DSP::decibel(papr[0]) << " .. " << DSP::decibel(papr[symbol_count/2]) << " .. " << DSP::decibel(papr[symbol_count]) << std::endl;
 		}
 		finish();
 	}
