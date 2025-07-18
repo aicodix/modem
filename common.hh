@@ -15,8 +15,8 @@ struct Common
 	static const int mod_max = 8;
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
-	static const int data_max = 2048;
-	static const int symbols_max = 22 + 1;
+	static const int data_max = 4096;
+	static const int symbols_max = 26 + 1;
 	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
@@ -52,78 +52,108 @@ struct Common
 
 	Common() : crc0(0xA8F4), crc1(0x8F6E37A0) {}
 
-	void setup(int mode)
+	bool setup(int mode)
 	{
-		switch (mode) {
+		bool analog_mode = mode & 128;
+		if (analog_mode) {
+			std::cerr << "analog mode not supported yet" << std::endl;
+			return false;
+		}
+		int modulation = (mode >> 4) & 7;
+		switch (modulation) {
 		case 0:
 			mod_bits = 1;
-			symbol_count = 16;
+			symbol_count = 8;
 			differential = true;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
+			code_order = 11;
 			break;
 		case 1:
 			mod_bits = 2;
-			symbol_count = 16;
+			symbol_count = 4;
 			differential = true;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
+			code_order = 11;
 			break;
 		case 2:
 			mod_bits = 3;
-			symbol_count = 22;
+			symbol_count = 11;
 			differential = true;
-			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
+			code_order = 13;
 			break;
 		case 3:
-			mod_bits = 1;
-			symbol_count = 16;
-			differential = false;
-			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
-			break;
-		case 4:
-			mod_bits = 2;
-			symbol_count = 16;
-			differential = false;
-			code_order = 13;
-			data_bits = 4096;
-			frozen_bits = frozen_8192_4128;
-			break;
-		case 5:
 			mod_bits = 4;
 			symbol_count = 4;
 			differential = false;
 			code_order = 12;
-			data_bits = 2048;
-			frozen_bits = frozen_4096_2080;
 			break;
-		case 6:
-			mod_bits = 4;
-			symbol_count = 16;
+		case 4:
+			mod_bits = 6;
+			symbol_count = 11;
 			differential = false;
 			code_order = 14;
-			data_bits = 8192;
-			frozen_bits = frozen_16384_8224;
 			break;
-		case 7:
-			mod_bits = 6;
-			symbol_count = 22;
+		case 5:
+			mod_bits = 8;
+			symbol_count = 8;
+			differential = false;
+			code_order = 14;
+			break;
+		case 6:
+			mod_bits = 10;
+			symbol_count = 13;
 			differential = false;
 			code_order = 15;
-			data_bits = 16384;
-			frozen_bits = frozen_32768_16416;
+			break;
+		case 7:
+			mod_bits = 12;
+			symbol_count = 11;
+			differential = false;
+			code_order = 15;
 			break;
 		default:
-			return;
+			return false;
+		}
+		bool frame_length = mode & 1;
+		if (frame_length) {
+			symbol_count *= 2;
+			++code_order;
+		}
+		int code_rate = (mode >> 1) & 7;
+		if (code_rate == 0) {
+			switch (code_order) {
+			case 11:
+				data_bits = 1024;
+				frozen_bits = frozen_2048_1056;
+				break;
+			case 12:
+				data_bits = 2048;
+				frozen_bits = frozen_4096_2080;
+				break;
+			case 13:
+				data_bits = 4096;
+				frozen_bits = frozen_8192_4128;
+				break;
+			case 14:
+				data_bits = 8192;
+				frozen_bits = frozen_16384_8224;
+				break;
+			case 15:
+				data_bits = 16384;
+				frozen_bits = frozen_32768_16416;
+				break;
+			case 16:
+				data_bits = 32768;
+				frozen_bits = frozen_65536_32800;
+				break;
+			default:
+				return false;
+			}
+		} else {
+			std::cerr << "code rate " << code_rate << " not supported yet" << std::endl;
+			return false;
 		}
 		oper_mode = mode;
 		data_bytes = data_bits / 8;
+		return true;
 	}
 };
 

@@ -271,7 +271,8 @@ struct Encoder : public Common
 	}
 	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) : pcm(pcm)
 	{
-		setup(oper_mode);
+		if (!setup(oper_mode))
+			return;
 		int offset = (freq_off * symbol_len) / rate;
 		tone_off = offset - tone_count / 2;
 		guard_interval_weights();
@@ -310,10 +311,14 @@ struct Encoder : public Common
 						tone[i] = nrz(seq1());
 					} else if (j) {
 						int bits = mod_bits;
-						if (oper_mode == 2 && k % 32 == 30)
+						if (mod_bits == 3 && k % 32 == 30)
 							bits = 2;
-						if (oper_mode == 7 && k % 64 == 60)
+						if (mod_bits == 6 && k % 64 == 60)
 							bits = 4;
+						if (mod_bits == 10 && k % 128 == 120)
+							bits = 8;
+						if (mod_bits == 12 && k % 128 == 120)
+							bits = 8;
 						tone[i] = map_bits(perm+k, bits);
 						k += bits;
 					} else {
@@ -350,7 +355,7 @@ int main(int argc, char **argv)
 	}
 	int input_count = argc - 7;
 	int oper_mode = std::atoi(argv[6]);
-	if (oper_mode < 0 || oper_mode > 7) {
+	if (oper_mode < 0 || oper_mode > 255) {
 		std::cerr << "Unsupported operation mode." << std::endl;
 		return 1;
 	}

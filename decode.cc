@@ -341,10 +341,14 @@ struct Decoder : Common
 					cmplx hard(1, 0);
 					if (i % block_length != head_off && i % block_length != tail_off) {
 						int bits = mod_bits;
-						if (oper_mode == 2 && l % 32 == 30)
+						if (mod_bits == 3 && l % 32 == 30)
 							bits = 2;
-						if (oper_mode == 7 && l % 64 == 60)
+						if (mod_bits == 6 && l % 64 == 60)
 							bits = 4;
+						if (mod_bits == 10 && l % 128 == 120)
+							bits = 8;
+						if (mod_bits == 12 && l % 128 == 120)
+							bits = 8;
 						demap_hard(perm+l, demod[i], bits);
 						hard = map_bits(perm+l, bits);
 						l += bits;
@@ -359,10 +363,14 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length != head_off && i % block_length != tail_off) {
 						int bits = mod_bits;
-						if (oper_mode == 2 && k % 32 == 30)
+						if (mod_bits == 3 && k % 32 == 30)
 							bits = 2;
-						if (oper_mode == 7 && k % 64 == 60)
+						if (mod_bits == 6 && k % 64 == 60)
 							bits = 4;
+						if (mod_bits == 10 && k % 128 == 120)
+							bits = 8;
+						if (mod_bits == 12 && k % 128 == 120)
+							bits = 8;
 						demap_soft(perm+k, demod[i], precision, bits);
 						k += bits;
 					}
@@ -373,12 +381,13 @@ struct Decoder : Common
 						std::cerr << "preamble decoding error." << std::endl;
 						break;
 					}
-					if (meta_info > 7) {
+					if (meta_info > 255) {
 						std::cerr << "unsupported operation mode: " << meta_info << std::endl;
 						break;
 					}
+					if (!setup(meta_info))
+						break;
 					k = 0;
-					setup(meta_info);
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
 					std::cerr << "oper mode: " << oper_mode << std::endl;
