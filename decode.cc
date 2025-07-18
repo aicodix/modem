@@ -80,6 +80,11 @@ struct Decoder : Common
 		}
 		return 0;
 	}
+	static void base37_decoder(char *str, int64_t val, int len)
+	{
+		for (int i = len-1; i >= 0; --i, val /= 37)
+			str[i] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%37];
+	}
 	const cmplx *mls0_seq()
 	{
 		CODE::MLS seq0(mls0_poly, mls0_seed);
@@ -393,11 +398,17 @@ struct Decoder : Common
 						std::cerr << "preamble decoding error." << std::endl;
 						break;
 					}
-					if (meta_info > 255) {
-						std::cerr << "unsupported operation mode: " << meta_info << std::endl;
+					int64_t call = meta_info >> 8;
+					if (call == 0 || call >= 129961739795077L) {
+						std::cerr << "call sign unsupported." << std::endl;
 						break;
 					}
-					if (!setup(meta_info))
+					char call_sign[10];
+					base37_decoder(call_sign, call, 9);
+					call_sign[9] = 0;
+					std::cerr << "call sign: " << call_sign << std::endl;
+					int mode = meta_info & 255;
+					if (!setup(mode))
 						break;
 					k = 0;
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)

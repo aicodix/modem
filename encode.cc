@@ -277,14 +277,14 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int oper_mode) : pcm(pcm)
+	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int64_t call_sign, int oper_mode) : pcm(pcm)
 	{
 		if (!setup(oper_mode))
 			return;
 		int offset = (freq_off * symbol_len) / rate;
 		tone_off = offset - tone_count / 2;
 		guard_interval_weights();
-		meta_data(oper_mode);
+		meta_data((call_sign << 8) | oper_mode);
 		leading_noise();
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
@@ -342,10 +342,27 @@ struct Encoder : public Common
 	}
 };
 
+int64_t base37_encoder(const char *str)
+{
+	int64_t acc = 0;
+	for (char c = *str++; c; c = *str++) {
+		acc *= 37;
+		if (c >= '0' && c <= '9')
+			acc += c - '0' + 1;
+		else if (c >= 'a' && c <= 'z')
+			acc += c - 'a' + 11;
+		else if (c >= 'A' && c <= 'Z')
+			acc += c - 'A' + 11;
+		else if (c != ' ')
+			return -1;
+	}
+	return acc;
+}
+
 int main(int argc, char **argv)
 {
-	if (argc < 8) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET MODE INPUT.." << std::endl;
+	if (argc < 9) {
+		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET CALLSIGN MODE INPUT.." << std::endl;
 		return 1;
 	}
 
@@ -361,8 +378,13 @@ int main(int argc, char **argv)
 		std::cerr << "Frequency offset must be divisible by 300." << std::endl;
 		return 1;
 	}
-	int input_count = argc - 7;
-	int oper_mode = std::atoi(argv[6]);
+	int64_t call_sign = base37_encoder(argv[6]);
+	if (call_sign <= 0 || call_sign >= 129961739795077L) {
+		std::cerr << "Unsupported call sign." << std::endl;
+		return 1;
+	}
+	int input_count = argc - 8;
+	int oper_mode = std::atoi(argv[7]);
 	if (oper_mode < 0 || oper_mode > 255) {
 		std::cerr << "Unsupported operation mode." << std::endl;
 		return 1;
@@ -379,10 +401,10 @@ int main(int argc, char **argv)
 	output_file.silence(output_rate);
 	switch (output_rate) {
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, argv+7, input_count, freq_off, oper_mode);
+		delete new Encoder<value, cmplx, 44100>(&output_file, argv + 8, input_count, freq_off, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, argv+7, input_count, freq_off, oper_mode);
+		delete new Encoder<value, cmplx, 48000>(&output_file, argv + 8, input_count, freq_off, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
