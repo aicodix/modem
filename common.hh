@@ -114,8 +114,13 @@ struct Common
 		}
 		bool frame_length = mode & 1;
 		if (frame_length) {
-			symbol_count *= 2;
-			++code_order;
+			if (symbol_count == 4) {
+				symbol_count *= 4;
+				code_order += 2;
+			} else {
+				symbol_count *= 2;
+				++code_order;
+			}
 		}
 		int code_rate = (mode >> 1) & 7;
 		if (code_rate == 0) {

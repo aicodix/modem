@@ -48,14 +48,14 @@ These are the durations for each differential modulation scheme:
 | Modulation | Short | Normal |
 | ---------- | ----- | ------ |
 | DBPSK      |  1.5s |   2.6s |
-| DQPSK      |  1.0s |   1.5s |
+| DQPSK      |  1.0s |   2.6s |
 | D8PSK      |  1.9s |   3.4s |
 
 And these are the durations for each coherent modulation scheme:
 
 | Modulation | Short | Normal |
 | ---------- | ----- | ------ |
-| QAM16      |  1.0s |   1.5s |
+| QAM16      |  1.0s |   2.6s |
 | QAM64      |  1.9s |   3.4s |
 | QAM256     |  1.5s |   2.6s |
 | QAM1024    |  2.2s |   4.0s |
@@ -68,9 +68,9 @@ Therefore we have the following byte payloads for each modulation:
 | Modulation | Short | Normal |
 | ---------- | ----- | ------ |
 | DBPSK      |  128B |   256B |
-| DQPSK      |  128B |   256B |
+| DQPSK      |  128B |   512B |
 | D8PSK      |  512B |  1024B |
-| QAM16      |  256B |   512B |
+| QAM16      |  256B |  1024B |
 | QAM64      | 1024B |  2048B |
 | QAM256     | 1024B |  2048B |
 | QAM1024    | 2048B |  4096B |
@@ -81,9 +81,9 @@ Which give us the following bitrates for each modulation:
 | Modulation |   Short |  Normal |
 | ---------- | ------- | ------- |
 | DBPSK      |  681b/s |  789b/s |
-| DQPSK      | 1070b/s | 1362b/s |
+| DQPSK      | 1070b/s | 1577b/s |
 | D8PSK      | 2141b/s | 2398b/s |
-| QAM16      | 2141b/s | 2725b/s |
+| QAM16      | 2141b/s | 3155b/s |
 | QAM64      | 4282b/s | 4795b/s |
 | QAM256     | 5449b/s | 6310b/s |
 | QAM1024    | 7493b/s | 8268b/s |
