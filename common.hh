@@ -152,6 +152,93 @@ struct Common
 			default:
 				return false;
 			}
+		} else if (code_rate == 1) {
+			switch (code_order) {
+			case 11:
+				data_bits = 1368;
+				frozen_bits = frozen_2048_1400;
+				break;
+			case 12:
+				data_bits = 2736;
+				frozen_bits = frozen_4096_2768;
+				break;
+			case 13:
+				data_bits = 5472;
+				frozen_bits = frozen_8192_5504;
+				break;
+			case 14:
+				data_bits = 10944;
+				frozen_bits = frozen_16384_10976;
+				break;
+			case 15:
+				data_bits = 21888;
+				frozen_bits = frozen_32768_21920;
+				break;
+			case 16:
+				data_bits = 43776;
+				frozen_bits = frozen_65536_43808;
+				break;
+			default:
+				return false;
+			}
+		} else if (code_rate == 2) {
+			switch (code_order) {
+			case 11:
+				data_bits = 1536;
+				frozen_bits = frozen_2048_1568;
+				break;
+			case 12:
+				data_bits = 3072;
+				frozen_bits = frozen_4096_3104;
+				break;
+			case 13:
+				data_bits = 6144;
+				frozen_bits = frozen_8192_6176;
+				break;
+			case 14:
+				data_bits = 12288;
+				frozen_bits = frozen_16384_12320;
+				break;
+			case 15:
+				data_bits = 24576;
+				frozen_bits = frozen_32768_24608;
+				break;
+			case 16:
+				data_bits = 49152;
+				frozen_bits = frozen_65536_49184;
+				break;
+			default:
+				return false;
+			}
+		} else if (code_rate == 3) {
+			switch (code_order) {
+			case 11:
+				data_bits = 1704;
+				frozen_bits = frozen_2048_1736;
+				break;
+			case 12:
+				data_bits = 3408;
+				frozen_bits = frozen_4096_3440;
+				break;
+			case 13:
+				data_bits = 6816;
+				frozen_bits = frozen_8192_6848;
+				break;
+			case 14:
+				data_bits = 13632;
+				frozen_bits = frozen_16384_13664;
+				break;
+			case 15:
+				data_bits = 27264;
+				frozen_bits = frozen_32768_27296;
+				break;
+			case 16:
+				data_bits = 54528;
+				frozen_bits = frozen_65536_54560;
+				break;
+			default:
+				return false;
+			}
 		} else {
 			std::cerr << "code rate " << code_rate << " not supported yet" << std::endl;
 			return false;
