@@ -361,8 +361,8 @@ int64_t base37_encoder(const char *str)
 
 int main(int argc, char **argv)
 {
-	if (argc < 9) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET CALLSIGN MODE INPUT.." << std::endl;
+	if (argc < 11) {
+		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET CALLSIGN MODULATION CODERATE FRAMESIZE INPUT.." << std::endl;
 		return 1;
 	}
 
@@ -383,10 +383,48 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported call sign." << std::endl;
 		return 1;
 	}
-	int input_count = argc - 8;
-	int oper_mode = std::atoi(argv[7]);
-	if (oper_mode < 0 || oper_mode > 255) {
-		std::cerr << "Unsupported operation mode." << std::endl;
+	int oper_mode = 0;
+	char *modulation = argv[7];
+	if (!strcmp(modulation, "DBPSK")) {
+		oper_mode |= 0 << 4;
+	} else if (!strcmp(modulation, "DQPSK")) {
+		oper_mode |= 1 << 4;
+	} else if (!strcmp(modulation, "D8PSK")) {
+		oper_mode |= 2 << 4;
+	} else if (!strcmp(modulation, "QAM16")) {
+		oper_mode |= 3 << 4;
+	} else if (!strcmp(modulation, "QAM64")) {
+		oper_mode |= 4 << 4;
+	} else if (!strcmp(modulation, "QAM256")) {
+		oper_mode |= 5 << 4;
+	} else if (!strcmp(modulation, "QAM1024")) {
+		oper_mode |= 6 << 4;
+	} else if (!strcmp(modulation, "QAM4096")) {
+		oper_mode |= 7 << 4;
+	} else {
+		std::cerr << "Unsupported modulation." << std::endl;
+		return 1;
+	}
+	char *code_rate = argv[8];
+	if (!strcmp(code_rate, "1/2")) {
+		oper_mode |= 0 << 1;
+	} else if (!strcmp(code_rate, "2/3")) {
+		oper_mode |= 1 << 1;
+	} else if (!strcmp(code_rate, "3/4")) {
+		oper_mode |= 2 << 1;
+	} else if (!strcmp(code_rate, "5/6")) {
+		oper_mode |= 3 << 1;
+	} else {
+		std::cerr << "Unsupported code rate." << std::endl;
+		return 1;
+	}
+	char *frame_size = argv[9];
+	if (!strcmp(frame_size, "short")) {
+		oper_mode |= 0;
+	} else if (!strcmp(frame_size, "normal")) {
+		oper_mode |= 1;
+	} else {
+		std::cerr << "Unsupported frame size." << std::endl;
 		return 1;
 	}
 	int band_width = 2400;
@@ -399,12 +437,13 @@ int main(int argc, char **argv)
 	typedef DSP::Complex<value> cmplx;
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
 	output_file.silence(output_rate);
+	int input_count = argc - 10;
 	switch (output_rate) {
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, argv + 8, input_count, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 44100>(&output_file, argv + 10, input_count, freq_off, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, argv + 8, input_count, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 48000>(&output_file, argv + 10, input_count, freq_off, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;

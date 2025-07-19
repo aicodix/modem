@@ -12,7 +12,7 @@ dd if=/dev/urandom of=uncoded.dat bs=1 count=256
 Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 48000 Hz sample rate, 16 bits and only 1 (real) channel:
 
 ```
-./encode encoded.wav 48000 16 1 1500 ANONYMOUS 176 uncoded.dat
+./encode encoded.wav 48000 16 1 1500 ANONYMOUS QAM16 1/2 short uncoded.dat
 ```
 
 Start recording to ```recorded.wav``` audio file and stop after 5 seconds:
@@ -96,7 +96,7 @@ Prerequisite: [disorders](https://github.com/aicodix/disorders)
 Encode ```uncoded.dat``` to [analytic](https://en.wikipedia.org/wiki/Analytic_signal) audio signal, add [multipath](https://en.wikipedia.org/wiki/Multipath_propagation), [CFO, SFO](https://en.wikipedia.org/wiki/Carrier_frequency_offset), [AWGN](https://en.wikipedia.org/wiki/Additive_white_Gaussian_noise), decode and compare:
 
 ```
-./encode - 48000 16 2 1500 ANONYMOUS 176 uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -20 | ./decode - - | diff -q -s uncoded.dat -
+./encode - 48000 16 2 1500 ANONYMOUS QAM16 1/2 short uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -20 | ./decode - - | diff -q -s uncoded.dat -
 ```
 
 ### Reading
