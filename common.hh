@@ -15,7 +15,7 @@ struct Common
 	static const int mod_max = 12;
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
-	static const int data_max = 4096;
+	static const int data_max = 8192;
 	static const int symbols_max = 26 + 1;
 	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
@@ -59,6 +59,7 @@ struct Common
 			std::cerr << "analog mode not supported yet" << std::endl;
 			return false;
 		}
+		std::cerr << "modulation: ";
 		int modulation = (mode >> 4) & 7;
 		switch (modulation) {
 		case 0:
@@ -66,54 +67,64 @@ struct Common
 			symbol_count = 8;
 			differential = true;
 			code_order = 11;
+			std::cerr << "DBPSK";
 			break;
 		case 1:
 			mod_bits = 2;
 			symbol_count = 4;
 			differential = true;
 			code_order = 11;
+			std::cerr << "DQPSK";
 			break;
 		case 2:
 			mod_bits = 3;
 			symbol_count = 11;
 			differential = true;
 			code_order = 13;
+			std::cerr << "D8PSK";
 			break;
 		case 3:
 			mod_bits = 4;
 			symbol_count = 4;
 			differential = false;
 			code_order = 12;
+			std::cerr << "QAM16";
 			break;
 		case 4:
 			mod_bits = 6;
 			symbol_count = 11;
 			differential = false;
 			code_order = 14;
+			std::cerr << "QAM64";
 			break;
 		case 5:
 			mod_bits = 8;
 			symbol_count = 8;
 			differential = false;
 			code_order = 14;
+			std::cerr << "QAM256";
 			break;
 		case 6:
 			mod_bits = 10;
 			symbol_count = 13;
 			differential = false;
 			code_order = 15;
+			std::cerr << "QAM1024";
 			break;
 		case 7:
 			mod_bits = 12;
 			symbol_count = 11;
 			differential = false;
 			code_order = 15;
+			std::cerr << "QAM4096";
 			break;
 		default:
 			return false;
 		}
-		bool frame_length = mode & 1;
-		if (frame_length) {
+		std::cerr << std::endl;
+		bool frame_size = mode & 1;
+		std::cerr << "frame size: " << (frame_size ? "normal" : "short") << std::endl;
+		if (frame_size) {
 			if (symbol_count == 4) {
 				symbol_count *= 4;
 				code_order += 2;
@@ -123,7 +134,9 @@ struct Common
 			}
 		}
 		int code_rate = (mode >> 1) & 7;
+		std::cerr << "code rate: ";
 		if (code_rate == 0) {
+			std::cerr << "1/2";
 			switch (code_order) {
 			case 11:
 				data_bits = 1024;
@@ -153,6 +166,7 @@ struct Common
 				return false;
 			}
 		} else if (code_rate == 1) {
+			std::cerr << "2/3";
 			switch (code_order) {
 			case 11:
 				data_bits = 1368;
@@ -182,6 +196,7 @@ struct Common
 				return false;
 			}
 		} else if (code_rate == 2) {
+			std::cerr << "3/4";
 			switch (code_order) {
 			case 11:
 				data_bits = 1536;
@@ -211,6 +226,7 @@ struct Common
 				return false;
 			}
 		} else if (code_rate == 3) {
+			std::cerr << "5/6";
 			switch (code_order) {
 			case 11:
 				data_bits = 1704;
@@ -240,11 +256,16 @@ struct Common
 				return false;
 			}
 		} else {
-			std::cerr << "code rate " << code_rate << " not supported yet" << std::endl;
+			std::cerr << "unsupported" << std::endl;
 			return false;
 		}
+		std::cerr << std::endl;
 		oper_mode = mode;
 		data_bytes = data_bits / 8;
+		float duration = 41. / 300. * (3 + symbol_count);
+		std::cerr << "duration: " << duration << "s" << std::endl;
+		std::cerr << "payload: " << data_bytes << "B" << std::endl;
+		std::cerr << "bitrate: " << data_bits / duration / 1000. << "kb/s" << std::endl;
 		return true;
 	}
 };
