@@ -27,6 +27,9 @@ decode: decode.cc common.hh schmidl_cox.hh
 freezer: freezer.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
 
+polar_tables.hh: freezer
+	./$< > $@
+
 .PHONY: clean
 
 clean:
