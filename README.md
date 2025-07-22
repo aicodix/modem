@@ -18,13 +18,13 @@ Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.or
 Start recording to ```recorded.wav``` audio file and stop after 5 seconds:
 
 ```
-arecord -c 1 -f S16_LE -r 48000 -d 5 recorded.wav
+sox -d -c 1 -e float recorded.wav
 ```
 
 Start playing ```encoded.wav``` audio file:
 
 ```
-aplay encoded.wav
+play encoded.wav
 ```
 
 Decode ```recorded.wav``` audio file to ```decoded.dat``` file:
@@ -37,6 +37,14 @@ Compare original ```uncoded.dat``` with ```decoded.dat```:
 
 ```
 diff -s uncoded.dat decoded.dat
+```
+
+### Stream Audio
+
+This currently works on macOS and Linux only: Stream live audio into the decoder:
+
+```
+sox -q -d -c 1 -e float -t wav - | ./decode - decoded.dat
 ```
 
 ### Supported Modes
