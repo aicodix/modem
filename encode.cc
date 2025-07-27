@@ -41,7 +41,6 @@ struct Encoder : public Common
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
-	cmplx prev[tone_count];
 	cmplx temp[tone_count];
 	value weight[guard_len];
 	value papr[symbols_max];
@@ -79,8 +78,6 @@ struct Encoder : public Common
 	void symbol(int symbol_number)
 	{
 		value scale = value(0.5) / std::sqrt(value(tone_count));
-		for (int i = 0; differential && symbol_number > 0 && i < tone_count; ++i)
-			tone[i] *= prev[i];
 		value best_papr = 1000;
 		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
 		for (int trial = 0; trial < 4096; ++trial) {
@@ -124,8 +121,6 @@ struct Encoder : public Common
 			value cand_papr(peak / mean);
 			if (cand_papr < best_papr) {
 				best_papr = cand_papr;
-				for (int i = 0; differential && symbol_number >= 0 && i < tone_count; ++i)
-					prev[i] = temp[i];
 				for (int i = 0; i < symbol_len; ++i)
 					best[i] = tdom[i];
 				if (cand_papr < 5)
@@ -385,11 +380,11 @@ int main(int argc, char **argv)
 	}
 	int oper_mode = 0;
 	char *modulation = argv[7];
-	if (!strcmp(modulation, "DBPSK")) {
+	if (!strcmp(modulation, "BPSK")) {
 		oper_mode |= 0 << 4;
-	} else if (!strcmp(modulation, "DQPSK")) {
+	} else if (!strcmp(modulation, "QPSK")) {
 		oper_mode |= 1 << 4;
-	} else if (!strcmp(modulation, "D8PSK")) {
+	} else if (!strcmp(modulation, "8PSK")) {
 		oper_mode |= 2 << 4;
 	} else if (!strcmp(modulation, "QAM16")) {
 		oper_mode |= 3 << 4;

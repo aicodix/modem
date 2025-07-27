@@ -59,18 +59,13 @@ Stream audio out of the encoder:
 
 All modes need a bandwidth of 2400 Hz and there are two frame sizes.
 
-These are the durations for each differential modulation scheme:
+These are the durations for each modulation scheme:
 
 | Modulation | Short | Normal |
 | ---------- | ----- | ------ |
-| DBPSK      |  1.5s |   2.6s |
-| DQPSK      |  1.0s |   2.6s |
-| D8PSK      |  1.9s |   3.4s |
-
-And these are the durations for each coherent modulation scheme:
-
-| Modulation | Short | Normal |
-| ---------- | ----- | ------ |
+| BPSK       |  1.5s |   2.6s |
+| QPSK       |  1.0s |   2.6s |
+| 8PSK       |  1.9s |   3.4s |
 | QAM16      |  1.0s |   2.6s |
 | QAM64      |  1.9s |   3.4s |
 | QAM256     |  1.5s |   2.6s |
@@ -81,9 +76,9 @@ These are the numbers for the short modes with a 1/2 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    128B | 0.7kb/s |
-| DQPSK      |    128B | 1.1kb/s |
-| D8PSK      |    512B | 2.1kb/s |
+| BPSK       |    128B | 0.7kb/s |
+| QPSK       |    128B | 1.1kb/s |
+| 8PSK       |    512B | 2.1kb/s |
 | QAM16      |    256B | 2.1kb/s |
 | QAM64      |   1024B | 4.3kb/s |
 | QAM256     |   1024B | 5.4kb/s |
@@ -94,9 +89,9 @@ These are the numbers for the normal modes with a 1/2 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    256B | 0.8kb/s |
-| DQPSK      |    512B | 1.6kb/s |
-| D8PSK      |   1024B | 2.4kb/s |
+| BPSK       |    256B | 0.8kb/s |
+| QPSK       |    512B | 1.6kb/s |
+| 8PSK       |   1024B | 2.4kb/s |
 | QAM16      |   1024B | 3.2kb/s |
 | QAM64      |   2048B | 4.8kb/s |
 | QAM256     |   2048B | 6.3kb/s |
@@ -107,9 +102,9 @@ These are the numbers for the short modes with a 2/3 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    171B | 0.9kb/s |
-| DQPSK      |    171B | 1.4kb/s |
-| D8PSK      |    684B | 2.9kb/s |
+| BPSK       |    171B | 0.9kb/s |
+| QPSK       |    171B | 1.4kb/s |
+| 8PSK       |    684B | 2.9kb/s |
 | QAM16      |    342B | 2.9kb/s |
 | QAM64      |   1368B | 5.7kb/s |
 | QAM256     |   1368B | 7.3kb/s |
@@ -120,9 +115,9 @@ These are the numbers for the normal modes with a 2/3 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    342B | 1.1kb/s |
-| DQPSK      |    684B | 2.1kb/s |
-| D8PSK      |   1368B | 3.2kb/s |
+| BPSK       |    342B | 1.1kb/s |
+| QPSK       |    684B | 2.1kb/s |
+| 8PSK       |   1368B | 3.2kb/s |
 | QAM16      |   1368B | 4.2kb/s |
 | QAM64      |   2736B | 6.4kb/s |
 | QAM256     |   2736B | 8.4kb/s |
@@ -133,9 +128,9 @@ These are the numbers for the short modes with a 3/4 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    192B | 1.0kb/s |
-| DQPSK      |    192B | 1.6kb/s |
-| D8PSK      |    768B | 3.2kb/s |
+| BPSK       |    192B | 1.0kb/s |
+| QPSK       |    192B | 1.6kb/s |
+| 8PSK       |    768B | 3.2kb/s |
 | QAM16      |    384B | 3.2kb/s |
 | QAM64      |   1536B | 6.4kb/s |
 | QAM256     |   1536B | 8.2kb/s |
@@ -146,9 +141,9 @@ These are the numbers for the normal modes with a 3/4 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    384B | 1.2kb/s |
-| DQPSK      |    768B | 2.4kb/s |
-| D8PSK      |   1536B | 3.6kb/s |
+| BPSK       |    384B | 1.2kb/s |
+| QPSK       |    768B | 2.4kb/s |
+| 8PSK       |   1536B | 3.6kb/s |
 | QAM16      |   1536B | 4.7kb/s |
 | QAM64      |   3072B | 7.2kb/s |
 | QAM256     |   3072B | 9.5kb/s |
@@ -159,9 +154,9 @@ These are the numbers for the short modes with a 5/6 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    213B | 1.1kb/s |
-| DQPSK      |    213B | 1.8kb/s |
-| D8PSK      |    852B | 3.6kb/s |
+| BPSK       |    213B | 1.1kb/s |
+| QPSK       |    213B | 1.8kb/s |
+| 8PSK       |    852B | 3.6kb/s |
 | QAM16      |    426B | 3.6kb/s |
 | QAM64      |   1704B | 7.1kb/s |
 | QAM256     |   1704B | 9.1kb/s |
@@ -172,9 +167,9 @@ These are the numbers for the normal modes with a 5/6 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| DBPSK      |    426B | 1.3kb/s |
-| DQPSK      |    852B | 2.6kb/s |
-| D8PSK      |   1704B | 4.0kb/s |
+| BPSK       |    426B | 1.3kb/s |
+| QPSK       |    852B | 2.6kb/s |
+| 8PSK       |   1704B | 4.0kb/s |
 | QAM16      |   1704B | 5.2kb/s |
 | QAM64      |   3408B | 8.0kb/s |
 | QAM256     |   3408B |10.5kb/s |

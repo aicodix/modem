@@ -415,15 +415,10 @@ struct Decoder : Common
 						correlator(buf = next_sample());
 					std::cerr << "oper mode: " << oper_mode << std::endl;
 				}
-				if (differential) {
-					for (int i = 0; i < tone_count; ++i)
-						chan[i] = fdom[bin(i+tone_off)];
-				} else {
-					for (int i = head_off; i < tone_count; i += block_length)
-						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-					for (int i = tail_off; i < tone_count; i += block_length)
-						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-				}
+				for (int i = head_off; i < tone_count; i += block_length)
+					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+				for (int i = tail_off; i < tone_count; i += block_length)
+					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
 			if (oper_mode < 0)
 				continue;

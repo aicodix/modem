@@ -48,7 +48,6 @@ struct Common
 	int head_off;
 	int tail_off;
 	int symbol_count;
-	bool differential;
 
 	Common() : crc0(0xA8F4), crc1(0x8F6E37A0) {}
 
@@ -65,56 +64,48 @@ struct Common
 		case 0:
 			mod_bits = 1;
 			symbol_count = 8;
-			differential = true;
 			code_order = 11;
-			std::cerr << "DBPSK";
+			std::cerr << "BPSK";
 			break;
 		case 1:
 			mod_bits = 2;
 			symbol_count = 4;
-			differential = true;
 			code_order = 11;
-			std::cerr << "DQPSK";
+			std::cerr << "QPSK";
 			break;
 		case 2:
 			mod_bits = 3;
 			symbol_count = 11;
-			differential = true;
 			code_order = 13;
-			std::cerr << "D8PSK";
+			std::cerr << "8PSK";
 			break;
 		case 3:
 			mod_bits = 4;
 			symbol_count = 4;
-			differential = false;
 			code_order = 12;
 			std::cerr << "QAM16";
 			break;
 		case 4:
 			mod_bits = 6;
 			symbol_count = 11;
-			differential = false;
 			code_order = 14;
 			std::cerr << "QAM64";
 			break;
 		case 5:
 			mod_bits = 8;
 			symbol_count = 8;
-			differential = false;
 			code_order = 14;
 			std::cerr << "QAM256";
 			break;
 		case 6:
 			mod_bits = 10;
 			symbol_count = 13;
-			differential = false;
 			code_order = 15;
 			std::cerr << "QAM1024";
 			break;
 		case 7:
 			mod_bits = 12;
 			symbol_count = 11;
-			differential = false;
 			code_order = 15;
 			std::cerr << "QAM4096";
 			break;
