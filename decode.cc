@@ -306,7 +306,8 @@ struct Decoder : Common
 				int head_data = hadamard_decoder(head);
 				if (head_data < 0) {
 					std::cerr << "head data damaged" << std::endl;
-					head_data = 0;
+					oper_mode = -1;
+					break;
 				}
 				hadamard_encoder(head, head_data);
 				for (int i = 0; i < head_tones; ++i) {
@@ -322,7 +323,8 @@ struct Decoder : Common
 				int tail_data = hadamard_decoder(tail);
 				if (tail_data < 0) {
 					std::cerr << "tail data damaged" << std::endl;
-					tail_data = 0;
+					oper_mode = -1;
+					break;
 				}
 				hadamard_encoder(tail, tail_data);
 				for (int i = 0; i < tail_tones; ++i) {
