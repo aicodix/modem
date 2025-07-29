@@ -324,15 +324,13 @@ struct Decoder : Common
 					demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
-				CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
+				CODE::XorShiftMask<int, 14, 1, 5, 10, 50> combination;
 				int trial = side_data;
 				int comb = 0;
 				for (int i = 0; i <= trial; ++i)
 					comb = combination();
 				int poly_index = comb & 15;
 				int seed_value = comb >> 4;
-				if (seed_value == 0)
-					std::cerr << "reserved seed value detected" << std::endl;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0; i < tone_count; ++i)
 					if (i % block_length != side_off)

@@ -79,7 +79,7 @@ struct Encoder : public Common
 	{
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		value best_papr = 1000;
-		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
+		CODE::XorShiftMask<int, 14, 1, 5, 10, 50> combination;
 		for (int trial = 0; trial < 128; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
@@ -88,8 +88,6 @@ struct Encoder : public Common
 				int comb = combination();
 				int poly_index = comb & 15;
 				int seed_value = comb >> 4;
-				if (seed_value == 0)
-					continue;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0, s = 0; i < tone_count; ++i)
 					if (i % block_length == side_off)
