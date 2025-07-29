@@ -22,21 +22,18 @@ struct Common
 	static const int mls1_poly = 0x43;
 	static const int mls2_poly = 0x163;
 	static const int data_tones = 256;
-	static const int head_tones = 32;
-	static const int tail_tones = 32;
-	static const int tone_count = data_tones + head_tones + tail_tones;
-	static const int block_length = 10;
+	static const int side_tones = 64;
+	static const int tone_count = data_tones + side_tones;
+	static const int block_length = 5;
 	static const int block_skew = 3;
-	static const int first_head = 4;
-	static const int first_tail = 9;
+	static const int first_side = 4;
 	static constexpr int slm_poly[16] = {
 			0x11d, 0x12b, 0x12d, 0x14d, 0x15f, 0x163, 0x165, 0x169,
 			0x171, 0x187, 0x18d, 0x1a9, 0x1c3, 0x1cf, 0x1e7, 0x1f5 };
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
-	CODE::HadamardEncoder<6> hadamard_encoder;
-	int8_t head[32];
-	int8_t tail[32];
+	CODE::HadamardEncoder<7> hadamard_encoder;
+	int8_t side[64];
 	uint8_t data[data_max];
 	const uint32_t *frozen_bits;
 	int mod_bits;
@@ -45,8 +42,7 @@ struct Common
 	int code_order;
 	int oper_mode;
 	int tone_off;
-	int head_off;
-	int tail_off;
+	int side_off;
 	int symbol_count;
 
 	Common() : crc0(0xA8F4), crc1(0x8F6E37A0) {}

@@ -80,25 +80,20 @@ struct Encoder : public Common
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		value best_papr = 1000;
 		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
-		for (int trial = 0; trial < 4096; ++trial) {
+		for (int trial = 0; trial < 128; ++trial) {
 			for (int i = 0; i < tone_count; ++i)
 				temp[i] = tone[i];
 			if (symbol_number >= 0) {
+				hadamard_encoder(side, trial);
 				int comb = combination();
-				int head_data = trial >> 6;
-				hadamard_encoder(head, head_data);
-				int tail_data = trial & 63;
-				hadamard_encoder(tail, tail_data);
 				int poly_index = comb & 15;
 				int seed_value = comb >> 4;
 				if (seed_value == 0)
 					continue;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
-				for (int i = 0, m = 0, s = 0; i < tone_count; ++i)
-					if (i % block_length == head_off)
-						temp[i] *= head[m++];
-					else if (i % block_length == tail_off)
-						temp[i] *= tail[s++];
+				for (int i = 0, s = 0; i < tone_count; ++i)
+					if (i % block_length == side_off)
+						temp[i] *= side[s++];
 					else
 						temp[i] *= nrz(seq());
 			}
@@ -307,10 +302,9 @@ struct Encoder : public Common
 			shuffle(perm, code, code_order);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0, m = 0; j < symbol_count + 1; ++j) {
-				head_off = (block_skew * j + first_head) % block_length;
-				tail_off = (block_skew * j + first_tail) % block_length;
+				side_off = (block_skew * j + first_side) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == head_off || i % block_length == tail_off) {
+					if (i % block_length == side_off) {
 						tone[i] = nrz(seq1());
 					} else if (j) {
 						int bits = mod_bits;

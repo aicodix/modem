@@ -51,7 +51,7 @@ struct Decoder : Common
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
-	CODE::HadamardDecoder<6> hadamard_decoder;
+	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
@@ -283,8 +283,7 @@ struct Decoder : Common
 			oper_mode = -1;
 			symbol_count = 0;
 			for (int j = 0, k = 0; j < symbol_count + 1; ++j) {
-				head_off = (block_skew * j + first_head) % block_length;
-				tail_off = (block_skew * j + first_tail) % block_length;
+				side_off = (block_skew * j + first_side) % block_length;
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -297,45 +296,28 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					tone[i] = fdom[bin(i+tone_off)];
 				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length == head_off || i % block_length == tail_off)
+					if (i % block_length == side_off)
 						tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
-				for (int i = 0; i < head_tones; ++i)
-					head[i] = clamp(std::nearbyint(127 * demod[i*block_length+head_off].real()));
-				int head_data = hadamard_decoder(head);
-				if (head_data < 0) {
-					std::cerr << "head data damaged" << std::endl;
+				for (int i = 0; i < side_tones; ++i)
+					side[i] = clamp(std::nearbyint(127 * demod[i*block_length+side_off].real()));
+				int side_data = hadamard_decoder(side);
+				if (side_data < 0) {
+					std::cerr << "side data damaged" << std::endl;
 					oper_mode = -1;
 					break;
 				}
-				hadamard_encoder(head, head_data);
-				for (int i = 0; i < head_tones; ++i) {
-					tone[block_length*i+head_off] *= head[i];
-					demod[block_length*i+head_off] *= head[i];
+				hadamard_encoder(side, side_data);
+				for (int i = 0; i < side_tones; ++i) {
+					tone[block_length*i+side_off] *= side[i];
+					demod[block_length*i+side_off] *= side[i];
 				}
-				for (int i = 0; i < head_tones; ++i) {
-					index[i] = tone_off + block_length * i + head_off;
-					phase[i] = arg(demod[block_length*i+head_off]);
+				for (int i = 0; i < side_tones; ++i) {
+					index[i] = tone_off + block_length * i + side_off;
+					phase[i] = arg(demod[block_length*i+side_off]);
 				}
-				for (int i = 0; i < tail_tones; ++i)
-					tail[i] = clamp(std::nearbyint(127 * demod[i*block_length+tail_off].real()));
-				int tail_data = hadamard_decoder(tail);
-				if (tail_data < 0) {
-					std::cerr << "tail data damaged" << std::endl;
-					oper_mode = -1;
-					break;
-				}
-				hadamard_encoder(tail, tail_data);
-				for (int i = 0; i < tail_tones; ++i) {
-					tone[block_length*i+tail_off] *= tail[i];
-					demod[block_length*i+tail_off] *= tail[i];
-				}
-				for (int i = 0; i < tail_tones; ++i) {
-					index[i+head_tones] = tone_off + block_length * i + tail_off;
-					phase[i+head_tones] = arg(demod[block_length*i+tail_off]);
-				}
-				tse.compute(index, phase, head_tones + tail_tones);
+				tse.compute(index, phase, side_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 				for (int i = 0; i < tone_count; ++i)
@@ -343,7 +325,7 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 				CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
-				int trial = (head_data << 6) | tail_data;
+				int trial = side_data;
 				int comb = 0;
 				for (int i = 0; i <= trial; ++i)
 					comb = combination();
@@ -353,12 +335,12 @@ struct Decoder : Common
 					std::cerr << "reserved seed value detected" << std::endl;
 				CODE::MLS seq(slm_poly[poly_index], seed_value);
 				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length != head_off && i % block_length != tail_off)
+					if (i % block_length != side_off)
 						demod[i] *= nrz(seq());
 				value sp = 0, np = 0;
 				for (int i = 0, l = k; i < tone_count; ++i) {
 					cmplx hard(1, 0);
-					if (i % block_length != head_off && i % block_length != tail_off) {
+					if (i % block_length != side_off) {
 						int bits = mod_bits;
 						if (mod_bits == 3 && l % 32 == 30)
 							bits = 2;
@@ -380,7 +362,7 @@ struct Decoder : Common
 				snr[j] = precision;
 				precision = std::min(precision, value(1023));
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length != head_off && i % block_length != tail_off) {
+					if (i % block_length != side_off) {
 						int bits = mod_bits;
 						if (mod_bits == 3 && k % 32 == 30)
 							bits = 2;
@@ -417,9 +399,7 @@ struct Decoder : Common
 						correlator(buf = next_sample());
 					std::cerr << "oper mode: " << oper_mode << std::endl;
 				}
-				for (int i = head_off; i < tone_count; i += block_length)
-					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-				for (int i = tail_off; i < tone_count; i += block_length)
+				for (int i = side_off; i < tone_count; i += block_length)
 					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
 			if (oper_mode < 0)
