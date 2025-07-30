@@ -283,7 +283,7 @@ struct Decoder : Common
 			oper_mode = -1;
 			symbol_count = 0;
 			for (int j = 0, k = 0; j < symbol_count + 1; ++j) {
-				side_off = (block_skew * j + first_side) % block_length;
+				seed_off = (block_skew * j + first_seed) % block_length;
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -295,49 +295,44 @@ struct Decoder : Common
 				}
 				for (int i = 0; i < tone_count; ++i)
 					tone[i] = fdom[bin(i+tone_off)];
-				for (int i = side_off; i < tone_count; i += block_length)
+				for (int i = seed_off; i < tone_count; i += block_length)
 					tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
-				for (int i = 0; i < side_tones; ++i)
-					side[i] = clamp(std::nearbyint(127 * demod[i*block_length+side_off].real()));
-				int side_info = hadamard_decoder(side);
-				if (side_info < 0) {
-					std::cerr << "side info damaged" << std::endl;
+				for (int i = 0; i < seed_tones; ++i)
+					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
+				int seed_value = hadamard_decoder(seed);
+				if (seed_value < 0) {
+					std::cerr << "seed value damaged" << std::endl;
 					oper_mode = -1;
 					break;
 				}
-				hadamard_encoder(side, side_info);
-				for (int i = 0; i < side_tones; ++i) {
-					tone[block_length*i+side_off] *= side[i];
-					demod[block_length*i+side_off] *= side[i];
+				hadamard_encoder(seed, seed_value);
+				for (int i = 0; i < seed_tones; ++i) {
+					tone[block_length*i+seed_off] *= seed[i];
+					demod[block_length*i+seed_off] *= seed[i];
 				}
-				for (int i = 0; i < side_tones; ++i) {
-					index[i] = tone_off + block_length * i + side_off;
-					phase[i] = arg(demod[block_length*i+side_off]);
+				for (int i = 0; i < seed_tones; ++i) {
+					index[i] = tone_off + block_length * i + seed_off;
+					phase[i] = arg(demod[block_length*i+seed_off]);
 				}
-				tse.compute(index, phase, side_tones);
+				tse.compute(index, phase, seed_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
-				CODE::XorShiftMask<int, 14, 1, 5, 10, 50> combination;
-				int trial = side_info;
-				int comb = 0;
-				for (int i = 0; i <= trial; ++i)
-					comb = combination();
-				int poly_index = comb & 15;
-				int seed_value = comb >> 4;
-				CODE::MLS seq(slm_poly[poly_index], seed_value);
-				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length != side_off)
-						demod[i] *= nrz(seq());
+				if (seed_value) {
+					CODE::MLS seq(mls2_poly, seed_value);
+					for (int i = 0; i < tone_count; ++i)
+						if (i % block_length != seed_off)
+							demod[i] *= nrz(seq());
+				}
 				value sp = 0, np = 0;
 				for (int i = 0, l = k; i < tone_count; ++i) {
 					cmplx hard(1, 0);
-					if (i % block_length != side_off) {
+					if (i % block_length != seed_off) {
 						int bits = mod_bits;
 						if (mod_bits == 3 && l % 32 == 30)
 							bits = 2;
@@ -359,7 +354,7 @@ struct Decoder : Common
 				snr[j] = precision;
 				precision = std::min(precision, value(1023));
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length != side_off) {
+					if (i % block_length != seed_off) {
 						int bits = mod_bits;
 						if (mod_bits == 3 && k % 32 == 30)
 							bits = 2;
@@ -396,7 +391,7 @@ struct Decoder : Common
 						correlator(buf = next_sample());
 					std::cerr << "oper mode: " << oper_mode << std::endl;
 				}
-				for (int i = side_off; i < tone_count; i += block_length)
+				for (int i = seed_off; i < tone_count; i += block_length)
 					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
 			if (oper_mode < 0)
