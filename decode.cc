@@ -295,20 +295,19 @@ struct Decoder : Common
 				}
 				for (int i = 0; i < tone_count; ++i)
 					tone[i] = fdom[bin(i+tone_off)];
-				for (int i = 0; i < tone_count; ++i)
-					if (i % block_length == side_off)
-						tone[i] *= nrz(seq1());
+				for (int i = side_off; i < tone_count; i += block_length)
+					tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
 				for (int i = 0; i < side_tones; ++i)
 					side[i] = clamp(std::nearbyint(127 * demod[i*block_length+side_off].real()));
-				int side_data = hadamard_decoder(side);
-				if (side_data < 0) {
-					std::cerr << "side data damaged" << std::endl;
+				int side_info = hadamard_decoder(side);
+				if (side_info < 0) {
+					std::cerr << "side info damaged" << std::endl;
 					oper_mode = -1;
 					break;
 				}
-				hadamard_encoder(side, side_data);
+				hadamard_encoder(side, side_info);
 				for (int i = 0; i < side_tones; ++i) {
 					tone[block_length*i+side_off] *= side[i];
 					demod[block_length*i+side_off] *= side[i];
@@ -325,7 +324,7 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 				CODE::XorShiftMask<int, 14, 1, 5, 10, 50> combination;
-				int trial = side_data;
+				int trial = side_info;
 				int comb = 0;
 				for (int i = 0; i <= trial; ++i)
 					comb = combination();

@@ -7,6 +7,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include <iomanip>
 #include <iostream>
 #include <cstdint>
+#include <cstring>
 #include <cassert>
 #include <cmath>
 #include "common.hh"
@@ -34,7 +35,7 @@ struct Encoder : public Common
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::PolarEncoder<code_type> polar_encoder;
-	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[256];
+	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[data_tones];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx best[symbol_len];

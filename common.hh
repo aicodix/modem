@@ -33,7 +33,7 @@ struct Common
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::HadamardEncoder<7> hadamard_encoder;
-	int8_t side[64];
+	int8_t side[side_tones];
 	uint8_t data[data_max];
 	const uint32_t *frozen_bits;
 	int mod_bits;
