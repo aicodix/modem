@@ -117,7 +117,7 @@ public:
 			return false;
 
 		int pos_err = std::nearbyint(arg(tmp1[shift]) * symbol_len / Const::TwoPi());
-		if (abs(pos_err) > guard_len / 2)
+		if (abs(pos_err) > guard_len)
 			return false;
 		symbol_pos -= pos_err;
 
