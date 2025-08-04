@@ -4,25 +4,8 @@ OFDM modem encoder
 Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
-#include <iomanip>
-#include <iostream>
-#include <cstdint>
-#include <cstring>
-#include <cassert>
-#include <cmath>
 #include "common.hh"
-#include "xorshift.hh"
-#include "complex.hh"
 #include "utils.hh"
-#include "quick.hh"
-#include "bitman.hh"
-#include "decibel.hh"
-#include "fft.hh"
-#include "wav.hh"
-#include "pcm.hh"
-#include "mls.hh"
-#include "psk.hh"
-#include "qam.hh"
 #include "polar_encoder.hh"
 
 template <typename value, typename cmplx, int rate>

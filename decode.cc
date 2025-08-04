@@ -4,30 +4,14 @@ OFDM modem decoder
 Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
-#include <iomanip>
-#include <iostream>
-#include <cstdint>
-#include <cassert>
-#include <cmath>
-namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
 #include "common.hh"
 #include "schmidl_cox.hh"
 #include "bip_buffer.hh"
 #include "theil_sen.hh"
-#include "xorshift.hh"
-#include "complex.hh"
-#include "decibel.hh"
 #include "blockdc.hh"
 #include "hilbert.hh"
 #include "phasor.hh"
-#include "bitman.hh"
 #include "delay.hh"
-#include "wav.hh"
-#include "pcm.hh"
-#include "fft.hh"
-#include "mls.hh"
-#include "psk.hh"
-#include "qam.hh"
 #include "polar_list_decoder.hh"
 #include "hadamard_decoder.hh"
 

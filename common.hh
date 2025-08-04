@@ -6,6 +6,24 @@ Copyright 2025 Ahmet Inan <inan@aicodix.de>
 
 #pragma once
 
+#include <iomanip>
+#include <iostream>
+#include <cstdint>
+#include <cstring>
+#include <cassert>
+#include <cmath>
+namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
+#include "xorshift.hh"
+#include "complex.hh"
+#include "decibel.hh"
+#include "bitman.hh"
+#include "quick.hh"
+#include "wav.hh"
+#include "pcm.hh"
+#include "fft.hh"
+#include "mls.hh"
+#include "psk.hh"
+#include "qam.hh"
 #include "crc.hh"
 #include "polar_tables.hh"
 #include "hadamard_encoder.hh"
