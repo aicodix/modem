@@ -29,7 +29,6 @@ namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; 
 #include "psk.hh"
 #include "qam.hh"
 #include "polar_list_decoder.hh"
-#include "hadamard_decoder.hh"
 
 template <typename value, typename cmplx, int rate>
 struct Decoder : Common
@@ -51,7 +50,6 @@ struct Decoder : Common
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
-	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max];
@@ -278,12 +276,11 @@ struct Decoder : Common
 				osc();
 			fwd(fdom, tdom);
 			CODE::MLS seq1(mls1_poly);
-			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 			mod_bits = 1;
 			oper_mode = -1;
 			symbol_count = 0;
 			for (int j = 0, k = 0; j < symbol_count + 1; ++j) {
-				seed_off = (block_skew * j + first_seed) % block_length;
+				pilot_off = (block_skew * j + first_pilot) % block_length;
 				if (j) {
 					for (int i = 0; i < extended_len; ++i)
 						correlator(buf = next_sample());
@@ -295,44 +292,38 @@ struct Decoder : Common
 				}
 				for (int i = 0; i < tone_count; ++i)
 					tone[i] = fdom[bin(i+tone_off)];
-				for (int i = seed_off; i < tone_count; i += block_length)
+				for (int i = pilot_off; i < tone_count; i += block_length)
 					tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
-				for (int i = 0; i < seed_tones; ++i)
-					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
-				int seed_value = hadamard_decoder(seed);
-				if (seed_value < 0) {
-					std::cerr << "seed value damaged" << std::endl;
+				value pilot_sum = 0;
+				for (int i = 0; i < pilot_tones; ++i)
+					pilot_sum += demod[i*block_length+pilot_off].real();
+				int pilot_phase = DSP::signum(pilot_sum);
+				if (std::abs(pilot_sum) < pilot_tones / 4) {
+					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
 				}
-				hadamard_encoder(seed, seed_value);
-				for (int i = 0; i < seed_tones; ++i) {
-					tone[block_length*i+seed_off] *= seed[i];
-					demod[block_length*i+seed_off] *= seed[i];
+				for (int i = 0; i < tone_count; ++i) {
+					tone[i] *= pilot_phase;
+					demod[i] *= pilot_phase;
 				}
-				for (int i = 0; i < seed_tones; ++i) {
-					index[i] = tone_off + block_length * i + seed_off;
-					phase[i] = arg(demod[block_length*i+seed_off]);
+				for (int i = 0; i < pilot_tones; ++i) {
+					index[i] = tone_off + block_length * i + pilot_off;
+					phase[i] = arg(demod[block_length*i+pilot_off]);
 				}
-				tse.compute(index, phase, seed_tones);
+				tse.compute(index, phase, pilot_tones);
 				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
 				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
 				for (int i = 0; i < tone_count; ++i)
 					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
-				if (seed_value) {
-					CODE::MLS seq(mls2_poly, seed_value);
-					for (int i = 0; i < tone_count; ++i)
-						if (i % block_length != seed_off)
-							demod[i] *= nrz(seq());
-				}
 				value sp = 0, np = 0;
 				for (int i = 0, l = k; i < tone_count; ++i) {
 					cmplx hard(1, 0);
-					if (i % block_length != seed_off) {
+					if (i % block_length != pilot_off) {
 						int bits = mod_bits;
 						if (mod_bits == 3 && l % 32 == 30)
 							bits = 2;
@@ -354,7 +345,7 @@ struct Decoder : Common
 				snr[j] = precision;
 				precision = std::min(precision, value(1023));
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length != seed_off) {
+					if (i % block_length != pilot_off) {
 						int bits = mod_bits;
 						if (mod_bits == 3 && k % 32 == 30)
 							bits = 2;
@@ -391,7 +382,7 @@ struct Decoder : Common
 						correlator(buf = next_sample());
 					std::cerr << "oper mode: " << oper_mode << std::endl;
 				}
-				for (int i = seed_off; i < tone_count; i += block_length)
+				for (int i = pilot_off; i < tone_count; i += block_length)
 					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
 			if (oper_mode < 0)

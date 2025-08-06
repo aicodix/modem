@@ -8,7 +8,6 @@ Copyright 2025 Ahmet Inan <inan@aicodix.de>
 
 #include "crc.hh"
 #include "polar_tables.hh"
-#include "hadamard_encoder.hh"
 
 struct Common
 {
@@ -22,15 +21,13 @@ struct Common
 	static const int mls1_poly = 0x43;
 	static const int mls2_poly = 0x163;
 	static const int data_tones = 256;
-	static const int seed_tones = 64;
-	static const int tone_count = data_tones + seed_tones;
+	static const int pilot_tones = 64;
+	static const int tone_count = data_tones + pilot_tones;
 	static const int block_length = 5;
 	static const int block_skew = 3;
-	static const int first_seed = 4;
+	static const int first_pilot = 4;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
-	CODE::HadamardEncoder<7> hadamard_encoder;
-	int8_t seed[seed_tones];
 	uint8_t data[data_max];
 	const uint32_t *frozen_bits;
 	int mod_bits;
@@ -39,7 +36,7 @@ struct Common
 	int code_order;
 	int oper_mode;
 	int tone_off;
-	int seed_off;
+	int pilot_off;
 	int symbol_count;
 
 	Common() : crc0(0xA8F4), crc1(0x8F6E37A0) {}

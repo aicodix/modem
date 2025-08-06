@@ -38,11 +38,11 @@ struct Encoder : public Common
 	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[data_tones];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
+	cmplx temp[symbol_len];
 	cmplx best[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
-	cmplx temp[tone_count];
 	value weight[guard_len];
 	value papr[symbols_max];
 
@@ -79,47 +79,42 @@ struct Encoder : public Common
 	void symbol(int symbol_number)
 	{
 		value scale = value(0.5) / std::sqrt(value(tone_count));
-		value best_papr = 1000;
-		for (int seed_value = 0; seed_value < 128; ++seed_value) {
-			for (int i = 0; i < tone_count; ++i)
-				temp[i] = tone[i];
-			if (symbol_number >= 0) {
-				hadamard_encoder(seed, seed_value);
-				for (int i = 0; i < seed_tones; ++i)
-					temp[i*block_length+seed_off] *= seed[i];
-				if (seed_value) {
-					CODE::MLS seq(mls2_poly, seed_value);
-					for (int i = 0; i < tone_count; ++i)
-						if (i % block_length != seed_off)
-							temp[i] *= nrz(seq());
-				}
-			}
+		if (symbol_number < 0) {
 			for (int i = 0; i < symbol_len; ++i)
 				fdom[i] = 0;
 			for (int i = 0; i < tone_count; ++i)
-				fdom[bin(i+tone_off)] = temp[i];
+				fdom[bin(i+tone_off)] = tone[i];
 			bwd(tdom, fdom);
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] *= scale;
-			if (symbol_number < 0)
-				break;
-			value peak = 0, mean = 0;
-			for (int i = 0; i < symbol_len; ++i) {
-				value power(norm(tdom[i]));
-				peak = std::max(peak, power);
-				mean += power;
-			}
-			mean /= symbol_len;
-			value cand_papr(peak / mean);
-			if (cand_papr < best_papr) {
-				best_papr = cand_papr;
+		} else {
+			for (int i = 0; i < symbol_len; ++i)
+				fdom[i] = 0;
+			for (int i = 0; i < tone_count; ++i)
+				fdom[bin(i+tone_off)] = tone[i];
+			bwd(temp, fdom);
+			for (int i = 0; i < symbol_len; ++i)
+				temp[i] *= scale;
+			value best_papr = 1000;
+			for (value pilot_phase = -1; pilot_phase < 2; pilot_phase += 2) {
 				for (int i = 0; i < symbol_len; ++i)
-					best[i] = tdom[i];
-				if (cand_papr < 5)
-					break;
+					tdom[i] = pilot_phase * temp[i];
+				value peak = 0, mean = 0;
+				for (int i = 0; i < symbol_len; ++i) {
+					value power(norm(tdom[i]));
+					peak = std::max(peak, power);
+					mean += power;
+				}
+				mean /= symbol_len;
+				value cand_papr(peak / mean);
+				if (cand_papr < best_papr) {
+					best_papr = cand_papr;
+					for (int i = 0; i < symbol_len; ++i)
+						best[i] = tdom[i];
+					if (cand_papr < 5)
+						break;
+				}
 			}
-		}
-		if (symbol_number >= 0) {
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] = best[i];
 			papr[symbol_number] = best_papr;
@@ -299,9 +294,9 @@ struct Encoder : public Common
 			shuffle(perm, code, code_order);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0, m = 0; j < symbol_count + 1; ++j) {
-				seed_off = (block_skew * j + first_seed) % block_length;
+				pilot_off = (block_skew * j + first_pilot) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == seed_off) {
+					if (i % block_length == pilot_off) {
 						tone[i] = nrz(seq1());
 					} else if (j) {
 						int bits = mod_bits;
