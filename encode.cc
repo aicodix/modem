@@ -39,6 +39,8 @@ struct Encoder : public Common
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx temp[symbol_len];
+	cmplx ptsa[symbol_len];
+	cmplx ptsb[symbol_len];
 	cmplx best[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
@@ -90,29 +92,38 @@ struct Encoder : public Common
 		} else {
 			for (int i = 0; i < symbol_len; ++i)
 				fdom[i] = 0;
-			for (int i = 0; i < tone_count; ++i)
+			for (int i = 0; i < tone_count; i += 2)
 				fdom[bin(i+tone_off)] = tone[i];
-			bwd(temp, fdom);
+			bwd(ptsa, fdom);
 			for (int i = 0; i < symbol_len; ++i)
-				temp[i] *= scale;
+				ptsa[i] *= scale;
+			for (int i = 0; i < symbol_len; ++i)
+				fdom[i] = 0;
+			for (int i = 1; i < tone_count; i += 2)
+				fdom[bin(i+tone_off)] = tone[i];
+			bwd(ptsb, fdom);
+			for (int i = 0; i < symbol_len; ++i)
+				ptsb[i] *= scale;
 			value best_papr = 1000;
-			for (value pilot_phase = -1; pilot_phase < 2; pilot_phase += 2) {
+			for (value ptsa_phase = -1; ptsa_phase < 2; ptsa_phase += 2) {
 				for (int i = 0; i < symbol_len; ++i)
-					tdom[i] = pilot_phase * temp[i];
-				value peak = 0, mean = 0;
-				for (int i = 0; i < symbol_len; ++i) {
-					value power(norm(tdom[i]));
-					peak = std::max(peak, power);
-					mean += power;
-				}
-				mean /= symbol_len;
-				value cand_papr(peak / mean);
-				if (cand_papr < best_papr) {
-					best_papr = cand_papr;
+					temp[i] = ptsa_phase * ptsa[i];
+				for (value ptsb_phase = -1; ptsb_phase < 2; ptsb_phase += 2) {
 					for (int i = 0; i < symbol_len; ++i)
-						best[i] = tdom[i];
-					if (cand_papr < 5)
-						break;
+						tdom[i] = ptsb_phase * ptsb[i] + temp[i];
+					value peak = 0, mean = 0;
+					for (int i = 0; i < symbol_len; ++i) {
+						value power(norm(tdom[i]));
+						peak = std::max(peak, power);
+						mean += power;
+					}
+					mean /= symbol_len;
+					value cand_papr(peak / mean);
+					if (cand_papr < best_papr) {
+						best_papr = cand_papr;
+						for (int i = 0; i < symbol_len; ++i)
+							best[i] = tdom[i];
+					}
 				}
 			}
 			for (int i = 0; i < symbol_len; ++i)
