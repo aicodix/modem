@@ -296,12 +296,13 @@ struct Decoder : Common
 					tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
-				value ptsa_sum = 0;
+				auto rot = [](cmplx p){ return std::abs(p.real()) < std::abs(p.imag()) ? cmplx(0, p.imag() < 0 ? 1 : -1) : cmplx(p.real() < 0 ? -1 : 1); };
+				cmplx ptsa_sum;
 				for (int i = 0; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptsa_sum += demod[i].real();
-				int ptsa_phase = DSP::signum(ptsa_sum);
-				if (std::abs(ptsa_sum) < pilot_tones / (8 * 2)) {
+						ptsa_sum += demod[i];
+				cmplx ptsa_phase = rot(ptsa_sum);
+				if (abs(ptsa_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
@@ -310,12 +311,12 @@ struct Decoder : Common
 					tone[i] *= ptsa_phase;
 					demod[i] *= ptsa_phase;
 				}
-				value ptsb_sum = 0;
+				cmplx ptsb_sum;
 				for (int i = 1; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptsb_sum += demod[i].real();
-				int ptsb_phase = DSP::signum(ptsb_sum);
-				if (std::abs(ptsb_sum) < pilot_tones / (8 * 2)) {
+						ptsb_sum += demod[i];
+				cmplx ptsb_phase = rot(ptsb_sum);
+				if (abs(ptsb_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
@@ -324,12 +325,12 @@ struct Decoder : Common
 					tone[i] *= ptsb_phase;
 					demod[i] *= ptsb_phase;
 				}
-				value ptsc_sum = 0;
+				cmplx ptsc_sum;
 				for (int i = 2; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptsc_sum += demod[i].real();
-				int ptsc_phase = DSP::signum(ptsc_sum);
-				if (std::abs(ptsc_sum) < pilot_tones / (8 * 2)) {
+						ptsc_sum += demod[i];
+				cmplx ptsc_phase = rot(ptsc_sum);
+				if (abs(ptsc_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
@@ -338,12 +339,12 @@ struct Decoder : Common
 					tone[i] *= ptsc_phase;
 					demod[i] *= ptsc_phase;
 				}
-				value ptsd_sum = 0;
+				cmplx ptsd_sum;
 				for (int i = 3; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptsd_sum += demod[i].real();
-				int ptsd_phase = DSP::signum(ptsd_sum);
-				if (std::abs(ptsd_sum) < pilot_tones / (8 * 2)) {
+						ptsd_sum += demod[i];
+				cmplx ptsd_phase = rot(ptsd_sum);
+				if (abs(ptsd_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
@@ -352,12 +353,12 @@ struct Decoder : Common
 					tone[i] *= ptsd_phase;
 					demod[i] *= ptsd_phase;
 				}
-				value ptse_sum = 0;
+				cmplx ptse_sum;
 				for (int i = 4; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptse_sum += demod[i].real();
-				int ptse_phase = DSP::signum(ptse_sum);
-				if (std::abs(ptse_sum) < pilot_tones / (8 * 2)) {
+						ptse_sum += demod[i];
+				cmplx ptse_phase = rot(ptse_sum);
+				if (abs(ptse_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
@@ -366,12 +367,12 @@ struct Decoder : Common
 					tone[i] *= ptse_phase;
 					demod[i] *= ptse_phase;
 				}
-				value ptsf_sum = 0;
+				cmplx ptsf_sum;
 				for (int i = 5; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptsf_sum += demod[i].real();
-				int ptsf_phase = DSP::signum(ptsf_sum);
-				if (std::abs(ptsf_sum) < pilot_tones / (8 * 2)) {
+						ptsf_sum += demod[i];
+				cmplx ptsf_phase = rot(ptsf_sum);
+				if (abs(ptsf_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
@@ -380,12 +381,12 @@ struct Decoder : Common
 					tone[i] *= ptsf_phase;
 					demod[i] *= ptsf_phase;
 				}
-				value ptsg_sum = 0;
+				cmplx ptsg_sum;
 				for (int i = 6; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptsg_sum += demod[i].real();
-				int ptsg_phase = DSP::signum(ptsg_sum);
-				if (std::abs(ptsg_sum) < pilot_tones / (8 * 2)) {
+						ptsg_sum += demod[i];
+				cmplx ptsg_phase = rot(ptsg_sum);
+				if (abs(ptsg_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
@@ -394,12 +395,12 @@ struct Decoder : Common
 					tone[i] *= ptsg_phase;
 					demod[i] *= ptsg_phase;
 				}
-				value ptsh_sum = 0;
+				cmplx ptsh_sum;
 				for (int i = 7; i < tone_count; i += 8)
 					if (i % block_length == pilot_off)
-						ptsh_sum += demod[i].real();
-				int ptsh_phase = DSP::signum(ptsh_sum);
-				if (std::abs(ptsh_sum) < pilot_tones / (8 * 2)) {
+						ptsh_sum += demod[i];
+				cmplx ptsh_phase = rot(ptsh_sum);
+				if (abs(ptsh_sum) < pilot_tones / (8 * 2)) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;

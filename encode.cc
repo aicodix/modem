@@ -159,30 +159,32 @@ struct Encoder : public Common
 			for (int i = 0; i < symbol_len; ++i)
 				ptsh[i] *= scale;
 			value best_papr = 1000;
-			for (value ptsh_phase = -1; ptsh_phase < 2; ptsh_phase += 2) {
+			int phase_max = 4;
+			auto rot = [](int i){ return i&2 ? cmplx(0, nrz(i&1)) : cmplx(nrz(i&1)); };
+			for (int ptsh_phase = 0; ptsh_phase < phase_max; ++ptsh_phase) {
 				for (int i = 0; i < symbol_len; ++i)
-					tmph[i] = ptsh_phase * ptsh[i];
-				for (value ptsg_phase = -1; ptsg_phase < 2; ptsg_phase += 2) {
+					tmph[i] = rot(ptsh_phase) * ptsh[i];
+				for (int ptsg_phase = 0; ptsg_phase < phase_max; ++ptsg_phase) {
 					for (int i = 0; i < symbol_len; ++i)
-						tmpg[i] = ptsg_phase * ptsg[i] + tmph[i];
-					for (value ptsf_phase = -1; ptsf_phase < 2; ptsf_phase += 2) {
+						tmpg[i] = rot(ptsg_phase) * ptsg[i] + tmph[i];
+					for (int ptsf_phase = 0; ptsf_phase < phase_max; ++ptsf_phase) {
 						for (int i = 0; i < symbol_len; ++i)
-							tmpf[i] = ptsf_phase * ptsf[i] + tmpg[i];
-						for (value ptse_phase = -1; ptse_phase < 2; ptse_phase += 2) {
+							tmpf[i] = rot(ptsf_phase) * ptsf[i] + tmpg[i];
+						for (int ptse_phase = 0; ptse_phase < phase_max; ++ptse_phase) {
 							for (int i = 0; i < symbol_len; ++i)
-								tmpe[i] = ptse_phase * ptse[i] + tmpf[i];
-							for (value ptsd_phase = -1; ptsd_phase < 2; ptsd_phase += 2) {
+								tmpe[i] = rot(ptse_phase) * ptse[i] + tmpf[i];
+							for (int ptsd_phase = 0; ptsd_phase < phase_max; ++ptsd_phase) {
 								for (int i = 0; i < symbol_len; ++i)
-									tmpd[i] = ptsd_phase * ptsd[i] + tmpe[i];
-								for (value ptsc_phase = -1; ptsc_phase < 2; ptsc_phase += 2) {
+									tmpd[i] = rot(ptsd_phase) * ptsd[i] + tmpe[i];
+								for (int ptsc_phase = 0; ptsc_phase < phase_max; ++ptsc_phase) {
 									for (int i = 0; i < symbol_len; ++i)
-										tmpc[i] = ptsc_phase * ptsc[i] + tmpd[i];
-									for (value ptsb_phase = -1; ptsb_phase < 2; ptsb_phase += 2) {
+										tmpc[i] = rot(ptsc_phase) * ptsc[i] + tmpd[i];
+									for (int ptsb_phase = 0; ptsb_phase < phase_max; ++ptsb_phase) {
 										for (int i = 0; i < symbol_len; ++i)
-											tmpb[i] = ptsb_phase * ptsb[i] + tmpc[i];
-										for (value ptsa_phase = -1; ptsa_phase < 2; ptsa_phase += 2) {
+											tmpb[i] = rot(ptsb_phase) * ptsb[i] + tmpc[i];
+										for (int ptsa_phase = 0; ptsa_phase < phase_max; ++ptsa_phase) {
 											for (int i = 0; i < symbol_len; ++i)
-												test[i] = ptsa_phase * ptsa[i] + tmpb[i];
+												test[i] = rot(ptsa_phase) * ptsa[i] + tmpb[i];
 											value peak = 0, mean = 0;
 											for (int i = 0; i < symbol_len; ++i) {
 												value power(norm(test[i]));
