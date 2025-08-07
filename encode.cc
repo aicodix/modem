@@ -198,6 +198,8 @@ struct Encoder : public Common
 												papr[symbol_number] = best_papr;
 												for (int i = 0; i < symbol_len; ++i)
 													tdom[i] = test[i];
+												if (test_papr < 5)
+													goto end;
 											}
 										}
 									}
@@ -208,6 +210,7 @@ struct Encoder : public Common
 				}
 			}
 		}
+end:
 		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
 			for (int i = 0; i < guard_len; ++i)
