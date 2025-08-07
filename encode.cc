@@ -40,8 +40,12 @@ struct Encoder : public Common
 	cmplx tdom[symbol_len];
 	cmplx ptsa[symbol_len];
 	cmplx ptsb[symbol_len];
-	cmplx tmpa[symbol_len];
+	cmplx ptsc[symbol_len];
+	cmplx ptsd[symbol_len];
 	cmplx test[symbol_len];
+	cmplx tmpb[symbol_len];
+	cmplx tmpc[symbol_len];
+	cmplx tmpd[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
@@ -92,38 +96,60 @@ struct Encoder : public Common
 		} else {
 			for (int i = 0; i < symbol_len; ++i)
 				fdom[i] = 0;
-			for (int i = 0; i < tone_count; i += 2)
+			for (int i = 0; i < tone_count; i += 4)
 				fdom[bin(i+tone_off)] = tone[i];
 			bwd(ptsa, fdom);
 			for (int i = 0; i < symbol_len; ++i)
 				ptsa[i] *= scale;
 			for (int i = 0; i < symbol_len; ++i)
 				fdom[i] = 0;
-			for (int i = 1; i < tone_count; i += 2)
+			for (int i = 1; i < tone_count; i += 4)
 				fdom[bin(i+tone_off)] = tone[i];
 			bwd(ptsb, fdom);
 			for (int i = 0; i < symbol_len; ++i)
 				ptsb[i] *= scale;
+			for (int i = 0; i < symbol_len; ++i)
+				fdom[i] = 0;
+			for (int i = 2; i < tone_count; i += 4)
+				fdom[bin(i+tone_off)] = tone[i];
+			bwd(ptsc, fdom);
+			for (int i = 0; i < symbol_len; ++i)
+				ptsc[i] *= scale;
+			for (int i = 0; i < symbol_len; ++i)
+				fdom[i] = 0;
+			for (int i = 3; i < tone_count; i += 4)
+				fdom[bin(i+tone_off)] = tone[i];
+			bwd(ptsd, fdom);
+			for (int i = 0; i < symbol_len; ++i)
+				ptsd[i] *= scale;
 			value best_papr = 1000;
-			for (value ptsa_phase = -1; ptsa_phase < 2; ptsa_phase += 2) {
+			for (value ptsd_phase = -1; ptsd_phase < 2; ptsd_phase += 2) {
 				for (int i = 0; i < symbol_len; ++i)
-					tmpa[i] = ptsa_phase * ptsa[i];
-				for (value ptsb_phase = -1; ptsb_phase < 2; ptsb_phase += 2) {
+					tmpd[i] = ptsd_phase * ptsd[i];
+				for (value ptsc_phase = -1; ptsc_phase < 2; ptsc_phase += 2) {
 					for (int i = 0; i < symbol_len; ++i)
-						test[i] = ptsb_phase * ptsb[i] + tmpa[i];
-					value peak = 0, mean = 0;
-					for (int i = 0; i < symbol_len; ++i) {
-						value power(norm(test[i]));
-						peak = std::max(peak, power);
-						mean += power;
-					}
-					mean /= symbol_len;
-					value test_papr(peak / mean);
-					if (test_papr < best_papr) {
-						best_papr = test_papr;
-						papr[symbol_number] = best_papr;
+						tmpc[i] = ptsc_phase * ptsc[i] + tmpd[i];
+					for (value ptsb_phase = -1; ptsb_phase < 2; ptsb_phase += 2) {
 						for (int i = 0; i < symbol_len; ++i)
-							tdom[i] = test[i];
+							tmpb[i] = ptsb_phase * ptsb[i] + tmpc[i];
+						for (value ptsa_phase = -1; ptsa_phase < 2; ptsa_phase += 2) {
+							for (int i = 0; i < symbol_len; ++i)
+								test[i] = ptsa_phase * ptsa[i] + tmpb[i];
+							value peak = 0, mean = 0;
+							for (int i = 0; i < symbol_len; ++i) {
+								value power(norm(test[i]));
+								peak = std::max(peak, power);
+								mean += power;
+							}
+							mean /= symbol_len;
+							value test_papr(peak / mean);
+							if (test_papr < best_papr) {
+								best_papr = test_papr;
+								papr[symbol_number] = best_papr;
+								for (int i = 0; i < symbol_len; ++i)
+									tdom[i] = test[i];
+							}
+						}
 					}
 				}
 			}

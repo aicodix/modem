@@ -297,30 +297,60 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
 				value ptsa_sum = 0;
-				for (int i = pilot_off & 1; i < pilot_tones; i += 2)
-					ptsa_sum += demod[i*block_length+pilot_off].real();
+				for (int i = 0; i < tone_count; i += 4)
+					if (i % block_length == pilot_off)
+						ptsa_sum += demod[i].real();
 				int ptsa_phase = DSP::signum(ptsa_sum);
-				if (std::abs(ptsa_sum) < pilot_tones / 4) {
+				if (std::abs(ptsa_sum) < pilot_tones / 8) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
 				}
-				for (int i = 0; i < tone_count; i += 2) {
+				for (int i = 0; i < tone_count; i += 4) {
 					tone[i] *= ptsa_phase;
 					demod[i] *= ptsa_phase;
 				}
 				value ptsb_sum = 0;
-				for (int i = !(pilot_off & 1); i < pilot_tones; i += 2)
-					ptsb_sum += demod[i*block_length+pilot_off].real();
+				for (int i = 1; i < tone_count; i += 4)
+					if (i % block_length == pilot_off)
+						ptsb_sum += demod[i].real();
 				int ptsb_phase = DSP::signum(ptsb_sum);
-				if (std::abs(ptsb_sum) < pilot_tones / 4) {
+				if (std::abs(ptsb_sum) < pilot_tones / 8) {
 					std::cerr << "pilot phase damaged" << std::endl;
 					oper_mode = -1;
 					break;
 				}
-				for (int i = 1; i < tone_count; i += 2) {
+				for (int i = 1; i < tone_count; i += 4) {
 					tone[i] *= ptsb_phase;
 					demod[i] *= ptsb_phase;
+				}
+				value ptsc_sum = 0;
+				for (int i = 2; i < tone_count; i += 4)
+					if (i % block_length == pilot_off)
+						ptsc_sum += demod[i].real();
+				int ptsc_phase = DSP::signum(ptsc_sum);
+				if (std::abs(ptsc_sum) < pilot_tones / 8) {
+					std::cerr << "pilot phase damaged" << std::endl;
+					oper_mode = -1;
+					break;
+				}
+				for (int i = 2; i < tone_count; i += 4) {
+					tone[i] *= ptsc_phase;
+					demod[i] *= ptsc_phase;
+				}
+				value ptsd_sum = 0;
+				for (int i = 3; i < tone_count; i += 4)
+					if (i % block_length == pilot_off)
+						ptsd_sum += demod[i].real();
+				int ptsd_phase = DSP::signum(ptsd_sum);
+				if (std::abs(ptsd_sum) < pilot_tones / 8) {
+					std::cerr << "pilot phase damaged" << std::endl;
+					oper_mode = -1;
+					break;
+				}
+				for (int i = 3; i < tone_count; i += 4) {
+					tone[i] *= ptsd_phase;
+					demod[i] *= ptsd_phase;
 				}
 				for (int i = 0; i < pilot_tones; ++i) {
 					index[i] = tone_off + block_length * i + pilot_off;
