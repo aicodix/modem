@@ -297,7 +297,7 @@ struct Decoder : Common
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
 				value ptsa_sum = 0;
-				for (int i = 0; i < pilot_tones; i += 2)
+				for (int i = pilot_off & 1; i < pilot_tones; i += 2)
 					ptsa_sum += demod[i*block_length+pilot_off].real();
 				int ptsa_phase = DSP::signum(ptsa_sum);
 				if (std::abs(ptsa_sum) < pilot_tones / 4) {
@@ -310,7 +310,7 @@ struct Decoder : Common
 					demod[i] *= ptsa_phase;
 				}
 				value ptsb_sum = 0;
-				for (int i = 1; i < pilot_tones; i += 2)
+				for (int i = !(pilot_off & 1); i < pilot_tones; i += 2)
 					ptsb_sum += demod[i*block_length+pilot_off].real();
 				int ptsb_phase = DSP::signum(ptsb_sum);
 				if (std::abs(ptsb_sum) < pilot_tones / 4) {
