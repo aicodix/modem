@@ -38,10 +38,10 @@ struct Encoder : public Common
 	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[data_tones];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
-	cmplx temp[symbol_len];
 	cmplx ptsa[symbol_len];
 	cmplx ptsb[symbol_len];
-	cmplx best[symbol_len];
+	cmplx tmpa[symbol_len];
+	cmplx test[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
@@ -107,28 +107,26 @@ struct Encoder : public Common
 			value best_papr = 1000;
 			for (value ptsa_phase = -1; ptsa_phase < 2; ptsa_phase += 2) {
 				for (int i = 0; i < symbol_len; ++i)
-					temp[i] = ptsa_phase * ptsa[i];
+					tmpa[i] = ptsa_phase * ptsa[i];
 				for (value ptsb_phase = -1; ptsb_phase < 2; ptsb_phase += 2) {
 					for (int i = 0; i < symbol_len; ++i)
-						tdom[i] = ptsb_phase * ptsb[i] + temp[i];
+						test[i] = ptsb_phase * ptsb[i] + tmpa[i];
 					value peak = 0, mean = 0;
 					for (int i = 0; i < symbol_len; ++i) {
-						value power(norm(tdom[i]));
+						value power(norm(test[i]));
 						peak = std::max(peak, power);
 						mean += power;
 					}
 					mean /= symbol_len;
-					value cand_papr(peak / mean);
-					if (cand_papr < best_papr) {
-						best_papr = cand_papr;
+					value test_papr(peak / mean);
+					if (test_papr < best_papr) {
+						best_papr = test_papr;
+						papr[symbol_number] = best_papr;
 						for (int i = 0; i < symbol_len; ++i)
-							best[i] = tdom[i];
+							tdom[i] = test[i];
 					}
 				}
 			}
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = best[i];
-			papr[symbol_number] = best_papr;
 		}
 		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
