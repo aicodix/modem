@@ -229,12 +229,16 @@ struct Decoder : Common
 		for (int i = offset; i < tone_count; i += stride)
 			if (i % block_length == pilot_off)
 				sum += demod[i];
-		if (abs(sum) < pilot_tones / (2 * stride)) {
+		value half = pilot_tones / (2 * stride);
+		value magr = std::abs(sum.real());
+		value magi = std::abs(sum.imag());
+		bool real = magr > magi;
+		if (real ? (magr < half || 2 * magi > magr) : (magi < half || 2 * magr > magi)) {
 			std::cerr << "pilot phase damaged" << std::endl;
 			oper_mode = -1;
 			return false;
 		}
-		cmplx rot = std::abs(sum.real()) < std::abs(sum.imag()) ? cmplx(0, sum.imag() < 0 ? 1 : -1) : cmplx(sum.real() < 0 ? -1 : 1);
+		cmplx rot = real ? cmplx(sum.real() < 0 ? -1 : 1) : cmplx(0, sum.imag() < 0 ? 1 : -1);
 		for (int i = offset; i < tone_count; i += stride) {
 			tone[i] *= rot;
 			demod[i] *= rot;
