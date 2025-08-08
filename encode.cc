@@ -37,7 +37,7 @@ struct Encoder : public Common
 	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[256];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
-	cmplx best[symbol_len];
+	cmplx test[symbol_len];
 	cmplx kern[symbol_len];
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
@@ -78,12 +78,20 @@ struct Encoder : public Common
 	void symbol(int symbol_number)
 	{
 		value scale = value(0.5) / std::sqrt(value(tone_count));
-		value best_papr = 1000;
-		CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
-		for (int trial = 0; trial < 4096; ++trial) {
+		if (symbol_number < 0) {
+			for (int i = 0; i < symbol_len; ++i)
+				fdom[i] = 0;
 			for (int i = 0; i < tone_count; ++i)
-				temp[i] = tone[i];
-			if (symbol_number >= 0) {
+				fdom[bin(i+tone_off)] = tone[i];
+			bwd(tdom, fdom);
+			for (int i = 0; i < symbol_len; ++i)
+				tdom[i] *= scale;
+		} else {
+			value best_papr = 1000;
+			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> combination;
+			for (int trial = 0; trial < 4096; ++trial) {
+				for (int i = 0; i < tone_count; ++i)
+					temp[i] = tone[i];
 				int comb = combination();
 				int head_data = trial >> 6;
 				hadamard_encoder(head, head_data);
@@ -101,36 +109,30 @@ struct Encoder : public Common
 						temp[i] *= tail[s++];
 					else
 						temp[i] *= nrz(seq());
-			}
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 0; i < tone_count; ++i)
-				fdom[bin(i+tone_off)] = temp[i];
-			bwd(tdom, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] *= scale;
-			if (symbol_number < 0)
-				break;
-			value peak = 0, mean = 0;
-			for (int i = 0; i < symbol_len; ++i) {
-				value power(norm(tdom[i]));
-				peak = std::max(peak, power);
-				mean += power;
-			}
-			mean /= symbol_len;
-			value cand_papr(peak / mean);
-			if (cand_papr < best_papr) {
-				best_papr = cand_papr;
 				for (int i = 0; i < symbol_len; ++i)
-					best[i] = tdom[i];
-				if (cand_papr < 5)
-					break;
+					fdom[i] = 0;
+				for (int i = 0; i < tone_count; ++i)
+					fdom[bin(i+tone_off)] = temp[i];
+				bwd(test, fdom);
+				for (int i = 0; i < symbol_len; ++i)
+					test[i] *= scale;
+				value peak = 0, mean = 0;
+				for (int i = 0; i < symbol_len; ++i) {
+					value power(norm(test[i]));
+					peak = std::max(peak, power);
+					mean += power;
+				}
+				mean /= symbol_len;
+				value test_papr(peak / mean);
+				if (test_papr < best_papr) {
+					best_papr = test_papr;
+					papr[symbol_number] = test_papr;
+					for (int i = 0; i < symbol_len; ++i)
+						tdom[i] = test[i];
+					if (test_papr < 5)
+						break;
+				}
 			}
-		}
-		if (symbol_number >= 0) {
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = best[i];
-			papr[symbol_number] = best_papr;
 		}
 		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
