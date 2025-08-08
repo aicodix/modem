@@ -90,74 +90,30 @@ struct Encoder : public Common
 		for (int i = 0; i < symbol_len; ++i)
 			tdom[i] = cmplx(clamp(tdom[i].real()), clamp(tdom[i].imag()));
 	}
+	void transform(cmplx *output, value scale, int offset, int stride)
+	{
+		for (int i = 0; i < symbol_len; ++i)
+			fdom[i] = 0;
+		for (int i = offset; i < tone_count; i += stride)
+			fdom[bin(i+tone_off)] = tone[i];
+		bwd(output, fdom);
+		for (int i = 0; i < symbol_len; ++i)
+			output[i] *= scale;
+	}
 	void symbol(int symbol_number)
 	{
 		value scale = value(0.5) / std::sqrt(value(tone_count));
 		if (symbol_number < 0) {
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 0; i < tone_count; ++i)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(tdom, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] *= scale;
+			transform(tdom, scale, 0, 1);
 		} else {
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 0; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptsa, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptsa[i] *= scale;
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 1; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptsb, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptsb[i] *= scale;
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 2; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptsc, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptsc[i] *= scale;
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 3; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptsd, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptsd[i] *= scale;
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 4; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptse, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptse[i] *= scale;
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 5; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptsf, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptsf[i] *= scale;
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 6; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptsg, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptsg[i] *= scale;
-			for (int i = 0; i < symbol_len; ++i)
-				fdom[i] = 0;
-			for (int i = 7; i < tone_count; i += 8)
-				fdom[bin(i+tone_off)] = tone[i];
-			bwd(ptsh, fdom);
-			for (int i = 0; i < symbol_len; ++i)
-				ptsh[i] *= scale;
+			transform(ptsa, scale, 0, 8);
+			transform(ptsb, scale, 1, 8);
+			transform(ptsc, scale, 2, 8);
+			transform(ptsd, scale, 3, 8);
+			transform(ptse, scale, 4, 8);
+			transform(ptsf, scale, 5, 8);
+			transform(ptsg, scale, 6, 8);
+			transform(ptsh, scale, 7, 8);
 			value best_papr = 1000;
 			int phase_max = 4;
 			auto rot = [](int i){ return i&2 ? cmplx(0, nrz(i&1)) : cmplx(nrz(i&1)); };
