@@ -98,24 +98,34 @@ struct Encoder : public Common
 			else
 				for (int i = 0; i < symbol_len; ++i)
 					temp[symbol_len*level+i] = rot * part[symbol_len*level+i] + temp[symbol_len*(level+1)+i];
-			if (level) {
+			if (level > 2) {
 				if (partial_transmit_sequence(level - 1))
 					return true;
 			} else {
-				value peak = 0, mean = 0;
-				for (int i = 0; i < symbol_len; ++i) {
-					value power(norm(temp[i]));
-					peak = std::max(peak, power);
-					mean += power;
-				}
-				mean /= symbol_len;
-				value test_papr(peak / mean);
-				if (test_papr < best_papr) {
-					best_papr = test_papr;
+				for (int i = 0; i < phase_max; ++i) {
+					cmplx rot = i&2 ? cmplx(0, nrz(i&1)) : cmplx(nrz(i&1));
 					for (int i = 0; i < symbol_len; ++i)
-						tdom[i] = temp[i];
-					if (test_papr < 5)
-						return true;
+						temp[symbol_len+i] = rot * part[symbol_len+i] + temp[symbol_len*2+i];
+					for (int i = 0; i < phase_max; ++i) {
+						cmplx rot = i&2 ? cmplx(0, nrz(i&1)) : cmplx(nrz(i&1));
+						for (int i = 0; i < symbol_len; ++i)
+							temp[i] = rot * part[i] + temp[symbol_len+i];
+						value peak = 0, mean = 0;
+						for (int i = 0; i < symbol_len; ++i) {
+							value power(norm(temp[i]));
+							peak = std::max(peak, power);
+							mean += power;
+						}
+						mean /= symbol_len;
+						value test_papr(peak / mean);
+						if (test_papr < best_papr) {
+							best_papr = test_papr;
+							for (int i = 0; i < symbol_len; ++i)
+								tdom[i] = temp[i];
+							if (test_papr < 5)
+								return true;
+						}
+					}
 				}
 			}
 		}
