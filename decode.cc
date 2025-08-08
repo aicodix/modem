@@ -318,8 +318,8 @@ struct Decoder : Common
 					tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
 					demod[i] = demod_or_erase(tone[i], chan[i]);
-				for (int i = 0; i < 8; ++i)
-					if (!partial_transmit_sequence(i, 8))
+				for (int i = 0; i < pts_count; ++i)
+					if (!partial_transmit_sequence(i, pts_count))
 						break;
 				for (int i = 0; i < pilot_tones; ++i) {
 					index[i] = tone_off + block_length * i + pilot_off;

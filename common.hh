@@ -26,6 +26,7 @@ struct Common
 	static const int block_length = 5;
 	static const int block_skew = 3;
 	static const int first_pilot = 4;
+	static const int pts_count = 8;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	uint8_t data[data_max];
