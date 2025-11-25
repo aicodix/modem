@@ -80,10 +80,10 @@ struct Decoder : Common
 		}
 		return 0;
 	}
-	static void base37_decoder(char *str, int64_t val, int len)
+	static void base40_decoder(char *str, int64_t val, int len)
 	{
-		for (int i = len-1; i >= 0; --i, val /= 37)
-			str[i] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%37];
+		for (int i = len-1; i >= 0; --i, val /= 40)
+			str[i] = "   /0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%40];
 	}
 	const cmplx *mls0_seq()
 	{
@@ -207,11 +207,11 @@ struct Decoder : Common
 	int64_t meta_data()
 	{
 		shuffle(code, perm, 8);
-		polar_decoder(nullptr, mesg, code, frozen_256_71, 8);
+		polar_decoder(nullptr, mesg, code, frozen_256_72, 8);
 		int best = -1;
 		for (int k = 0; k < mesg_type::SIZE; ++k) {
 			crc0.reset();
-			for (int i = 0; i < 71; ++i)
+			for (int i = 0; i < 72; ++i)
 				crc0(mesg[i].v[k] < 0);
 			if (crc0() == 0) {
 				best = k;
@@ -221,7 +221,7 @@ struct Decoder : Common
 		if (best < 0)
 			return -1;
 		uint64_t md = 0;
-		for (int i = 0; i < 55; ++i)
+		for (int i = 0; i < 56; ++i)
 			md |= uint64_t(mesg[i].v[best] < 0) << i;
 		return md;
 	}
@@ -375,12 +375,12 @@ struct Decoder : Common
 						break;
 					}
 					int64_t call = meta_info >> 8;
-					if (call == 0 || call >= 129961739795077L) {
+					if (call == 0 || call >= 262144000000000L) {
 						std::cerr << "call sign unsupported." << std::endl;
 						break;
 					}
 					char call_sign[10];
-					base37_decoder(call_sign, call, 9);
+					base40_decoder(call_sign, call, 9);
 					call_sign[9] = 0;
 					std::cerr << "call sign: " << call_sign << std::endl;
 					int mode = meta_info & 255;

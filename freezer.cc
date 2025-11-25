@@ -28,7 +28,7 @@ void code(int N, int K, double P)
 int main()
 {
 	// call sign and mode with 16 bit CRC
-	code<8>(256, 47+8+16, 0.5);
+	code<8>(256, 48+8+16, 0.5);
 	// 1/2-rate payload with 32 bit CRC
 	code<11>(2048, 1024+32, 0.33);
 	code<12>(4096, 2048+32, 0.34);

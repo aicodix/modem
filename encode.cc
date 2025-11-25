@@ -163,13 +163,13 @@ struct Encoder : public Common
 	}
 	void meta_data(uint64_t md)
 	{
-		for (int i = 0; i < 55; ++i)
+		for (int i = 0; i < 56; ++i)
 			mesg[i] = nrz((md >> i) & 1);
 		crc0.reset();
-		crc0(md << 9);
+		crc0(md << 8);
 		for (int i = 0; i < 16; ++i)
-			mesg[i+55] = nrz((crc0() >> i) & 1);
-		polar_encoder(code, mesg, frozen_256_71, 8);
+			mesg[i+56] = nrz((crc0() >> i) & 1);
+		polar_encoder(code, mesg, frozen_256_72, 8);
 		shuffle(meta, code, 8);
 	}
 	cmplx map_bits(code_type *b, int bits)
@@ -330,17 +330,19 @@ struct Encoder : public Common
 	}
 };
 
-int64_t base37_encoder(const char *str)
+int64_t base40_encoder(const char *str)
 {
 	int64_t acc = 0;
 	for (char c = *str++; c; c = *str++) {
-		acc *= 37;
-		if (c >= '0' && c <= '9')
-			acc += c - '0' + 1;
+		acc *= 40;
+		if (c == '/')
+			acc += 3;
+		else if (c >= '0' && c <= '9')
+			acc += c - '0' + 4;
 		else if (c >= 'a' && c <= 'z')
-			acc += c - 'a' + 11;
+			acc += c - 'a' + 14;
 		else if (c >= 'A' && c <= 'Z')
-			acc += c - 'A' + 11;
+			acc += c - 'A' + 14;
 		else if (c != ' ')
 			return -1;
 	}
@@ -366,8 +368,8 @@ int main(int argc, char **argv)
 		std::cerr << "Frequency offset must be divisible by 300." << std::endl;
 		return 1;
 	}
-	int64_t call_sign = base37_encoder(argv[6]);
-	if (call_sign <= 0 || call_sign >= 129961739795077L) {
+	int64_t call_sign = base40_encoder(argv[6]);
+	if (call_sign <= 0 || call_sign >= 262144000000000L) {
 		std::cerr << "Unsupported call sign." << std::endl;
 		return 1;
 	}
