@@ -14,7 +14,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 template <int M>
 void code(int N, int K, double P)
 {
-	auto freeze = new CODE::PolarCodeConst0<M>;
+	auto freeze = new CODE::BhattacharyyaFreezer<M>;
 	auto frozen = new uint32_t[1<<(M-5)];
 	(*freeze)(frozen, M, K+(1<<M)-N, P);
 	delete freeze;
