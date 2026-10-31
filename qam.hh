@@ -4,8 +4,7 @@ Quadrature amplitude modulation
 Copyright 2018 Ahmet Inan <xdsopl@gmail.com>
 */
 
-#ifndef QAM_HH
-#define QAM_HH
+#pragma once
 
 template <int NUM, typename TYPE, typename CODE>
 struct QuadratureAmplitudeModulation;
@@ -354,6 +353,3 @@ struct QuadratureAmplitudeModulation<4096, TYPE, CODE>
 		);
 	}
 };
-
-#endif
-
