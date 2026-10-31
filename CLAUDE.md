@@ -10,7 +10,9 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   struct templated on sample rate.
 - `common.hh`: what both sides share, such as tone layout, sequences and the
   operation mode table in `Common::setup()`.
-- `psk.hh`, `qam.hh`: constellation mapping, hard and soft demapping.
+- `psk.hh`, `qam.hh`: constellation mapping, hard and soft demapping, templated
+  on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
+- `quantize.hh`: turns soft values into the code type of the LLRs.
 - `schmidl_cox.hh`: synchronization (timing, CFO, SFO).
 - `freezer.cc`: generates `polar_tables.hh`. Don't edit the tables by hand;
   regenerate them with `make polar_tables.hh`.
@@ -39,6 +41,8 @@ The default compiler is `clang++ -stdlib=libc++ -march=native`. If libc++ is
 not installed, build with `make CXX="g++ -march=native"`. The Makefile has
 commented-out lines for `g++` and for ARM cross-compilation under QEMU.
 Run `make clean` to remove the binaries.
+When a header joins the build, add it to the dependencies of `encode` and
+`decode` in the Makefile, but not `polar_tables.hh`, which has its own rule.
 
 Everything is compiled with `-std=c++17 -O3 -ffast-math -fno-exceptions -fno-rtti`,
 so code must:
@@ -67,7 +71,12 @@ so code must:
   or bitrates change.
 - Soft demapping produces int16 LLRs for a min-sum polar list decoder, which
   ignores their overall scale. What matters is resolution after rounding and
-  headroom against saturation.
+  headroom against saturation. `quantize()` caps the slope `DIST * precision`
+  at 4096, so every constellation gets the same headroom, and `decode.cc`
+  scales the precision by 300 for resolution.
+- The precision comes from hard decisions and overestimates Es/N0 by several dB
+  for dense QAM near threshold. Within a frame that is a common scale and does
+  not hurt decoding, but the logged Es/N0 is not exact there.
 - Below roughly 7 dB in-band SNR the preamble no longer synchronizes, so BPSK and
   QPSK at low code rates fail at sync before the code is tested. To compare
   decoder changes, use denser modulations or higher code rates near their
@@ -75,7 +84,8 @@ so code must:
 
 ## Workflow
 
-- Work on the `next` branch.
+- Work on the `next` branch. Keep changes to this modem minimal; larger
+  redesigns are for its successor.
 - Commit messages are a single short lowercase line, such as
   "moved common header includes to common.hh". There is no body and
   no trailers: no `Co-Authored-By`, no session links.
@@ -84,4 +94,6 @@ so code must:
 - When changing the encoder, check that its output is unchanged or as
   intended. When changing the decoder, check that decoding still succeeds and
   compare old and new versions over many noise seeds near the threshold of the
-  affected modes. Say how you checked it.
+  affected modes. A refactoring should be bit-exact: compare the outputs of
+  old and new code over many inputs, including decision boundaries.
+  Say how you checked it.
