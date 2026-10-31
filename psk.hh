@@ -22,7 +22,12 @@ struct PhaseShiftKeying<2, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
@@ -63,7 +68,12 @@ struct PhaseShiftKeying<4, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
@@ -111,7 +121,12 @@ struct PhaseShiftKeying<8, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)

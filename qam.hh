@@ -31,7 +31,12 @@ struct QuadratureAmplitudeModulation<16, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
@@ -87,7 +92,12 @@ struct QuadratureAmplitudeModulation<64, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
@@ -147,7 +157,12 @@ struct QuadratureAmplitudeModulation<256, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
@@ -211,7 +226,12 @@ struct QuadratureAmplitudeModulation<1024, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
@@ -279,7 +299,12 @@ struct QuadratureAmplitudeModulation<4096, TYPE, CODE>
 
 	static code_type quantize(value_type precision, value_type value)
 	{
-		value *= DIST * precision;
+		value_type slope = DIST * precision;
+		if (std::is_same<code_type, int8_t>::value)
+			slope = std::min<value_type>(slope, 16);
+		if (std::is_same<code_type, int16_t>::value)
+			slope = std::min<value_type>(slope, 4096);
+		value *= slope;
 		if (std::is_integral<code_type>::value)
 			value = std::nearbyint(value);
 		if (std::is_same<code_type, int8_t>::value)
