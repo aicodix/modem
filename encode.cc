@@ -165,15 +165,15 @@ struct Encoder : public Common
 		case 3:
 			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
 		case 4:
-			return QuadratureAmplitudeModulation<16, cmplx, code_type>::map(b);
+			return QuadratureAmplitudeModulation<4, cmplx, code_type>::map(b);
 		case 6:
-			return QuadratureAmplitudeModulation<64, cmplx, code_type>::map(b);
+			return QuadratureAmplitudeModulation<6, cmplx, code_type>::map(b);
 		case 8:
-			return QuadratureAmplitudeModulation<256, cmplx, code_type>::map(b);
+			return QuadratureAmplitudeModulation<8, cmplx, code_type>::map(b);
 		case 10:
-			return QuadratureAmplitudeModulation<1024, cmplx, code_type>::map(b);
+			return QuadratureAmplitudeModulation<10, cmplx, code_type>::map(b);
 		case 12:
-			return QuadratureAmplitudeModulation<4096, cmplx, code_type>::map(b);
+			return QuadratureAmplitudeModulation<12, cmplx, code_type>::map(b);
 		}
 		return 0;
 	}
@@ -187,15 +187,15 @@ struct Encoder : public Common
 		case 3:
 			return PhaseShiftKeying<8, cmplx, code_type>::DIST;
 		case 4:
-			return QuadratureAmplitudeModulation<16, cmplx, code_type>::DIST;
+			return QuadratureAmplitudeModulation<4, cmplx, code_type>::DIST;
 		case 6:
-			return QuadratureAmplitudeModulation<64, cmplx, code_type>::DIST;
+			return QuadratureAmplitudeModulation<6, cmplx, code_type>::DIST;
 		case 8:
-			return QuadratureAmplitudeModulation<256, cmplx, code_type>::DIST;
+			return QuadratureAmplitudeModulation<8, cmplx, code_type>::DIST;
 		case 10:
-			return QuadratureAmplitudeModulation<1024, cmplx, code_type>::DIST;
+			return QuadratureAmplitudeModulation<10, cmplx, code_type>::DIST;
 		case 12:
-			return QuadratureAmplitudeModulation<4096, cmplx, code_type>::DIST;
+			return QuadratureAmplitudeModulation<12, cmplx, code_type>::DIST;
 		}
 		return 2;
 	}

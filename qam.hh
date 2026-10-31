@@ -8,20 +8,23 @@ Copyright 2018 Ahmet Inan <xdsopl@gmail.com>
 
 #include "quantize.hh"
 
-template <int NUM, typename TYPE, typename CODE>
-struct QuadratureAmplitudeModulation;
-
-template <typename TYPE, typename CODE>
-struct QuadratureAmplitudeModulation<16, TYPE, CODE>
+template <int BITS, typename TYPE, typename CODE>
+struct QuadratureAmplitudeModulation
 {
-	static const int NUM = 16;
-	static const int BITS = 4;
+	static_assert(BITS >= 4 && BITS <= 12 && BITS % 2 == 0, "unsupported number of bits");
+	static const int NUM = 1 << BITS;
 	typedef TYPE complex_type;
 	typedef typename TYPE::value_type value_type;
 	typedef CODE code_type;
 
-	static constexpr value_type FAC = 1.0540925533894596;
-	static constexpr value_type RCP = 3 * FAC;
+	// sqrt(2 * (NUM - 1) / 3) / (sqrt(NUM) - 1)
+	static constexpr value_type FAC =
+		BITS == 4 ? 1.0540925533894596 :
+		BITS == 6 ? 0.9258200997725516 :
+		BITS == 8 ? 0.8692269873603529 :
+		BITS == 10 ? 0.8424235391742344 :
+		0.8293555858802010;
+	static constexpr value_type RCP = ((1 << BITS / 2) - 1) * FAC;
 	static constexpr value_type AMP = 1 / RCP;
 	static constexpr value_type DIST = 2 * AMP;
 
@@ -35,10 +38,12 @@ struct QuadratureAmplitudeModulation<16, TYPE, CODE>
 		value_type re = c.real(), im = c.imag();
 		b[0] = re < amp(0) ? code_type(-1) : code_type(1);
 		b[1] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[2] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[3] = im < amp(0) ? code_type(-1) : code_type(1);
+		for (int i = 2; i < BITS; i += 2) {
+			re = std::abs(re) - amp(1 << ((BITS - i) / 2));
+			im = std::abs(im) - amp(1 << ((BITS - i) / 2));
+			b[i] = re < amp(0) ? code_type(-1) : code_type(1);
+			b[i+1] = im < amp(0) ? code_type(-1) : code_type(1);
+		}
 	}
 
 	static void soft(code_type *b, complex_type c, value_type precision)
@@ -47,301 +52,21 @@ struct QuadratureAmplitudeModulation<16, TYPE, CODE>
 		value_type re = c.real(), im = c.imag();
 		b[0] = quantize<code_type>(slope, re);
 		b[1] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[2] = quantize<code_type>(slope, re);
-		b[3] = quantize<code_type>(slope, im);
+		for (int i = 2; i < BITS; i += 2) {
+			re = std::abs(re) - amp(1 << ((BITS - i) / 2));
+			im = std::abs(im) - amp(1 << ((BITS - i) / 2));
+			b[i] = quantize<code_type>(slope, re);
+			b[i+1] = quantize<code_type>(slope, im);
+		}
 	}
 
 	static complex_type map(code_type *b)
 	{
-		return AMP * complex_type(
-			b[0]*(b[2]+value_type(2)),
-			b[1]*(b[3]+value_type(2))
-		);
-	}
-};
-
-template <typename TYPE, typename CODE>
-struct QuadratureAmplitudeModulation<64, TYPE, CODE>
-{
-	static const int NUM = 64;
-	static const int BITS = 6;
-	typedef TYPE complex_type;
-	typedef typename TYPE::value_type value_type;
-	typedef CODE code_type;
-
-	static constexpr value_type FAC = 0.9258200997725516;
-	static constexpr value_type RCP = 7 * FAC;
-	static constexpr value_type AMP = 1 / RCP;
-	static constexpr value_type DIST = 2 * AMP;
-
-	static constexpr value_type amp(int i)
-	{
-		return AMP * i;
-	}
-
-	static void hard(code_type *b, complex_type c)
-	{
-		value_type re = c.real(), im = c.imag();
-		b[0] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[1] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[2] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[3] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[4] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[5] = im < amp(0) ? code_type(-1) : code_type(1);
-	}
-
-	static void soft(code_type *b, complex_type c, value_type precision)
-	{
-		value_type slope = DIST * precision;
-		value_type re = c.real(), im = c.imag();
-		b[0] = quantize<code_type>(slope, re);
-		b[1] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[2] = quantize<code_type>(slope, re);
-		b[3] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[4] = quantize<code_type>(slope, re);
-		b[5] = quantize<code_type>(slope, im);
-	}
-
-	static complex_type map(code_type *b)
-	{
-		return AMP * complex_type(
-			b[0]*(b[2]*(b[4]+value_type(2))+value_type(4)),
-			b[1]*(b[3]*(b[5]+value_type(2))+value_type(4))
-		);
-	}
-};
-
-template <typename TYPE, typename CODE>
-struct QuadratureAmplitudeModulation<256, TYPE, CODE>
-{
-	static const int NUM = 256;
-	static const int BITS = 8;
-	typedef TYPE complex_type;
-	typedef typename TYPE::value_type value_type;
-	typedef CODE code_type;
-
-	static constexpr value_type FAC = 0.8692269873603529;
-	static constexpr value_type RCP = 15 * FAC;
-	static constexpr value_type AMP = 1 / RCP;
-	static constexpr value_type DIST = 2 * AMP;
-
-	static constexpr value_type amp(int i)
-	{
-		return AMP * i;
-	}
-
-	static void hard(code_type *b, complex_type c)
-	{
-		value_type re = c.real(), im = c.imag();
-		b[0] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[1] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(8);
-		im = std::abs(im) - amp(8);
-		b[2] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[3] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[4] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[5] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[6] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[7] = im < amp(0) ? code_type(-1) : code_type(1);
-	}
-
-	static void soft(code_type *b, complex_type c, value_type precision)
-	{
-		value_type slope = DIST * precision;
-		value_type re = c.real(), im = c.imag();
-		b[0] = quantize<code_type>(slope, re);
-		b[1] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(8);
-		im = std::abs(im) - amp(8);
-		b[2] = quantize<code_type>(slope, re);
-		b[3] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[4] = quantize<code_type>(slope, re);
-		b[5] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[6] = quantize<code_type>(slope, re);
-		b[7] = quantize<code_type>(slope, im);
-	}
-
-	static complex_type map(code_type *b)
-	{
-		return AMP * complex_type(
-			b[0]*(b[2]*(b[4]*(b[6]+value_type(2))+value_type(4))+value_type(8)),
-			b[1]*(b[3]*(b[5]*(b[7]+value_type(2))+value_type(4))+value_type(8))
-		);
-	}
-};
-
-template <typename TYPE, typename CODE>
-struct QuadratureAmplitudeModulation<1024, TYPE, CODE>
-{
-	static const int NUM = 1024;
-	static const int BITS = 10;
-	typedef TYPE complex_type;
-	typedef typename TYPE::value_type value_type;
-	typedef CODE code_type;
-
-	static constexpr value_type FAC = 0.8424235391742344;
-	static constexpr value_type RCP = 31 * FAC;
-	static constexpr value_type AMP = 1 / RCP;
-	static constexpr value_type DIST = 2 * AMP;
-
-	static constexpr value_type amp(int i)
-	{
-		return AMP * i;
-	}
-
-	static void hard(code_type *b, complex_type c)
-	{
-		value_type re = c.real(), im = c.imag();
-		b[0] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[1] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(16);
-		im = std::abs(im) - amp(16);
-		b[2] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[3] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(8);
-		im = std::abs(im) - amp(8);
-		b[4] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[5] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[6] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[7] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[8] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[9] = im < amp(0) ? code_type(-1) : code_type(1);
-	}
-
-	static void soft(code_type *b, complex_type c, value_type precision)
-	{
-		value_type slope = DIST * precision;
-		value_type re = c.real(), im = c.imag();
-		b[0] = quantize<code_type>(slope, re);
-		b[1] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(16);
-		im = std::abs(im) - amp(16);
-		b[2] = quantize<code_type>(slope, re);
-		b[3] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(8);
-		im = std::abs(im) - amp(8);
-		b[4] = quantize<code_type>(slope, re);
-		b[5] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[6] = quantize<code_type>(slope, re);
-		b[7] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[8] = quantize<code_type>(slope, re);
-		b[9] = quantize<code_type>(slope, im);
-	}
-
-	static complex_type map(code_type *b)
-	{
-		return AMP * complex_type(
-			b[0]*(b[2]*(b[4]*(b[6]*(b[8]+value_type(2))+value_type(4))+value_type(8))+value_type(16)),
-			b[1]*(b[3]*(b[5]*(b[7]*(b[9]+value_type(2))+value_type(4))+value_type(8))+value_type(16))
-		);
-	}
-};
-
-template <typename TYPE, typename CODE>
-struct QuadratureAmplitudeModulation<4096, TYPE, CODE>
-{
-	static const int NUM = 4096;
-	static const int BITS = 12;
-	typedef TYPE complex_type;
-	typedef typename TYPE::value_type value_type;
-	typedef CODE code_type;
-
-	static constexpr value_type FAC = 0.8293555858802010;
-	static constexpr value_type RCP = 63 * FAC;
-	static constexpr value_type AMP = 1 / RCP;
-	static constexpr value_type DIST = 2 * AMP;
-
-	static constexpr value_type amp(int i)
-	{
-		return AMP * i;
-	}
-
-	static void hard(code_type *b, complex_type c)
-	{
-		value_type re = c.real(), im = c.imag();
-		b[ 0] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[ 1] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(32);
-		im = std::abs(im) - amp(32);
-		b[ 2] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[ 3] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(16);
-		im = std::abs(im) - amp(16);
-		b[ 4] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[ 5] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(8);
-		im = std::abs(im) - amp(8);
-		b[ 6] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[ 7] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[ 8] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[ 9] = im < amp(0) ? code_type(-1) : code_type(1);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[10] = re < amp(0) ? code_type(-1) : code_type(1);
-		b[11] = im < amp(0) ? code_type(-1) : code_type(1);
-	}
-
-	static void soft(code_type *b, complex_type c, value_type precision)
-	{
-		value_type slope = DIST * precision;
-		value_type re = c.real(), im = c.imag();
-		b[ 0] = quantize<code_type>(slope, re);
-		b[ 1] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(32);
-		im = std::abs(im) - amp(32);
-		b[ 2] = quantize<code_type>(slope, re);
-		b[ 3] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(16);
-		im = std::abs(im) - amp(16);
-		b[ 4] = quantize<code_type>(slope, re);
-		b[ 5] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(8);
-		im = std::abs(im) - amp(8);
-		b[ 6] = quantize<code_type>(slope, re);
-		b[ 7] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(4);
-		im = std::abs(im) - amp(4);
-		b[ 8] = quantize<code_type>(slope, re);
-		b[ 9] = quantize<code_type>(slope, im);
-		re = std::abs(re) - amp(2);
-		im = std::abs(im) - amp(2);
-		b[10] = quantize<code_type>(slope, re);
-		b[11] = quantize<code_type>(slope, im);
-	}
-
-	static complex_type map(code_type *b)
-	{
-		return AMP * complex_type(
-			b[0]*(b[2]*(b[4]*(b[6]*(b[8]*(b[10]+value_type(2))+value_type(4))+value_type(8))+value_type(16))+value_type(32)),
-			b[1]*(b[3]*(b[5]*(b[7]*(b[9]*(b[11]+value_type(2))+value_type(4))+value_type(8))+value_type(16))+value_type(32))
-		);
+		value_type re = b[BITS-2], im = b[BITS-1];
+		for (int i = BITS - 4; i >= 0; i -= 2) {
+			re = b[i] * (re + value_type(1 << ((BITS - i) / 2 - 1)));
+			im = b[i+1] * (im + value_type(1 << ((BITS - i) / 2 - 1)));
+		}
+		return AMP * complex_type(re, im);
 	}
 };
