@@ -18,10 +18,10 @@ test: encode decode
 	$(QEMU) ./encode audio.wav 48000 16 1 1500 ANONYMOUS QAM16 1/2 short /dev/urandom
 	$(QEMU) ./decode audio.wav /dev/null
 
-encode: encode.cc common.hh
+encode: encode.cc common.hh psk.hh qam.hh quantize.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
-decode: decode.cc common.hh schmidl_cox.hh
+decode: decode.cc common.hh schmidl_cox.hh psk.hh qam.hh quantize.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
 freezer: freezer.cc
