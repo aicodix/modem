@@ -336,6 +336,8 @@ struct Decoder : Common
 				}
 				value precision = sp / np;
 				snr[j] = precision;
+				// more resolution after rounding, quantize() caps the slope
+				precision *= value(300);
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length != seed_off) {
 						int bits = mod_bits;
