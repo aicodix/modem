@@ -81,11 +81,11 @@ struct Decoder : Common
 	{
 		switch (bits) {
 		case 1:
-			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
+			return PhaseShiftKeying<1, cmplx, code_type>::map(b);
 		case 2:
-			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
 		case 3:
-			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
+			return PhaseShiftKeying<3, cmplx, code_type>::map(b);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::map(b);
 		case 6:
@@ -103,11 +103,11 @@ struct Decoder : Common
 	{
 		switch (bits) {
 		case 1:
-			return PhaseShiftKeying<2, cmplx, code_type>::soft(b, c, precision);
+			return PhaseShiftKeying<1, cmplx, code_type>::soft(b, c, precision);
 		case 2:
-			return PhaseShiftKeying<4, cmplx, code_type>::soft(b, c, precision);
+			return PhaseShiftKeying<2, cmplx, code_type>::soft(b, c, precision);
 		case 3:
-			return PhaseShiftKeying<8, cmplx, code_type>::soft(b, c, precision);
+			return PhaseShiftKeying<3, cmplx, code_type>::soft(b, c, precision);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::soft(b, c, precision);
 		case 6:
@@ -124,11 +124,11 @@ struct Decoder : Common
 	{
 		switch (bits) {
 		case 1:
-			return PhaseShiftKeying<2, cmplx, code_type>::hard(b, c);
+			return PhaseShiftKeying<1, cmplx, code_type>::hard(b, c);
 		case 2:
-			return PhaseShiftKeying<4, cmplx, code_type>::hard(b, c);
+			return PhaseShiftKeying<2, cmplx, code_type>::hard(b, c);
 		case 3:
-			return PhaseShiftKeying<8, cmplx, code_type>::hard(b, c);
+			return PhaseShiftKeying<3, cmplx, code_type>::hard(b, c);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::hard(b, c);
 		case 6:

@@ -159,11 +159,11 @@ struct Encoder : public Common
 	{
 		switch (bits) {
 		case 1:
-			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
+			return PhaseShiftKeying<1, cmplx, code_type>::map(b);
 		case 2:
-			return PhaseShiftKeying<4, cmplx, code_type>::map(b);
+			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
 		case 3:
-			return PhaseShiftKeying<8, cmplx, code_type>::map(b);
+			return PhaseShiftKeying<3, cmplx, code_type>::map(b);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::map(b);
 		case 6:
@@ -181,11 +181,11 @@ struct Encoder : public Common
 	{
 		switch (mod_bits) {
 		case 1:
-			return PhaseShiftKeying<2, cmplx, code_type>::DIST;
+			return PhaseShiftKeying<1, cmplx, code_type>::DIST;
 		case 2:
-			return PhaseShiftKeying<4, cmplx, code_type>::DIST;
+			return PhaseShiftKeying<2, cmplx, code_type>::DIST;
 		case 3:
-			return PhaseShiftKeying<8, cmplx, code_type>::DIST;
+			return PhaseShiftKeying<3, cmplx, code_type>::DIST;
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::DIST;
 		case 6:

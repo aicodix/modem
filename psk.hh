@@ -8,14 +8,13 @@ Copyright 2018 Ahmet Inan <xdsopl@gmail.com>
 
 #include "quantize.hh"
 
-template <int NUM, typename TYPE, typename CODE>
+template <int BITS, typename TYPE, typename CODE>
 struct PhaseShiftKeying;
 
 template <typename TYPE, typename CODE>
-struct PhaseShiftKeying<2, TYPE, CODE>
+struct PhaseShiftKeying<1, TYPE, CODE>
 {
 	static const int NUM = 2;
-	static const int BITS = 1;
 	typedef TYPE complex_type;
 	typedef typename TYPE::value_type value_type;
 	typedef CODE code_type;
@@ -40,10 +39,9 @@ struct PhaseShiftKeying<2, TYPE, CODE>
 };
 
 template <typename TYPE, typename CODE>
-struct PhaseShiftKeying<4, TYPE, CODE>
+struct PhaseShiftKeying<2, TYPE, CODE>
 {
 	static const int NUM = 4;
-	static const int BITS = 2;
 	typedef TYPE complex_type;
 	typedef typename TYPE::value_type value_type;
 	typedef CODE code_type;
@@ -72,10 +70,9 @@ struct PhaseShiftKeying<4, TYPE, CODE>
 };
 
 template <typename TYPE, typename CODE>
-struct PhaseShiftKeying<8, TYPE, CODE>
+struct PhaseShiftKeying<3, TYPE, CODE>
 {
 	static const int NUM = 8;
-	static const int BITS = 3;
 	typedef TYPE complex_type;
 	typedef typename TYPE::value_type value_type;
 	typedef CODE code_type;
