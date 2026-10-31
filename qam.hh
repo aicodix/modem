@@ -6,6 +6,8 @@ Copyright 2018 Ahmet Inan <xdsopl@gmail.com>
 
 #pragma once
 
+#include "quantize.hh"
+
 template <int NUM, typename TYPE, typename CODE>
 struct QuadratureAmplitudeModulation;
 
@@ -28,23 +30,6 @@ struct QuadratureAmplitudeModulation<16, TYPE, CODE>
 		return AMP * i;
 	}
 
-	static code_type quantize(value_type precision, value_type value)
-	{
-		value_type slope = DIST * precision;
-		if (std::is_same<code_type, int8_t>::value)
-			slope = std::min<value_type>(slope, 16);
-		if (std::is_same<code_type, int16_t>::value)
-			slope = std::min<value_type>(slope, 4096);
-		value *= slope;
-		if (std::is_integral<code_type>::value)
-			value = std::nearbyint(value);
-		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
-		if (std::is_same<code_type, int16_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
-		return value;
-	}
-
 	static void hard(code_type *b, complex_type c)
 	{
 		b[0] = c.real() < amp(0) ? code_type(-1) : code_type(1);
@@ -55,10 +40,11 @@ struct QuadratureAmplitudeModulation<16, TYPE, CODE>
 
 	static void soft(code_type *b, complex_type c, value_type precision)
 	{
-		b[0] = quantize(precision, c.real());
-		b[1] = quantize(precision, c.imag());
-		b[2] = quantize(precision, std::abs(c.real())-amp(2));
-		b[3] = quantize(precision, std::abs(c.imag())-amp(2));
+		value_type slope = DIST * precision;
+		b[0] = quantize<code_type>(slope, c.real());
+		b[1] = quantize<code_type>(slope, c.imag());
+		b[2] = quantize<code_type>(slope, std::abs(c.real())-amp(2));
+		b[3] = quantize<code_type>(slope, std::abs(c.imag())-amp(2));
 	}
 
 	static complex_type map(code_type *b)
@@ -89,23 +75,6 @@ struct QuadratureAmplitudeModulation<64, TYPE, CODE>
 		return AMP * i;
 	}
 
-	static code_type quantize(value_type precision, value_type value)
-	{
-		value_type slope = DIST * precision;
-		if (std::is_same<code_type, int8_t>::value)
-			slope = std::min<value_type>(slope, 16);
-		if (std::is_same<code_type, int16_t>::value)
-			slope = std::min<value_type>(slope, 4096);
-		value *= slope;
-		if (std::is_integral<code_type>::value)
-			value = std::nearbyint(value);
-		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
-		if (std::is_same<code_type, int16_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
-		return value;
-	}
-
 	static void hard(code_type *b, complex_type c)
 	{
 		b[0] = c.real() < amp(0) ? code_type(-1) : code_type(1);
@@ -118,12 +87,13 @@ struct QuadratureAmplitudeModulation<64, TYPE, CODE>
 
 	static void soft(code_type *b, complex_type c, value_type precision)
 	{
-		b[0] = quantize(precision, c.real());
-		b[1] = quantize(precision, c.imag());
-		b[2] = quantize(precision, std::abs(c.real())-amp(4));
-		b[3] = quantize(precision, std::abs(c.imag())-amp(4));
-		b[4] = quantize(precision, std::abs(std::abs(c.real())-amp(4))-amp(2));
-		b[5] = quantize(precision, std::abs(std::abs(c.imag())-amp(4))-amp(2));
+		value_type slope = DIST * precision;
+		b[0] = quantize<code_type>(slope, c.real());
+		b[1] = quantize<code_type>(slope, c.imag());
+		b[2] = quantize<code_type>(slope, std::abs(c.real())-amp(4));
+		b[3] = quantize<code_type>(slope, std::abs(c.imag())-amp(4));
+		b[4] = quantize<code_type>(slope, std::abs(std::abs(c.real())-amp(4))-amp(2));
+		b[5] = quantize<code_type>(slope, std::abs(std::abs(c.imag())-amp(4))-amp(2));
 	}
 
 	static complex_type map(code_type *b)
@@ -154,23 +124,6 @@ struct QuadratureAmplitudeModulation<256, TYPE, CODE>
 		return AMP * i;
 	}
 
-	static code_type quantize(value_type precision, value_type value)
-	{
-		value_type slope = DIST * precision;
-		if (std::is_same<code_type, int8_t>::value)
-			slope = std::min<value_type>(slope, 16);
-		if (std::is_same<code_type, int16_t>::value)
-			slope = std::min<value_type>(slope, 4096);
-		value *= slope;
-		if (std::is_integral<code_type>::value)
-			value = std::nearbyint(value);
-		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
-		if (std::is_same<code_type, int16_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
-		return value;
-	}
-
 	static void hard(code_type *b, complex_type c)
 	{
 		b[0] = c.real() < amp(0) ? code_type(-1) : code_type(1);
@@ -185,14 +138,15 @@ struct QuadratureAmplitudeModulation<256, TYPE, CODE>
 
 	static void soft(code_type *b, complex_type c, value_type precision)
 	{
-		b[0] = quantize(precision, c.real());
-		b[1] = quantize(precision, c.imag());
-		b[2] = quantize(precision, std::abs(c.real())-amp(8));
-		b[3] = quantize(precision, std::abs(c.imag())-amp(8));
-		b[4] = quantize(precision, std::abs(std::abs(c.real())-amp(8))-amp(4));
-		b[5] = quantize(precision, std::abs(std::abs(c.imag())-amp(8))-amp(4));
-		b[6] = quantize(precision, std::abs(std::abs(std::abs(c.real())-amp(8))-amp(4))-amp(2));
-		b[7] = quantize(precision, std::abs(std::abs(std::abs(c.imag())-amp(8))-amp(4))-amp(2));
+		value_type slope = DIST * precision;
+		b[0] = quantize<code_type>(slope, c.real());
+		b[1] = quantize<code_type>(slope, c.imag());
+		b[2] = quantize<code_type>(slope, std::abs(c.real())-amp(8));
+		b[3] = quantize<code_type>(slope, std::abs(c.imag())-amp(8));
+		b[4] = quantize<code_type>(slope, std::abs(std::abs(c.real())-amp(8))-amp(4));
+		b[5] = quantize<code_type>(slope, std::abs(std::abs(c.imag())-amp(8))-amp(4));
+		b[6] = quantize<code_type>(slope, std::abs(std::abs(std::abs(c.real())-amp(8))-amp(4))-amp(2));
+		b[7] = quantize<code_type>(slope, std::abs(std::abs(std::abs(c.imag())-amp(8))-amp(4))-amp(2));
 	}
 
 	static complex_type map(code_type *b)
@@ -223,23 +177,6 @@ struct QuadratureAmplitudeModulation<1024, TYPE, CODE>
 		return AMP * i;
 	}
 
-	static code_type quantize(value_type precision, value_type value)
-	{
-		value_type slope = DIST * precision;
-		if (std::is_same<code_type, int8_t>::value)
-			slope = std::min<value_type>(slope, 16);
-		if (std::is_same<code_type, int16_t>::value)
-			slope = std::min<value_type>(slope, 4096);
-		value *= slope;
-		if (std::is_integral<code_type>::value)
-			value = std::nearbyint(value);
-		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
-		if (std::is_same<code_type, int16_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
-		return value;
-	}
-
 	static void hard(code_type *b, complex_type c)
 	{
 		b[0] = c.real() < amp(0) ? code_type(-1) : code_type(1);
@@ -256,16 +193,17 @@ struct QuadratureAmplitudeModulation<1024, TYPE, CODE>
 
 	static void soft(code_type *b, complex_type c, value_type precision)
 	{
-		b[0] = quantize(precision, c.real());
-		b[1] = quantize(precision, c.imag());
-		b[2] = quantize(precision, std::abs(c.real())-amp(16));
-		b[3] = quantize(precision, std::abs(c.imag())-amp(16));
-		b[4] = quantize(precision, std::abs(std::abs(c.real())-amp(16))-amp(8));
-		b[5] = quantize(precision, std::abs(std::abs(c.imag())-amp(16))-amp(8));
-		b[6] = quantize(precision, std::abs(std::abs(std::abs(c.real())-amp(16))-amp(8))-amp(4));
-		b[7] = quantize(precision, std::abs(std::abs(std::abs(c.imag())-amp(16))-amp(8))-amp(4));
-		b[8] = quantize(precision, std::abs(std::abs(std::abs(std::abs(c.real())-amp(16))-amp(8))-amp(4))-amp(2));
-		b[9] = quantize(precision, std::abs(std::abs(std::abs(std::abs(c.imag())-amp(16))-amp(8))-amp(4))-amp(2));
+		value_type slope = DIST * precision;
+		b[0] = quantize<code_type>(slope, c.real());
+		b[1] = quantize<code_type>(slope, c.imag());
+		b[2] = quantize<code_type>(slope, std::abs(c.real())-amp(16));
+		b[3] = quantize<code_type>(slope, std::abs(c.imag())-amp(16));
+		b[4] = quantize<code_type>(slope, std::abs(std::abs(c.real())-amp(16))-amp(8));
+		b[5] = quantize<code_type>(slope, std::abs(std::abs(c.imag())-amp(16))-amp(8));
+		b[6] = quantize<code_type>(slope, std::abs(std::abs(std::abs(c.real())-amp(16))-amp(8))-amp(4));
+		b[7] = quantize<code_type>(slope, std::abs(std::abs(std::abs(c.imag())-amp(16))-amp(8))-amp(4));
+		b[8] = quantize<code_type>(slope, std::abs(std::abs(std::abs(std::abs(c.real())-amp(16))-amp(8))-amp(4))-amp(2));
+		b[9] = quantize<code_type>(slope, std::abs(std::abs(std::abs(std::abs(c.imag())-amp(16))-amp(8))-amp(4))-amp(2));
 	}
 
 	static complex_type map(code_type *b)
@@ -296,23 +234,6 @@ struct QuadratureAmplitudeModulation<4096, TYPE, CODE>
 		return AMP * i;
 	}
 
-	static code_type quantize(value_type precision, value_type value)
-	{
-		value_type slope = DIST * precision;
-		if (std::is_same<code_type, int8_t>::value)
-			slope = std::min<value_type>(slope, 16);
-		if (std::is_same<code_type, int16_t>::value)
-			slope = std::min<value_type>(slope, 4096);
-		value *= slope;
-		if (std::is_integral<code_type>::value)
-			value = std::nearbyint(value);
-		if (std::is_same<code_type, int8_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -127), 127);
-		if (std::is_same<code_type, int16_t>::value)
-			value = std::min<value_type>(std::max<value_type>(value, -32767), 32767);
-		return value;
-	}
-
 	static void hard(code_type *b, complex_type c)
 	{
 		b[ 0] = c.real() < amp(0) ? code_type(-1) : code_type(1);
@@ -331,18 +252,19 @@ struct QuadratureAmplitudeModulation<4096, TYPE, CODE>
 
 	static void soft(code_type *b, complex_type c, value_type precision)
 	{
-		b[ 0] = quantize(precision, c.real());
-		b[ 1] = quantize(precision, c.imag());
-		b[ 2] = quantize(precision, std::abs(c.real())-amp(32));
-		b[ 3] = quantize(precision, std::abs(c.imag())-amp(32));
-		b[ 4] = quantize(precision, std::abs(std::abs(c.real())-amp(32))-amp(16));
-		b[ 5] = quantize(precision, std::abs(std::abs(c.imag())-amp(32))-amp(16));
-		b[ 6] = quantize(precision, std::abs(std::abs(std::abs(c.real())-amp(32))-amp(16))-amp(8));
-		b[ 7] = quantize(precision, std::abs(std::abs(std::abs(c.imag())-amp(32))-amp(16))-amp(8));
-		b[ 8] = quantize(precision, std::abs(std::abs(std::abs(std::abs(c.real())-amp(32))-amp(16))-amp(8))-amp(4));
-		b[ 9] = quantize(precision, std::abs(std::abs(std::abs(std::abs(c.imag())-amp(32))-amp(16))-amp(8))-amp(4));
-		b[10] = quantize(precision, std::abs(std::abs(std::abs(std::abs(std::abs(c.real())-amp(32))-amp(16))-amp(8))-amp(4))-amp(2));
-		b[11] = quantize(precision, std::abs(std::abs(std::abs(std::abs(std::abs(c.imag())-amp(32))-amp(16))-amp(8))-amp(4))-amp(2));
+		value_type slope = DIST * precision;
+		b[ 0] = quantize<code_type>(slope, c.real());
+		b[ 1] = quantize<code_type>(slope, c.imag());
+		b[ 2] = quantize<code_type>(slope, std::abs(c.real())-amp(32));
+		b[ 3] = quantize<code_type>(slope, std::abs(c.imag())-amp(32));
+		b[ 4] = quantize<code_type>(slope, std::abs(std::abs(c.real())-amp(32))-amp(16));
+		b[ 5] = quantize<code_type>(slope, std::abs(std::abs(c.imag())-amp(32))-amp(16));
+		b[ 6] = quantize<code_type>(slope, std::abs(std::abs(std::abs(c.real())-amp(32))-amp(16))-amp(8));
+		b[ 7] = quantize<code_type>(slope, std::abs(std::abs(std::abs(c.imag())-amp(32))-amp(16))-amp(8));
+		b[ 8] = quantize<code_type>(slope, std::abs(std::abs(std::abs(std::abs(c.real())-amp(32))-amp(16))-amp(8))-amp(4));
+		b[ 9] = quantize<code_type>(slope, std::abs(std::abs(std::abs(std::abs(c.imag())-amp(32))-amp(16))-amp(8))-amp(4));
+		b[10] = quantize<code_type>(slope, std::abs(std::abs(std::abs(std::abs(std::abs(c.real())-amp(32))-amp(16))-amp(8))-amp(4))-amp(2));
+		b[11] = quantize<code_type>(slope, std::abs(std::abs(std::abs(std::abs(std::abs(c.imag())-amp(32))-amp(16))-amp(8))-amp(4))-amp(2));
 	}
 
 	static complex_type map(code_type *b)
