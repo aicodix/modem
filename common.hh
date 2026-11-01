@@ -62,6 +62,30 @@ struct Common
 
 	Common() : crc0(0xA8F4), crc1(0x8F6E37A0) {}
 
+	template <typename cmplx, typename code_type>
+	static typename cmplx::value_type mod_distance(int bits)
+	{
+		switch (bits) {
+		case 1:
+			return PhaseShiftKeying<1, cmplx, code_type>::DIST;
+		case 2:
+			return PhaseShiftKeying<2, cmplx, code_type>::DIST;
+		case 3:
+			return PhaseShiftKeying<3, cmplx, code_type>::DIST;
+		case 4:
+			return QuadratureAmplitudeModulation<4, cmplx, code_type>::DIST;
+		case 6:
+			return QuadratureAmplitudeModulation<6, cmplx, code_type>::DIST;
+		case 8:
+			return QuadratureAmplitudeModulation<8, cmplx, code_type>::DIST;
+		case 10:
+			return QuadratureAmplitudeModulation<10, cmplx, code_type>::DIST;
+		case 12:
+			return QuadratureAmplitudeModulation<12, cmplx, code_type>::DIST;
+		}
+		return 2;
+	}
+
 	bool setup(int mode)
 	{
 		bool analog_mode = mode & 128;

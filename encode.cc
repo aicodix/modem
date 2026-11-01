@@ -177,28 +177,6 @@ struct Encoder : public Common
 		}
 		return 0;
 	}
-	value mod_distance()
-	{
-		switch (mod_bits) {
-		case 1:
-			return PhaseShiftKeying<1, cmplx, code_type>::DIST;
-		case 2:
-			return PhaseShiftKeying<2, cmplx, code_type>::DIST;
-		case 3:
-			return PhaseShiftKeying<3, cmplx, code_type>::DIST;
-		case 4:
-			return QuadratureAmplitudeModulation<4, cmplx, code_type>::DIST;
-		case 6:
-			return QuadratureAmplitudeModulation<6, cmplx, code_type>::DIST;
-		case 8:
-			return QuadratureAmplitudeModulation<8, cmplx, code_type>::DIST;
-		case 10:
-			return QuadratureAmplitudeModulation<10, cmplx, code_type>::DIST;
-		case 12:
-			return QuadratureAmplitudeModulation<12, cmplx, code_type>::DIST;
-		}
-		return 2;
-	}
 	void shuffle(code_type *dest, const code_type *src, int order)
 	{
 		if (order == 8) {
