@@ -13,6 +13,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "phasor.hh"
 #include "delay.hh"
 #include "polar_list_decoder.hh"
+#include "polar_encoder.hh"
 #include "hadamard_decoder.hh"
 
 template <typename value, typename cmplx, int rate>
@@ -37,8 +38,9 @@ struct Decoder : Common
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
 	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
+	CODE::PolarEncoder<code_type> polar_encoder;
 	mesg_type mesg[bits_max];
-	code_type code[bits_max], perm[bits_max];
+	code_type code[bits_max], perm[bits_max], meta[data_tones];
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
@@ -204,6 +206,13 @@ struct Decoder : Common
 		}
 		if (best < 0)
 			return -1;
+		for (int i = 0; i < 72; ++i)
+			perm[i] = mesg[i].v[best] < 0 ? -1 : 1;
+		polar_encoder(code, perm, frozen_256_72, 8);
+		CODE::XorShiftMask<int, 8, 1, 1, 2, 1> seq;
+		meta[0] = code[0];
+		for (int i = 1; i < 256; ++i)
+			meta[i] = code[seq()];
 		uint64_t md = 0;
 		for (int i = 0; i < 56; ++i)
 			md |= uint64_t(mesg[i].v[best] < 0) << i;
@@ -375,9 +384,20 @@ struct Decoder : Common
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
 					std::cerr << "oper mode: " << oper_mode << std::endl;
+					CODE::MLS seq(mls2_poly, seed_value);
+					for (int i = 0, m = 0; i < tone_count; ++i) {
+						if (i % block_length != seed_off) {
+							tone[i] *= value(meta[m++]);
+							if (seed_value)
+								tone[i] *= nrz(seq());
+						}
+					}
+					for (int i = 0; i < tone_count; ++i)
+						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+				} else {
+					for (int i = seed_off; i < tone_count; i += block_length)
+						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
-				for (int i = seed_off; i < tone_count; i += block_length)
-					chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			}
 			if (oper_mode < 0)
 				continue;
