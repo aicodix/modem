@@ -14,6 +14,7 @@ struct Encoder : public Common
 	typedef int8_t code_type;
 	static const int guard_len = rate / 300;
 	static const int symbol_len = guard_len * 40;
+	static const int tone_off = (1500 * symbol_len) / rate - tone_count / 2;
 	DSP::WritePCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
@@ -227,12 +228,10 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int freq_off, int64_t call_sign, int oper_mode) : pcm(pcm)
+	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int64_t call_sign, int oper_mode) : pcm(pcm)
 	{
 		if (!setup(oper_mode))
 			return;
-		int offset = (freq_off * symbol_len) / rate;
-		tone_off = offset - tone_count / 2;
 		guard_interval_weights();
 		meta_data((call_sign << 8) | oper_mode);
 		leading_noise();
@@ -312,8 +311,8 @@ int64_t base40_encoder(const char *str)
 
 int main(int argc, char **argv)
 {
-	if (argc < 11) {
-		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CHANNELS OFFSET CALLSIGN MODULATION CODERATE FRAMESIZE INPUT.." << std::endl;
+	if (argc < 9) {
+		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CALLSIGN MODULATION CODERATE FRAMESIZE INPUT.." << std::endl;
 		return 1;
 	}
 
@@ -322,20 +321,13 @@ int main(int argc, char **argv)
 		output_name = "/dev/stdout";
 	int output_rate = std::atoi(argv[2]);
 	int output_bits = std::atoi(argv[3]);
-	int output_chan = std::atoi(argv[4]);
-
-	int freq_off = std::atoi(argv[5]);
-	if (freq_off % 300) {
-		std::cerr << "Frequency offset must be divisible by 300." << std::endl;
-		return 1;
-	}
-	int64_t call_sign = base40_encoder(argv[6]);
+	int64_t call_sign = base40_encoder(argv[4]);
 	if (call_sign <= 0 || call_sign >= 262144000000000L) {
 		std::cerr << "Unsupported call sign." << std::endl;
 		return 1;
 	}
 	int oper_mode = 0;
-	char *modulation = argv[7];
+	char *modulation = argv[5];
 	if (!strcmp(modulation, "BPSK")) {
 		oper_mode |= 0 << 4;
 	} else if (!strcmp(modulation, "QPSK")) {
@@ -356,7 +348,7 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported modulation." << std::endl;
 		return 1;
 	}
-	char *code_rate = argv[8];
+	char *code_rate = argv[6];
 	if (!strcmp(code_rate, "1/2")) {
 		oper_mode |= 0 << 1;
 	} else if (!strcmp(code_rate, "2/3")) {
@@ -369,7 +361,7 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported code rate." << std::endl;
 		return 1;
 	}
-	char *frame_size = argv[9];
+	char *frame_size = argv[7];
 	if (!strcmp(frame_size, "short")) {
 		oper_mode |= 0;
 	} else if (!strcmp(frame_size, "normal")) {
@@ -378,23 +370,18 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported frame size." << std::endl;
 		return 1;
 	}
-	int band_width = 2400;
-	if ((output_chan == 1 && freq_off < band_width / 2) || freq_off < band_width / 2 - output_rate / 2 || freq_off > output_rate / 2 - band_width / 2) {
-		std::cerr << "Unsupported frequency offset." << std::endl;
-		return 1;
-	}
 	std::cerr << std::fixed << std::setprecision(1);
 	typedef float value;
 	typedef DSP::Complex<value> cmplx;
-	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, output_chan);
+	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, 1);
 	output_file.silence(output_rate);
-	int input_count = argc - 10;
+	int input_count = argc - 8;
 	switch (output_rate) {
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, argv + 10, input_count, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 44100>(&output_file, argv + 8, input_count, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, argv + 10, input_count, freq_off, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 48000>(&output_file, argv + 8, input_count, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;

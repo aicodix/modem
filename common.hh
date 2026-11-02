@@ -56,7 +56,6 @@ struct Common
 	int data_bytes;
 	int code_order;
 	int oper_mode;
-	int tone_off;
 	int seed_off;
 	int symbol_count;
 
