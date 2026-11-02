@@ -8,8 +8,8 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "schmidl_cox.hh"
 #include "bip_buffer.hh"
 #include "theil_sen.hh"
-#include "blockdc.hh"
-#include "hilbert.hh"
+#include "filter.hh"
+#include "window.hh"
 #include "phasor.hh"
 #include "delay.hh"
 #include "polar_list_decoder.hh"
@@ -24,15 +24,15 @@ struct Decoder : Common
 	typedef DSP::Const<value> Const;
 	static const int guard_len = rate / 300;
 	static const int symbol_len = guard_len * 40;
-	static const int filter_len = 129;
+	static const int filter_len = rate / 100 | 1;
 	static const int extended_len = symbol_len + guard_len;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
 	static const int tone_off = - tone_count / 2;
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
-	DSP::BlockDC<value, value> blockdc;
-	DSP::Hilbert<cmplx, filter_len> hilbert;
+	DSP::Phasor<cmplx> mix;
+	DSP::BipBuffer<cmplx, filter_len> filter_hist;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
@@ -44,6 +44,7 @@ struct Decoder : Common
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
+	value lowpass[filter_len];
 	value snr[symbols_max];
 	value cfo_rad, sfo_rad;
 	int symbol_pos;
@@ -184,13 +185,15 @@ struct Decoder : Common
 	}
 	const cmplx *next_sample()
 	{
-		cmplx tmp;
-		pcm->read(reinterpret_cast<value *>(&tmp), 1);
+		value tmp;
+		pcm->read(&tmp, 1);
 		if (!pcm->good())
 			tmp = 0;
-		if (pcm->channels() == 1)
-			tmp = hilbert(blockdc(tmp.real()));
-		return input_hist(tmp);
+		const cmplx *hist = filter_hist(tmp * mix());
+		cmplx sum = 0;
+		for (int i = 0; i < filter_len; ++i)
+			sum += lowpass[i] * hist[i];
+		return input_hist(sum);
 	}
 	int64_t meta_data()
 	{
@@ -222,7 +225,11 @@ struct Decoder : Common
 	}
 	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) : pcm(pcm), correlator(mls0_seq())
 	{
-		blockdc.samples(filter_len);
+		mix.omega(-1500, rate);
+		DSP::LowPass<value> filter(value(1275) / value(rate));
+		DSP::Kaiser<value> window(2);
+		for (int i = 0; i < filter_len; ++i)
+			lowpass[i] = filter(i, filter_len) * window(i, filter_len);
 		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
 		int output_index = 0;
@@ -458,8 +465,8 @@ int main(int argc, char **argv)
 
 	DSP::ReadWAV<value> input_file(input_name);
 
-	if (input_file.channels() < 1 || input_file.channels() > 2) {
-		std::cerr << "Only real or analytic signal (one or two channels) supported." << std::endl;
+	if (input_file.channels() != 1) {
+		std::cerr << "Only real signal (one channel) supported." << std::endl;
 		return 1;
 	}
 
