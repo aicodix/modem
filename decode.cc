@@ -186,6 +186,8 @@ struct Decoder : Common
 	{
 		cmplx tmp;
 		pcm->read(reinterpret_cast<value *>(&tmp), 1);
+		if (!pcm->good())
+			tmp = 0;
 		if (pcm->channels() == 1)
 			tmp = hilbert(blockdc(tmp.real()));
 		return input_hist(tmp);
@@ -227,9 +229,9 @@ struct Decoder : Common
 		int sample_count = 0;
 		while (output_index < output_count) {
 			do {
+				buf = next_sample();
 				if (!pcm->good())
 					return;
-				buf = next_sample();
 				++sample_count;
 			} while (!correlator(buf));
 
