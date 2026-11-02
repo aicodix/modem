@@ -10,6 +10,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "theil_sen.hh"
 #include "filter.hh"
 #include "window.hh"
+#include "fir.hh"
 #include "phasor.hh"
 #include "delay.hh"
 #include "polar_list_decoder.hh"
@@ -32,7 +33,7 @@ struct Decoder : Common
 	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::Phasor<cmplx> mix;
-	DSP::BipBuffer<cmplx, filter_len> filter_hist;
+	DSP::FIR<cmplx, value, filter_len> lowpass;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
@@ -44,7 +45,6 @@ struct Decoder : Common
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
-	value lowpass[filter_len];
 	value snr[symbols_max];
 	value cfo_rad, sfo_rad;
 	int symbol_pos;
@@ -189,11 +189,7 @@ struct Decoder : Common
 		pcm->read(&tmp, 1);
 		if (!pcm->good())
 			tmp = 0;
-		const cmplx *hist = filter_hist(tmp * mix());
-		cmplx sum = 0;
-		for (int i = 0; i < filter_len; ++i)
-			sum += lowpass[i] * hist[i];
-		return input_hist(sum);
+		return input_hist(lowpass(tmp * mix()));
 	}
 	int64_t meta_data()
 	{
@@ -223,13 +219,9 @@ struct Decoder : Common
 			md |= uint64_t(mesg[i].v[best] < 0) << i;
 		return md;
 	}
-	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) : pcm(pcm), correlator(mls0_seq())
+	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) : pcm(pcm), lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq())
 	{
 		mix.omega(-1500, rate);
-		DSP::LowPass<value> filter(value(1275) / value(rate));
-		DSP::Kaiser<value> window(2);
-		for (int i = 0; i < filter_len; ++i)
-			lowpass[i] = filter(i, filter_len) * window(i, filter_len);
 		DSP::Phasor<cmplx> osc;
 		const cmplx *buf;
 		int output_index = 0;
