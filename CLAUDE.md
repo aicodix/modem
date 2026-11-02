@@ -77,6 +77,10 @@ so code must:
 - The precision comes from hard decisions and overestimates Es/N0 by several dB
   for dense QAM near threshold. Within a frame that is a common scale and does
   not hurt decoding, but the logged Es/N0 is not exact there.
+- The signal is always a real (one channel) audio signal centered at 1500 Hz.
+  The decoder mixes it down by 1500 Hz and lowpass filters it, flat to ±1050 Hz
+  and at least 65 dB down from ±1500 Hz, which removes DC and out-of-band noise
+  before synchronization. This limits the CFO to about ±250 Hz.
 - Below roughly 7 dB in-band SNR the preamble no longer synchronizes, so BPSK and
   QPSK at low code rates fail at sync before the code is tested. To compare
   decoder changes, use denser modulations or higher code rates near their
