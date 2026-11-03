@@ -276,6 +276,7 @@ struct Decoder : Common
 			mod_bits = 1;
 			oper_mode = -1;
 			symbol_count = 0;
+			int snr_count = 0;
 			for (int j = 0, k = 0; j < symbol_count + 1; ++j) {
 				seed_off = (block_skew * j + first_seed) % block_length;
 				if (j) {
@@ -296,35 +297,42 @@ struct Decoder : Common
 				for (int i = 0; i < seed_tones; ++i)
 					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
 				int seed_value = hadamard_decoder(seed);
-				if (seed_value < 0) {
+				bool erased = seed_value < 0;
+				if (erased && !j) {
 					std::cerr << "seed value damaged" << std::endl;
 					oper_mode = -1;
 					break;
 				}
-				hadamard_encoder(seed, seed_value);
-				for (int i = 0; i < seed_tones; ++i) {
-					tone[block_length*i+seed_off] *= seed[i];
-					demod[block_length*i+seed_off] *= seed[i];
-				}
-				for (int i = 0; i < seed_tones; ++i) {
-					index[i] = tone_off + block_length * i + seed_off;
-					phase[i] = arg(demod[block_length*i+seed_off]);
-				}
-				tse.compute(index, phase, seed_tones);
-				//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
-				//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
-				for (int i = 0; i < tone_count; ++i)
-					demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
-				for (int i = 0; i < tone_count; ++i)
-					chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
-				if (seed_value) {
-					CODE::MLS seq(mls2_poly, seed_value);
+				if (erased) {
+					std::cerr << "seed value damaged, erasing symbol " << j << std::endl;
 					for (int i = 0; i < tone_count; ++i)
-						if (i % block_length != seed_off)
-							demod[i] *= nrz(seq());
+						demod[i] = 0;
+				} else {
+					hadamard_encoder(seed, seed_value);
+					for (int i = 0; i < seed_tones; ++i) {
+						tone[block_length*i+seed_off] *= seed[i];
+						demod[block_length*i+seed_off] *= seed[i];
+					}
+					for (int i = 0; i < seed_tones; ++i) {
+						index[i] = tone_off + block_length * i + seed_off;
+						phase[i] = arg(demod[block_length*i+seed_off]);
+					}
+					tse.compute(index, phase, seed_tones);
+					//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+					//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
+					for (int i = 0; i < tone_count; ++i)
+						demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
+					for (int i = 0; i < tone_count; ++i)
+						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
+					if (seed_value) {
+						CODE::MLS seq(mls2_poly, seed_value);
+						for (int i = 0; i < tone_count; ++i)
+							if (i % block_length != seed_off)
+								demod[i] *= nrz(seq());
+					}
 				}
 				value sp = 0, np = 0;
-				for (int i = 0, l = k; i < tone_count; ++i) {
+				for (int i = 0, l = k; !erased && i < tone_count; ++i) {
 					cmplx hard(1, 0);
 					if (i % block_length != seed_off) {
 						int bits = mod_bits;
@@ -344,8 +352,10 @@ struct Decoder : Common
 					sp += norm(hard);
 					np += norm(error);
 				}
-				value precision = sp / np;
-				snr[j] = precision;
+				// erased symbols get zero LLRs
+				value precision = 0;
+				if (!erased)
+					snr[snr_count++] = precision = sp / np;
 				// more resolution after rounding, quantize() caps the slope
 				precision *= value(300);
 				for (int i = 0; i < tone_count; ++i) {
@@ -395,15 +405,15 @@ struct Decoder : Common
 					}
 					for (int i = 0; i < tone_count; ++i)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-				} else {
+				} else if (!erased) {
 					for (int i = seed_off; i < tone_count; i += block_length)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
 			}
 			if (oper_mode < 0)
 				continue;
-			DSP::quick_sort(snr, symbol_count + 1);
-			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[symbol_count/2]) << " .. " << DSP::decibel(snr[symbol_count]) << std::endl;
+			DSP::quick_sort(snr, snr_count);
+			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(snr_count-1)/2]) << " .. " << DSP::decibel(snr[snr_count-1]) << std::endl;
 			crc_bits = data_bits + 32;
 			shuffle(code, perm, code_order);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
