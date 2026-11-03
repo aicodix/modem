@@ -12,6 +12,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "window.hh"
 #include "fir.hh"
 #include "phasor.hh"
+#include "spline.hh"
 #include "delay.hh"
 #include "polar_list_decoder.hh"
 #include "polar_encoder.hh"
@@ -43,6 +44,7 @@ struct Decoder : Common
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max], meta[data_tones];
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
+	cmplx knots[seed_tones];
 	cmplx analog[analog_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
@@ -326,6 +328,20 @@ struct Decoder : Common
 						demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
 					for (int i = 0; i < tone_count; ++i)
 						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
+					if (j) {
+						// update all tones with the seed tones of this symbol, interpolated values with a lower weight
+						for (int i = 0; i < seed_tones; ++i)
+							knots[i] = tone[block_length*i+seed_off];
+						DSP::UniformNaturalCubicSpline<seed_tones, cmplx, value> spline(knots, seed_off, block_length);
+						for (int i = 0; i < tone_count; ++i) {
+							if (i % block_length == seed_off) {
+								chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+							} else {
+								chan[i] = DSP::lerp(chan[i], spline(i), value(1) / value(3));
+								demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
+							}
+						}
+					}
 					if (seed_value) {
 						CODE::MLS seq(mls2_poly, seed_value);
 						for (int i = 0; i < tone_count; ++i)
@@ -420,9 +436,6 @@ struct Decoder : Common
 						}
 					}
 					for (int i = 0; i < tone_count; ++i)
-						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-				} else if (!erased) {
-					for (int i = seed_off; i < tone_count; i += block_length)
 						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 				}
 			}
