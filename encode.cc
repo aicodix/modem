@@ -27,6 +27,7 @@ struct Encoder : public Common
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
 	cmplx temp[tone_count];
+	cmplx analog[analog_max];
 	value weight[guard_len];
 	value papr[symbols_max];
 
@@ -228,43 +229,82 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
+	int read_analog(const char *input_name)
+	{
+		DSP::ReadWAV<value> input_file(input_name);
+		if (!input_file.good()) {
+			std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
+			return 0;
+		}
+		if (input_file.channels() != 2 || input_file.bits() != 32) {
+			std::cerr << "Only complex values (two channels, 32 bit float) supported." << std::endl;
+			return 0;
+		}
+		int count = 0;
+		while (count < analog_max) {
+			input_file.read(reinterpret_cast<value *>(analog + count), 1);
+			if (!input_file.good())
+				break;
+			++count;
+		}
+		if (count == analog_max) {
+			cmplx tmp;
+			input_file.read(reinterpret_cast<value *>(&tmp), 1);
+			if (input_file.good())
+				std::cerr << "Ignoring complex values beyond " << analog_max << " in file \"" << input_name << "\"." << std::endl;
+		}
+		if (!count)
+			std::cerr << "No complex values in file \"" << input_name << "\"." << std::endl;
+		for (int i = count; i % data_tones; ++i)
+			analog[i] = 0;
+		return count;
+	}
 	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int64_t call_sign, int oper_mode) : pcm(pcm)
 	{
-		if (!setup(oper_mode))
+		bool analog_mode = oper_mode & 128;
+		if (!analog_mode && !setup(oper_mode))
 			return;
 		guard_interval_weights();
-		meta_data((call_sign << 8) | oper_mode);
 		leading_noise();
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
 			if (input_count == 1 && input_name[0] == '-' && input_name[1] == 0)
 				input_name = "/dev/stdin";
-			std::ifstream input_file(input_name, std::ios::binary);
-			if (input_file.bad()) {
-				std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
-				continue;
+			if (analog_mode) {
+				int count = read_analog(input_name);
+				if (!count || !setup(128 | (count - 1) / data_tones))
+					continue;
+			} else {
+				std::ifstream input_file(input_name, std::ios::binary);
+				if (input_file.bad()) {
+					std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
+					continue;
+				}
+				for (int i = 0; i < data_bytes; ++i)
+					data[i] = std::max(input_file.get(), 0);
+				CODE::Xorshift32 scrambler;
+				for (int i = 0; i < data_bytes; ++i)
+					data[i] ^= scrambler();
+				for (int i = 0; i < data_bits; ++i)
+					mesg[i] = nrz(CODE::get_le_bit(data, i));
+				crc1.reset();
+				for (int i = 0; i < data_bytes; ++i)
+					crc1(data[i]);
+				for (int i = 0; i < 32; ++i)
+					mesg[i+data_bits] = nrz((crc1()>>i)&1);
+				polar_encoder(code, mesg, frozen_bits, code_order);
+				shuffle(perm, code, code_order);
 			}
-			for (int i = 0; i < data_bytes; ++i)
-				data[i] = std::max(input_file.get(), 0);
-			CODE::Xorshift32 scrambler;
-			for (int i = 0; i < data_bytes; ++i)
-				data[i] ^= scrambler();
+			meta_data((call_sign << 8) | this->oper_mode);
 			schmidl_cox();
-			for (int i = 0; i < data_bits; ++i)
-				mesg[i] = nrz(CODE::get_le_bit(data, i));
-			crc1.reset();
-			for (int i = 0; i < data_bytes; ++i)
-				crc1(data[i]);
-			for (int i = 0; i < 32; ++i)
-				mesg[i+data_bits] = nrz((crc1()>>i)&1);
-			polar_encoder(code, mesg, frozen_bits, code_order);
-			shuffle(perm, code, code_order);
 			CODE::MLS seq1(mls1_poly);
 			for (int j = 0, k = 0, m = 0; j < symbol_count + 1; ++j) {
 				seed_off = (block_skew * j + first_seed) % block_length;
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == seed_off) {
 						tone[i] = nrz(seq1());
+					} else if (j && analog_mode) {
+						tone[i] = analog[k++];
 					} else if (j) {
 						int bits = mod_bits;
 						if (mod_bits == 3 && k % 32 == 30)
@@ -311,8 +351,10 @@ int64_t base40_encoder(const char *str)
 
 int main(int argc, char **argv)
 {
-	if (argc < 9) {
+	bool analog_mode = argc > 6 && !strcmp(argv[5], "ANALOG");
+	if (!analog_mode && argc < 9) {
 		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CALLSIGN MODULATION CODERATE FRAMESIZE INPUT.." << std::endl;
+		std::cerr << "       " << argv[0] << " OUTPUT RATE BITS CALLSIGN ANALOG INPUT.." << std::endl;
 		return 1;
 	}
 
@@ -327,61 +369,67 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	int oper_mode = 0;
-	char *modulation = argv[5];
-	if (!strcmp(modulation, "BPSK")) {
-		oper_mode |= 0 << 4;
-	} else if (!strcmp(modulation, "QPSK")) {
-		oper_mode |= 1 << 4;
-	} else if (!strcmp(modulation, "8PSK")) {
-		oper_mode |= 2 << 4;
-	} else if (!strcmp(modulation, "QAM16")) {
-		oper_mode |= 3 << 4;
-	} else if (!strcmp(modulation, "QAM64")) {
-		oper_mode |= 4 << 4;
-	} else if (!strcmp(modulation, "QAM256")) {
-		oper_mode |= 5 << 4;
-	} else if (!strcmp(modulation, "QAM1024")) {
-		oper_mode |= 6 << 4;
-	} else if (!strcmp(modulation, "QAM4096")) {
-		oper_mode |= 7 << 4;
+	int input_index = 8;
+	if (analog_mode) {
+		oper_mode = 128;
+		input_index = 6;
 	} else {
-		std::cerr << "Unsupported modulation." << std::endl;
-		return 1;
-	}
-	char *code_rate = argv[6];
-	if (!strcmp(code_rate, "1/2")) {
-		oper_mode |= 0 << 1;
-	} else if (!strcmp(code_rate, "2/3")) {
-		oper_mode |= 1 << 1;
-	} else if (!strcmp(code_rate, "3/4")) {
-		oper_mode |= 2 << 1;
-	} else if (!strcmp(code_rate, "5/6")) {
-		oper_mode |= 3 << 1;
-	} else {
-		std::cerr << "Unsupported code rate." << std::endl;
-		return 1;
-	}
-	char *frame_size = argv[7];
-	if (!strcmp(frame_size, "short")) {
-		oper_mode |= 0;
-	} else if (!strcmp(frame_size, "normal")) {
-		oper_mode |= 1;
-	} else {
-		std::cerr << "Unsupported frame size." << std::endl;
-		return 1;
+		char *modulation = argv[5];
+		if (!strcmp(modulation, "BPSK")) {
+			oper_mode |= 0 << 4;
+		} else if (!strcmp(modulation, "QPSK")) {
+			oper_mode |= 1 << 4;
+		} else if (!strcmp(modulation, "8PSK")) {
+			oper_mode |= 2 << 4;
+		} else if (!strcmp(modulation, "QAM16")) {
+			oper_mode |= 3 << 4;
+		} else if (!strcmp(modulation, "QAM64")) {
+			oper_mode |= 4 << 4;
+		} else if (!strcmp(modulation, "QAM256")) {
+			oper_mode |= 5 << 4;
+		} else if (!strcmp(modulation, "QAM1024")) {
+			oper_mode |= 6 << 4;
+		} else if (!strcmp(modulation, "QAM4096")) {
+			oper_mode |= 7 << 4;
+		} else {
+			std::cerr << "Unsupported modulation." << std::endl;
+			return 1;
+		}
+		char *code_rate = argv[6];
+		if (!strcmp(code_rate, "1/2")) {
+			oper_mode |= 0 << 1;
+		} else if (!strcmp(code_rate, "2/3")) {
+			oper_mode |= 1 << 1;
+		} else if (!strcmp(code_rate, "3/4")) {
+			oper_mode |= 2 << 1;
+		} else if (!strcmp(code_rate, "5/6")) {
+			oper_mode |= 3 << 1;
+		} else {
+			std::cerr << "Unsupported code rate." << std::endl;
+			return 1;
+		}
+		char *frame_size = argv[7];
+		if (!strcmp(frame_size, "short")) {
+			oper_mode |= 0;
+		} else if (!strcmp(frame_size, "normal")) {
+			oper_mode |= 1;
+		} else {
+			std::cerr << "Unsupported frame size." << std::endl;
+			return 1;
+		}
 	}
 	std::cerr << std::fixed << std::setprecision(1);
 	typedef float value;
 	typedef DSP::Complex<value> cmplx;
 	DSP::WriteWAV<value> output_file(output_name, output_rate, output_bits, 1);
 	output_file.silence(output_rate);
-	int input_count = argc - 8;
+	int input_count = argc - input_index;
 	switch (output_rate) {
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, argv + 8, input_count, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 44100>(&output_file, argv + input_index, input_count, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, argv + 8, input_count, call_sign, oper_mode);
+		delete new Encoder<value, cmplx, 48000>(&output_file, argv + input_index, input_count, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;

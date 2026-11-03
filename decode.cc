@@ -43,6 +43,7 @@ struct Decoder : Common
 	mesg_type mesg[bits_max];
 	code_type code[bits_max], perm[bits_max], meta[data_tones];
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
+	cmplx analog[analog_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
 	value snr[symbols_max];
@@ -58,11 +59,11 @@ struct Decoder : Common
 	{
 		return 1 - 2 * bit;
 	}
-	static cmplx demod_or_erase(cmplx curr, cmplx prev)
+	static cmplx demod_or_erase(cmplx curr, cmplx prev, bool limit = true)
 	{
 		if (norm(prev) > 0) {
 			cmplx demod = curr / prev;
-			if (norm(demod) < 4)
+			if (!limit || norm(demod) < 4)
 				return demod;
 		}
 		return 0;
@@ -277,6 +278,7 @@ struct Decoder : Common
 			oper_mode = -1;
 			symbol_count = 0;
 			int snr_count = 0;
+			bool analog_mode = false;
 			for (int j = 0, k = 0; j < symbol_count + 1; ++j) {
 				seed_off = (block_skew * j + first_seed) % block_length;
 				if (j) {
@@ -293,7 +295,7 @@ struct Decoder : Common
 				for (int i = seed_off; i < tone_count; i += block_length)
 					tone[i] *= nrz(seq1());
 				for (int i = 0; i < tone_count; ++i)
-					demod[i] = demod_or_erase(tone[i], chan[i]);
+					demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
 				for (int i = 0; i < seed_tones; ++i)
 					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
 				int seed_value = hadamard_decoder(seed);
@@ -331,46 +333,59 @@ struct Decoder : Common
 								demod[i] *= nrz(seq());
 					}
 				}
-				value sp = 0, np = 0;
-				for (int i = 0, l = k; !erased && i < tone_count; ++i) {
-					cmplx hard(1, 0);
-					if (i % block_length != seed_off) {
-						int bits = mod_bits;
-						if (mod_bits == 3 && l % 32 == 30)
-							bits = 2;
-						if (mod_bits == 6 && l % 64 == 60)
-							bits = 4;
-						if (mod_bits == 10 && l % 128 == 120)
-							bits = 8;
-						if (mod_bits == 12 && l % 128 == 120)
-							bits = 8;
-						demap_hard(perm+l, demod[i], bits);
-						hard = map_bits(perm+l, bits);
-						l += bits;
+				if (analog_mode) {
+					value sp = 0, np = 0;
+					for (int i = seed_off; !erased && i < tone_count; i += block_length) {
+						sp += 1;
+						np += norm(demod[i] - cmplx(1, 0));
 					}
-					cmplx error = demod[i] - hard;
-					sp += norm(hard);
-					np += norm(error);
-				}
-				// erased symbols get zero LLRs
-				value precision = 0;
-				if (!erased)
-					snr[snr_count++] = precision = sp / np;
-				// more resolution after rounding, quantize() caps the slope
-				precision *= value(300);
-				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length != seed_off) {
-						int bits = mod_bits;
-						if (mod_bits == 3 && k % 32 == 30)
-							bits = 2;
-						if (mod_bits == 6 && k % 64 == 60)
-							bits = 4;
-						if (mod_bits == 10 && k % 128 == 120)
-							bits = 8;
-						if (mod_bits == 12 && k % 128 == 120)
-							bits = 8;
-						demap_soft(perm+k, demod[i], precision, bits);
-						k += bits;
+					if (!erased)
+						snr[snr_count++] = sp / std::max(np, value(1e-9) * sp);
+					for (int i = 0; i < tone_count; ++i)
+						if (i % block_length != seed_off)
+							analog[k++] = demod[i];
+				} else {
+					value sp = 0, np = 0;
+					for (int i = 0, l = k; !erased && i < tone_count; ++i) {
+						cmplx hard(1, 0);
+						if (i % block_length != seed_off) {
+							int bits = mod_bits;
+							if (mod_bits == 3 && l % 32 == 30)
+								bits = 2;
+							if (mod_bits == 6 && l % 64 == 60)
+								bits = 4;
+							if (mod_bits == 10 && l % 128 == 120)
+								bits = 8;
+							if (mod_bits == 12 && l % 128 == 120)
+								bits = 8;
+							demap_hard(perm+l, demod[i], bits);
+							hard = map_bits(perm+l, bits);
+							l += bits;
+						}
+						cmplx error = demod[i] - hard;
+						sp += norm(hard);
+						np += norm(error);
+					}
+					// erased symbols get zero LLRs
+					value precision = 0;
+					if (!erased)
+						snr[snr_count++] = precision = sp / np;
+					// more resolution after rounding, quantize() caps the slope
+					precision *= value(300);
+					for (int i = 0; i < tone_count; ++i) {
+						if (i % block_length != seed_off) {
+							int bits = mod_bits;
+							if (mod_bits == 3 && k % 32 == 30)
+								bits = 2;
+							if (mod_bits == 6 && k % 64 == 60)
+								bits = 4;
+							if (mod_bits == 10 && k % 128 == 120)
+								bits = 8;
+							if (mod_bits == 12 && k % 128 == 120)
+								bits = 8;
+							demap_soft(perm+k, demod[i], precision, bits);
+							k += bits;
+						}
 					}
 				}
 				if (!j) {
@@ -391,6 +406,7 @@ struct Decoder : Common
 					int mode = meta_info & 255;
 					if (!setup(mode))
 						break;
+					analog_mode = mode & 128;
 					k = 0;
 					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
 						correlator(buf = next_sample());
@@ -414,6 +430,18 @@ struct Decoder : Common
 				continue;
 			DSP::quick_sort(snr, snr_count);
 			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(snr_count-1)/2]) << " .. " << DSP::decibel(snr[snr_count-1]) << std::endl;
+			if (analog_mode) {
+				const char *output_name = output_names[output_index++];
+				if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
+					output_name = "/dev/stdout";
+				DSP::WriteWAV<value> output_file(output_name, analog_rate, 32, 2);
+				if (!output_file.good()) {
+					std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
+					continue;
+				}
+				output_file.write(reinterpret_cast<value *>(analog), symbol_count * data_tones, 2);
+				continue;
+			}
 			crc_bits = data_bits + 32;
 			shuffle(code, perm, code_order);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);

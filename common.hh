@@ -34,7 +34,7 @@ struct Common
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 8192;
-	static const int symbols_max = 26 + 1;
+	static const int symbols_max = 128 + 1;
 	static const int mls0_poly = 0x331;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
@@ -42,6 +42,8 @@ struct Common
 	static const int data_tones = 256;
 	static const int seed_tones = 64;
 	static const int tone_count = data_tones + seed_tones;
+	static const int analog_max = 128 * data_tones;
+	static const int analog_rate = data_tones * 300 / 41;
 	static const int block_length = 5;
 	static const int block_skew = 3;
 	static const int first_seed = 4;
@@ -89,8 +91,14 @@ struct Common
 	{
 		bool analog_mode = mode & 128;
 		if (analog_mode) {
-			std::cerr << "analog mode not supported yet" << std::endl;
-			return false;
+			symbol_count = (mode & 127) + 1;
+			oper_mode = mode;
+			float duration = 41. / 300. * (3 + symbol_count);
+			std::cerr << "analog mode" << std::endl;
+			std::cerr << "symbols: " << symbol_count << std::endl;
+			std::cerr << "duration: " << duration << "s" << std::endl;
+			std::cerr << "payload: " << symbol_count * data_tones << " complex values" << std::endl;
+			return true;
 		}
 		std::cerr << "modulation: ";
 		int modulation = (mode >> 4) & 7;
