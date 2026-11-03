@@ -36,7 +36,10 @@ make test
 suite; check a change by encoding, decoding and comparing, for example with the
 simulation pipeline in the README ("Simulating"), which adds multipath, CFO,
 SFO and AWGN with the disorders tools and ends with `diff -s`.
-The decoder reports the operation mode and Es/N0 statistics on stderr.
+The decoder reports the operation mode and Es/N0 statistics on stderr. After a
+frame decodes, it re-encodes the message and also reports the number of code
+bits whose soft value had the wrong sign (erased bits count too) and the real
+Es/N0 against the re-encoded symbols, which is exact also near threshold.
 
 The default compiler is `clang++ -stdlib=libc++ -march=native`. If libc++ is
 not installed, build with `make CXX="g++ -march=native"`. The Makefile has
@@ -79,7 +82,8 @@ so code must:
   average of its symbol. The logged Es/N0 stays unweighted.
 - The precision comes from hard decisions and overestimates Es/N0 by several dB
   for dense QAM near threshold. Within a frame that is a common scale and does
-  not hurt decoding, but the logged Es/N0 is not exact there.
+  not hurt decoding, but the logged Es/N0 is not exact there. The real Es/N0
+  after decoding is.
 - The signal is always a real (one channel) audio signal centered at 1500 Hz.
   The decoder mixes it down by 1500 Hz and lowpass filters it, flat to ±1050 Hz
   and at least 65 dB down from ±1500 Hz, which removes DC and out-of-band noise

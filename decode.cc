@@ -47,7 +47,10 @@ struct Decoder : Common
 	cmplx knots[seed_tones];
 	value innov[seed_tones], sorted[seed_tones];
 	value gain[tone_count];
-	cmplx analog[analog_max];
+	// equalized values of the data tones
+	cmplx values[analog_max];
+	code_type reenc[bits_max];
+	bool lost[symbols_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
 	value snr[symbols_max];
@@ -148,6 +151,37 @@ struct Decoder : Common
 		case 12:
 			return QuadratureAmplitudeModulation<12, cmplx, code_type>::hard(b, c);
 		}
+	}
+	void reencode(int best)
+	{
+		for (int i = 0; i < crc_bits; ++i)
+			perm[i] = mesg[i].v[best] < 0 ? -1 : 1;
+		polar_encoder(reenc, perm, frozen_bits, code_order);
+		int code_bits = 1 << code_order, flips = 0;
+		for (int i = 0; i < code_bits; ++i)
+			flips += code[i] * reenc[i] <= 0;
+		std::cerr << "bit flips: " << flips << " of " << code_bits << std::endl;
+		shuffle(perm, reenc, code_order, true);
+		int count = 0;
+		for (int j = 1, k = 0, n = 0; j <= symbol_count; ++j) {
+			seed_off = (block_skew * j + first_seed) % block_length;
+			value sp = 0, np = 0;
+			for (int i = 0; i < tone_count; ++i) {
+				if (i % block_length != seed_off) {
+					int bits = bits_at(k);
+					cmplx hard = map_bits(perm+k, bits);
+					k += bits;
+					sp += norm(hard);
+					np += norm(values[n++] - hard);
+				}
+			}
+			if (!lost[j])
+				snr[count++] = sp / std::max(np, value(1e-30) * sp);
+		}
+		if (!count)
+			return;
+		DSP::quick_sort(snr, count);
+		std::cerr << "real Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(count-1)/2]) << " .. " << DSP::decibel(snr[count-1]) << std::endl;
 	}
 	const cmplx *next_sample()
 	{
@@ -265,6 +299,7 @@ struct Decoder : Common
 					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
 				int seed_value = hadamard_decoder(seed);
 				bool erased = seed_value < 0;
+				lost[j] = erased;
 				if (erased && !j) {
 					std::cerr << "seed value damaged" << std::endl;
 					oper_mode = -1;
@@ -326,7 +361,7 @@ struct Decoder : Common
 						snr[snr_count++] = sp / std::max(np, value(1e-9) * sp);
 					for (int i = 0; i < tone_count; ++i)
 						if (i % block_length != seed_off)
-							analog[k++] = demod[i];
+							values[k++] = demod[i];
 				} else {
 					value sp = 0, np = 0, mg = 0;
 					for (int i = 0, l = k; !erased && i < tone_count; ++i) {
@@ -353,8 +388,10 @@ struct Decoder : Common
 					}
 					// more resolution after rounding, quantize() caps the slope
 					precision *= value(300);
-					for (int i = 0; i < tone_count; ++i) {
+					for (int i = 0, n = (j - 1) * data_tones; i < tone_count; ++i) {
 						if (i % block_length != seed_off) {
+							if (j)
+								values[n++] = demod[i];
 							int bits = bits_at(k);
 							demap_soft(perm+k, demod[i], precision * gain[i], bits);
 							k += bits;
@@ -409,7 +446,7 @@ struct Decoder : Common
 					std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
 					continue;
 				}
-				output_file.write(reinterpret_cast<value *>(analog), symbol_count * data_tones, 2);
+				output_file.write(reinterpret_cast<value *>(values), symbol_count * data_tones, 2);
 				continue;
 			}
 			crc_bits = data_bits + 32;
@@ -431,6 +468,7 @@ struct Decoder : Common
 			}
 			for (int i = 0; i < data_bits; ++i)
 				CODE::set_le_bit(data, i, mesg[i].v[best] < 0);
+			reencode(best);
 
 			const char *output_name = output_names[output_index++];
 			if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
