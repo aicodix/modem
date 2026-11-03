@@ -210,10 +210,7 @@ struct Decoder : Common
 		for (int i = 0; i < 72; ++i)
 			perm[i] = mesg[i].v[best] < 0 ? -1 : 1;
 		polar_encoder(code, perm, frozen_256_72, 8);
-		CODE::XorShiftMask<int, 8, 1, 1, 2, 1> seq;
-		meta[0] = code[0];
-		for (int i = 1; i < 256; ++i)
-			meta[i] = code[seq()];
+		shuffle(meta, code, 8, true);
 		uint64_t md = 0;
 		for (int i = 0; i < 56; ++i)
 			md |= uint64_t(mesg[i].v[best] < 0) << i;
