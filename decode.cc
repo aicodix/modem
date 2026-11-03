@@ -45,6 +45,7 @@ struct Decoder : Common
 	code_type code[bits_max], perm[bits_max], meta[data_tones];
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx knots[seed_tones];
+	value innov[seed_tones], sorted[seed_tones];
 	value gain[tone_count];
 	cmplx analog[analog_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
@@ -331,12 +332,16 @@ struct Decoder : Common
 						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 					if (j) {
 						// update all tones with the seed tones of this symbol, interpolated values with a lower weight
+						// keep the estimate where a seed tone changed far more than the median, as with a carrier
 						for (int i = 0; i < seed_tones; ++i)
-							knots[i] = tone[block_length*i+seed_off];
+							sorted[i] = innov[i] = norm(tone[block_length*i+seed_off] - chan[block_length*i+seed_off]);
+						value limit = 10 * DSP::quick_select(sorted, seed_tones / 2, seed_tones);
+						for (int i = 0; i < seed_tones; ++i)
+							knots[i] = innov[i] <= limit ? tone[block_length*i+seed_off] : chan[block_length*i+seed_off];
 						DSP::UniformNaturalCubicSpline<seed_tones, cmplx, value> spline(knots, seed_off, block_length);
 						for (int i = 0; i < tone_count; ++i) {
 							if (i % block_length == seed_off) {
-								chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+								chan[i] = DSP::lerp(chan[i], knots[i/block_length], value(0.5));
 							} else {
 								chan[i] = DSP::lerp(chan[i], spline(i), value(1) / value(3));
 								demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
