@@ -9,10 +9,10 @@ Create file ```uncoded.dat``` with ```2048``` bits of random data:
 dd if=/dev/urandom of=uncoded.dat bs=1 count=256
 ```
 
-Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 48000 Hz sample rate and 16 bits:
+Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 48000 Hz sample rate and 32 bit float samples:
 
 ```
-./encode encoded.wav 48000 16 ANONYMOUS QAM16 1/2 short uncoded.dat
+./encode encoded.wav 48000 32 ANONYMOUS QAM16 1/2 short uncoded.dat
 ```
 
 Start recording to ```recorded.wav``` audio file and stop after 5 seconds:
@@ -185,7 +185,7 @@ Each symbol carries 256 complex values and a frame can have up to 128 symbols, w
 Longer inputs are cut off and the last symbol is padded with zeros:
 
 ```
-./encode encoded.wav 48000 16 ANONYMOUS ANALOG complex.wav
+./encode encoded.wav 48000 32 ANONYMOUS ANALOG complex.wav
 ```
 
 When the decoder encounters an analog transmission, it writes the equalized complex values as two channel WAV file with 32 bit float samples and a sample rate of 1873 Hz.
