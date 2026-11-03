@@ -155,7 +155,7 @@ struct Encoder : public Common
 		for (int i = 0; i < 16; ++i)
 			mesg[i+56] = nrz((crc0() >> i) & 1);
 		polar_encoder(code, mesg, frozen_256_72, 8);
-		shuffle(meta, code, 8);
+		shuffle(meta, code, 8, true);
 	}
 	cmplx map_bits(code_type *b, int bits)
 	{
@@ -178,45 +178,6 @@ struct Encoder : public Common
 			return QuadratureAmplitudeModulation<12, cmplx, code_type>::map(b);
 		}
 		return 0;
-	}
-	void shuffle(code_type *dest, const code_type *src, int order)
-	{
-		if (order == 8) {
-			CODE::XorShiftMask<int, 8, 1, 1, 2, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 256; ++i)
-				dest[i] = src[seq()];
-		} else if (order == 11) {
-			CODE::XorShiftMask<int, 11, 1, 3, 4, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 2048; ++i)
-				dest[i] = src[seq()];
-		} else if (order == 12) {
-			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 4096; ++i)
-				dest[i] = src[seq()];
-		} else if (order == 13) {
-			CODE::XorShiftMask<int, 13, 1, 1, 9, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 8192; ++i)
-				dest[i] = src[seq()];
-		} else if (order == 14) {
-			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 16384; ++i)
-				dest[i] = src[seq()];
-		} else if (order == 15) {
-			CODE::XorShiftMask<int, 15, 1, 1, 3, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 32768; ++i)
-				dest[i] = src[seq()];
-		} else if (order == 16) {
-			CODE::XorShiftMask<int, 16, 1, 1, 14, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 65536; ++i)
-				dest[i] = src[seq()];
-		}
 	}
 	void guard_interval_weights()
 	{
@@ -293,7 +254,7 @@ struct Encoder : public Common
 				for (int i = 0; i < 32; ++i)
 					mesg[i+data_bits] = nrz((crc1()>>i)&1);
 				polar_encoder(code, mesg, frozen_bits, code_order);
-				shuffle(perm, code, code_order);
+				shuffle(perm, code, code_order, true);
 			}
 			meta_data((call_sign << 8) | this->oper_mode);
 			schmidl_cox();
@@ -306,15 +267,7 @@ struct Encoder : public Common
 					} else if (j && analog_mode) {
 						tone[i] = analog[k++];
 					} else if (j) {
-						int bits = mod_bits;
-						if (mod_bits == 3 && k % 32 == 30)
-							bits = 2;
-						if (mod_bits == 6 && k % 64 == 60)
-							bits = 4;
-						if (mod_bits == 10 && k % 128 == 120)
-							bits = 8;
-						if (mod_bits == 12 && k % 128 == 120)
-							bits = 8;
+						int bits = bits_at(k);
 						tone[i] = map_bits(perm+k, bits);
 						k += bits;
 					} else {

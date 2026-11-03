@@ -8,8 +8,9 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 
 - `encode.cc`, `decode.cc`: the two programs, each one `Encoder` or `Decoder`
   struct templated on sample rate.
-- `common.hh`: what both sides share, such as tone layout, sequences and the
-  operation mode table in `Common::setup()`.
+- `common.hh`: what both sides share, such as tone layout, sequences, the
+  interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
+  mode table in `Common::setup()`.
 - `psk.hh`, `qam.hh`: constellation mapping, hard and soft demapping, templated
   on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
 - `quantize.hh`: turns soft values into the code type of the LLRs.

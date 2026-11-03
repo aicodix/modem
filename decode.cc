@@ -149,45 +149,6 @@ struct Decoder : Common
 			return QuadratureAmplitudeModulation<12, cmplx, code_type>::hard(b, c);
 		}
 	}
-	void shuffle(code_type *dest, const code_type *src, int order)
-	{
-		if (order == 8) {
-			CODE::XorShiftMask<int, 8, 1, 1, 2, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 256; ++i)
-				dest[seq()] = src[i];
-		} else if (order == 11) {
-			CODE::XorShiftMask<int, 11, 1, 3, 4, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 2048; ++i)
-				dest[seq()] = src[i];
-		} else if (order == 12) {
-			CODE::XorShiftMask<int, 12, 1, 1, 4, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 4096; ++i)
-				dest[seq()] = src[i];
-		} else if (order == 13) {
-			CODE::XorShiftMask<int, 13, 1, 1, 9, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 8192; ++i)
-				dest[seq()] = src[i];
-		} else if (order == 14) {
-			CODE::XorShiftMask<int, 14, 1, 5, 10, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 16384; ++i)
-				dest[seq()] = src[i];
-		} else if (order == 15) {
-			CODE::XorShiftMask<int, 15, 1, 1, 3, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 32768; ++i)
-				dest[seq()] = src[i];
-		} else if (order == 16) {
-			CODE::XorShiftMask<int, 16, 1, 1, 14, 1> seq;
-			dest[0] = src[0];
-			for (int i = 1; i < 65536; ++i)
-				dest[seq()] = src[i];
-		}
-	}
 	const cmplx *next_sample()
 	{
 		value tmp;
@@ -198,7 +159,7 @@ struct Decoder : Common
 	}
 	int64_t meta_data()
 	{
-		shuffle(code, perm, 8);
+		shuffle(code, perm, 8, false);
 		polar_decoder(nullptr, mesg, code, frozen_256_72, 8);
 		int best = -1;
 		for (int k = 0; k < mesg_type::SIZE; ++k) {
@@ -371,15 +332,7 @@ struct Decoder : Common
 					for (int i = 0, l = k; !erased && i < tone_count; ++i) {
 						cmplx hard(1, 0);
 						if (i % block_length != seed_off) {
-							int bits = mod_bits;
-							if (mod_bits == 3 && l % 32 == 30)
-								bits = 2;
-							if (mod_bits == 6 && l % 64 == 60)
-								bits = 4;
-							if (mod_bits == 10 && l % 128 == 120)
-								bits = 8;
-							if (mod_bits == 12 && l % 128 == 120)
-								bits = 8;
+							int bits = bits_at(l);
 							demap_hard(perm+l, demod[i], bits);
 							hard = map_bits(perm+l, bits);
 							l += bits;
@@ -402,15 +355,7 @@ struct Decoder : Common
 					precision *= value(300);
 					for (int i = 0; i < tone_count; ++i) {
 						if (i % block_length != seed_off) {
-							int bits = mod_bits;
-							if (mod_bits == 3 && k % 32 == 30)
-								bits = 2;
-							if (mod_bits == 6 && k % 64 == 60)
-								bits = 4;
-							if (mod_bits == 10 && k % 128 == 120)
-								bits = 8;
-							if (mod_bits == 12 && k % 128 == 120)
-								bits = 8;
+							int bits = bits_at(k);
 							demap_soft(perm+k, demod[i], precision * gain[i], bits);
 							k += bits;
 						}
@@ -468,7 +413,7 @@ struct Decoder : Common
 				continue;
 			}
 			crc_bits = data_bits + 32;
-			shuffle(code, perm, code_order);
+			shuffle(code, perm, code_order, false);
 			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
 			int best = -1;
 			for (int k = 0; k < mesg_type::SIZE; ++k) {

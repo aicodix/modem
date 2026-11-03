@@ -87,6 +87,52 @@ struct Common
 		return 2;
 	}
 
+	// some tones carry fewer bits, so the code length fits
+	int bits_at(int k)
+	{
+		if (mod_bits == 3 && k % 32 == 30)
+			return 2;
+		if (mod_bits == 6 && k % 64 == 60)
+			return 4;
+		if ((mod_bits == 10 || mod_bits == 12) && k % 128 == 120)
+			return 8;
+		return mod_bits;
+	}
+
+	template <typename SEQ, typename TYPE>
+	static void permute(TYPE *dest, const TYPE *src, int size, bool forward)
+	{
+		SEQ seq;
+		dest[0] = src[0];
+		for (int i = 1; i < size; ++i) {
+			int j = seq();
+			if (forward)
+				dest[i] = src[j];
+			else
+				dest[j] = src[i];
+		}
+	}
+
+	// forward interleaves the code bits like the encoder, backward undoes it like the decoder
+	template <typename TYPE>
+	static void shuffle(TYPE *dest, const TYPE *src, int order, bool forward)
+	{
+		if (order == 8)
+			permute<CODE::XorShiftMask<int, 8, 1, 1, 2, 1>>(dest, src, 256, forward);
+		else if (order == 11)
+			permute<CODE::XorShiftMask<int, 11, 1, 3, 4, 1>>(dest, src, 2048, forward);
+		else if (order == 12)
+			permute<CODE::XorShiftMask<int, 12, 1, 1, 4, 1>>(dest, src, 4096, forward);
+		else if (order == 13)
+			permute<CODE::XorShiftMask<int, 13, 1, 1, 9, 1>>(dest, src, 8192, forward);
+		else if (order == 14)
+			permute<CODE::XorShiftMask<int, 14, 1, 5, 10, 1>>(dest, src, 16384, forward);
+		else if (order == 15)
+			permute<CODE::XorShiftMask<int, 15, 1, 1, 3, 1>>(dest, src, 32768, forward);
+		else if (order == 16)
+			permute<CODE::XorShiftMask<int, 16, 1, 1, 14, 1>>(dest, src, 65536, forward);
+	}
+
 	bool setup(int mode)
 	{
 		bool analog_mode = mode & 128;
