@@ -45,6 +45,7 @@ struct Decoder : Common
 	code_type code[bits_max], perm[bits_max], meta[data_tones];
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx knots[seed_tones];
+	value gain[tone_count];
 	cmplx analog[analog_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
@@ -361,7 +362,7 @@ struct Decoder : Common
 						if (i % block_length != seed_off)
 							analog[k++] = demod[i];
 				} else {
-					value sp = 0, np = 0;
+					value sp = 0, np = 0, mg = 0;
 					for (int i = 0, l = k; !erased && i < tone_count; ++i) {
 						cmplx hard(1, 0);
 						if (i % block_length != seed_off) {
@@ -381,11 +382,17 @@ struct Decoder : Common
 						cmplx error = demod[i] - hard;
 						sp += norm(hard);
 						np += norm(error);
+						// the precision of each tone follows its channel power
+						gain[i] = norm(chan[i]);
+						mg += gain[i];
 					}
 					// erased symbols get zero LLRs
 					value precision = 0;
-					if (!erased)
+					if (!erased) {
 						snr[snr_count++] = precision = sp / np;
+						// relative to the average channel power of this symbol
+						precision *= value(tone_count) / std::max(mg, value(1e-30));
+					}
 					// more resolution after rounding, quantize() caps the slope
 					precision *= value(300);
 					for (int i = 0; i < tone_count; ++i) {
@@ -399,7 +406,7 @@ struct Decoder : Common
 								bits = 8;
 							if (mod_bits == 12 && k % 128 == 120)
 								bits = 8;
-							demap_soft(perm+k, demod[i], precision, bits);
+							demap_soft(perm+k, demod[i], precision * gain[i], bits);
 							k += bits;
 						}
 					}

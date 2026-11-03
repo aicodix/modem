@@ -74,6 +74,8 @@ so code must:
   headroom against saturation. `quantize()` caps the slope `DIST * precision`
   at 4096, so every constellation gets the same headroom, and `decode.cc`
   scales the precision by 300 for resolution.
+- Each tone's precision is weighted by its channel power, relative to the
+  average of its symbol. The logged Es/N0 stays unweighted.
 - The precision comes from hard decisions and overestimates Es/N0 by several dB
   for dense QAM near threshold. Within a frame that is a common scale and does
   not hurt decoding, but the logged Es/N0 is not exact there.
