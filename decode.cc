@@ -83,6 +83,8 @@ struct Decoder : Common
 	const cmplx *mls0_seq()
 	{
 		CODE::MLS seq0(mls0_poly, mls0_seed);
+		for (int i = 0; i < symbol_len; ++i)
+			fdom[i] = 0;
 		value cur = 0, prv = 0;
 		for (int i = 0; i < tone_count; ++i, prv = cur)
 			fdom[bin(i+tone_off)] = prv * (cur = nrz(seq0()));
