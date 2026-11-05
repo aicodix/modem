@@ -1,0 +1,15 @@
+/*
+Quirks
+
+Copyright 2026 Ahmet Inan <inan@aicodix.de>
+*/
+
+#pragma once
+
+namespace std {
+
+template <typename T>
+struct plus { constexpr T operator () (const T &a, const T &b) const { return a + b; } };
+
+}
+

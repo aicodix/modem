@@ -17,6 +17,8 @@ static inline float abs(float a) { return __builtin_fabsf(a); }
 static inline double abs(double a) { return __builtin_fabs(a); }
 static inline float nearbyint(float a) { return __builtin_nearbyintf(a); }
 static inline double nearbyint(double a) { return __builtin_nearbyint(a); }
+static inline float copysign(float a, float b) { return __builtin_copysignf(a, b); }
+static inline double copysign(double a, double b) { return __builtin_copysign(a, b); }
 /* no wasm instruction, left undefined so that a use fails to link */
 float sin(float a);
 float cos(float a);
@@ -28,4 +30,5 @@ double cos(double a);
 using std::sqrt;
 using std::abs;
 using std::nearbyint;
+using std::copysign;
 

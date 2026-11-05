@@ -13,7 +13,7 @@ CXX = clang++ -stdlib=libc++ -march=native
 WASMCXX = clang++
 WASMFLAGS = -std=c++17 -W -Wall -O3 -ffast-math -fno-exceptions -fno-rtti -ffreestanding -fvisibility=hidden --target=wasm32 -Iquirks -I../dsp -I../code
 WASMLDFLAGS = -nostdlib -Wl,--export-dynamic,--no-entry,--export=__wasm_call_ctors
-QUIRKS = quirks/algorithm quirks/cassert quirks/cmath quirks/cstdint quirks/cstdlib quirks/cstring quirks/type_traits
+QUIRKS = quirks/algorithm quirks/cassert quirks/cmath quirks/cstdint quirks/cstdlib quirks/cstring quirks/functional quirks/type_traits
 
 .PHONY: all
 
@@ -31,9 +31,12 @@ decode: decode.cc decoder.hh native.hh common.hh schmidl_cox.hh psk.hh qam.hh qu
 
 .PHONY: wasm
 
-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm
+wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm
 
 temp/encoder_%.wasm: encoder_module.cc encoder.hh common.hh psk.hh qam.hh quantize.hh $(QUIRKS)
+	$(WASMCXX) $(WASMFLAGS) $(WASMLDFLAGS) -DRATE=$* -o $@ $<
+
+temp/decoder_%.wasm: decoder_module.cc decoder.hh common.hh schmidl_cox.hh psk.hh qam.hh quantize.hh $(QUIRKS)
 	$(WASMCXX) $(WASMFLAGS) $(WASMLDFLAGS) -DRATE=$* -o $@ $<
 
 .PHONY: check-wasm
