@@ -116,6 +116,14 @@ the same way as [HYDRA](https://github.com/xdsopl/hydra) and the old
 WebAssembly examples on aicodix.de, while the native `encode` and `decode`
 programs keep working and stay the reference:
 
+- There are four modules: an encoder and a decoder, each for 44100 Hz and
+  for 48000 Hz, built from the same sources with the rate fixed at compile
+  time. The rate is a template parameter, so buffer sizes, FFT and filter
+  lengths stay compile-time constants, and a page that only sends never
+  loads the decoder. The page loads the module matching
+  `AudioContext.sampleRate`, or asks for a rate with
+  `new AudioContext({ sampleRate: 48000 })` and lets the browser resample.
+
 - Compile straight to `--target=wasm32` with clang. No Emscripten and no libc:
   `-ffreestanding -fvisibility=hidden -fno-exceptions -fno-rtti`, linked with
   `-nostdlib -Wl,--export-dynamic,--no-entry`. Only what is marked
@@ -130,32 +138,44 @@ programs keep working and stay the reference:
   the audio samples and a status record, which JavaScript reads and writes
   through typed arrays on `memory.buffer`. Exported functions take and return
   plain integers or floats, and return -1 on bad arguments or failure.
-- `quirks.hh` replaces `<cmath>` and friends for the module. It only wraps the
-  functions that are single wasm instructions with `__builtin_*`, such as
-  `sqrt`, `abs`, `min`, `max` and `nearbyint`, and brings them into the
-  libraries with `namespace DSP { using ::sqrt; }`, the same way `common.hh`
-  does with `std::` today. Small libc pieces like `memset` and `memcpy` go
-  there too.
+- The modem, `dsp` and `code` include standard headers and call `std::abs`,
+  `std::min`, `std::nearbyint` and the like. For the module, a `quirks/`
+  directory found first with `-Iquirks` holds minimal stand-ins for these
+  headers (`cmath`, `algorithm`, `type_traits`, `cstdint`, ...). They define
+  only what the code uses, in namespace `std`, and map math to the
+  `__builtin_*` functions that are single wasm instructions, such as `sqrt`,
+  `abs`, `min`, `max` and `nearbyint`, like `quirks.hh` in the old examples.
+  `sin` and `cos` are declared there but not defined, so a use in a module
+  fails at link time. Small libc pieces like `memset` and `memcpy` go there
+  too when the compiler needs them.
 - Everything else that would come from libm comes from `dsp`, which already
   avoids it: `decibel()` needs only `sqrt`, `UnitCircle` has its own
   polynomials, and there are `atan2.hh` (needed by `arg()`) and `exp.hh`.
-  Still missing are `sin` and `cos` of a runtime float argument, used by
-  `Phasor::omega(value)` for the CFO correction and by `polar()` for the
-  phase corrections. They belong in `dsp`, not here.
+  Use `UnitCircle` for angles that are fractions of a circle, as the
+  encoder's guard interval weights do. Still missing are `sin` and `cos` of
+  a runtime float argument, used by `Phasor::omega(value)` for the CFO
+  correction and by `polar()` for the phase corrections. They belong in
+  `dsp`, not here.
 - `SIMD<>` from `code` falls back to its generic loops on wasm32 unless a wasm
   SIMD128 backend is added there.
 - The signal path must not depend on the host: keep iostream, `std::cerr`
   logging, `wav.hh`/`pcm.hh` file I/O and argument parsing in the native
   programs. The module gets samples from buffers and reports through return
-  values and the status buffer.
+  values and the status buffer. The encoder already works this way: its
+  native driver in `encode.cc` reads the input, calls `start()`, `begin()`,
+  `next()` once per symbol and `stop()`, writes each symbol's samples from
+  `audio` and does the logging, including `print_setup()` and the PAPR line.
 - The decoder is a streaming state machine in the module: JavaScript pushes
   blocks of samples as they arrive and polls for decoded frames, instead of
   the decoder pulling samples in a loop. Audio comes from an `AudioWorklet`,
   not the deprecated `ScriptProcessorNode`.
 - Every step must stay testable natively: the same sources build for the host
-  with sanitizers, and the module's output must match the native programs
-  bit for bit, or within a stated tolerance where `-ffast-math` and different
-  math functions make that impossible. Say which.
+  with sanitizers. A change on the way to the module doesn't have to be bit
+  exact, since `-ffast-math` and `UnitCircle` instead of `std::cos` move
+  samples by rounding errors. It is enough that the digital data decodes
+  back unchanged, over all modes and both rates. Node.js can run the modules
+  without a browser: a script writes their samples to a WAV file for the
+  native `decode`, and the other way around.
 - A plain HTML page with JavaScript, without a framework, loads the module with
   `WebAssembly.instantiateStreaming()` and runs the tests and examples in the
   browser.
