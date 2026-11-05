@@ -173,8 +173,9 @@ programs keep working and stay the reference:
   natively as well as in the modules. Use `UnitCircle` for angles that are
   fractions of a circle, as the encoder's guard interval weights do. When
   a module needs another such function, add it to `dsp`, not here.
-- `SIMD<>` from `code` falls back to its generic loops on wasm32 unless a wasm
-  SIMD128 backend is added there.
+- The modules are built with `-msimd128`, so `SIMD<>` from `code` uses its
+  `simd128*.hh` backend instead of the generic loops. That roughly halves the
+  decoding time, most of which goes to the polar list decoder.
 - The signal path must not depend on the host: keep iostream, `std::cerr`
   logging, `wav.hh`/`pcm.hh` file I/O and argument parsing in the native
   programs. The module gets samples from buffers and reports through return
