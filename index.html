@@ -1,0 +1,199 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OFDM Modem</title>
+<style>
+body { color: white; background-color: black; font-family: sans-serif; max-width: 40em; margin: 1em auto; padding: 0 1em; }
+textarea, input, select, button { font-size: 1em; }
+textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+p { margin: 0.75em 0; }
+#status { font-family: monospace; white-space: pre-wrap; }
+.failed { color: red; }
+</style>
+</head>
+<body>
+<h1>OFDM Modem</h1>
+<p>
+<label>call sign <input id="call-sign" value="ANONYMOUS" size="9" maxlength="9"></label>
+<select id="modulation">
+<option value="0">BPSK</option>
+<option value="1">QPSK</option>
+<option value="2">8PSK</option>
+<option value="3" selected>QAM16</option>
+<option value="4">QAM64</option>
+<option value="5">QAM256</option>
+<option value="6">QAM1024</option>
+<option value="7">QAM4096</option>
+</select>
+<select id="code-rate">
+<option value="0" selected>1/2</option>
+<option value="1">2/3</option>
+<option value="2">3/4</option>
+<option value="3">5/6</option>
+</select>
+<select id="frame-size">
+<option value="0" selected>short</option>
+<option value="1">normal</option>
+</select>
+</p>
+<p><textarea id="message" rows="8">Hello World!</textarea></p>
+<p>
+<button id="play">play</button>
+<button id="save">save WAV</button>
+<span id="usage"></span>
+</p>
+<p id="status">loading ..</p>
+<script>
+const encoders = {};
+let context, wasm;
+
+function status(str, failed) {
+	const element = document.getElementById("status");
+	element.textContent = str;
+	element.className = failed ? "failed" : "";
+}
+function base40(str) {
+	let acc = 0n;
+	for (const c of str.toUpperCase()) {
+		acc *= 40n;
+		if (c == "/")
+			acc += 3n;
+		else if (c >= "0" && c <= "9")
+			acc += BigInt(c.charCodeAt(0) - 48 + 4);
+		else if (c >= "A" && c <= "Z")
+			acc += BigInt(c.charCodeAt(0) - 65 + 14);
+		else if (c != " ")
+			return -1n;
+	}
+	return acc;
+}
+function oper_mode() {
+	const value = id => Number(document.getElementById(id).value);
+	return (value("modulation") << 4) | (value("code-rate") << 1) | value("frame-size");
+}
+function message() {
+	return new TextEncoder().encode(document.getElementById("message").value);
+}
+async function load(rate) {
+	if (!encoders[rate]) {
+		const obj = await WebAssembly.instantiateStreaming(fetch("temp/encoder_" + rate + ".wasm"));
+		obj.instance.exports.__wasm_call_ctors();
+		encoders[rate] = obj.instance.exports;
+	}
+	return encoders[rate];
+}
+function update() {
+	if (!wasm)
+		return;
+	if (wasm.start(oper_mode()) < 0) {
+		document.getElementById("usage").textContent = "";
+		return;
+	}
+	const used = message().length, capacity = wasm.payload_length();
+	const usage = document.getElementById("usage");
+	usage.textContent = used + " of " + capacity + " bytes";
+	usage.className = used > capacity ? "failed" : "";
+}
+function encode(silence) {
+	const payload = message();
+	const call_sign = base40(document.getElementById("call-sign").value.trim());
+	if (call_sign <= 0n || call_sign >= 262144000000000n)
+		throw new Error("unsupported call sign");
+	const rate = context.sampleRate;
+	const chunks = [new Float32Array(Math.round(silence * rate))];
+	const take = len => chunks.push(new Float32Array(wasm.memory.buffer, wasm.audio.value, len).slice());
+	let len = wasm.start(oper_mode());
+	if (len < 0)
+		throw new Error("unsupported mode");
+	if (payload.length > wasm.payload_length())
+		throw new Error("message too long: " + payload.length + " of " + wasm.payload_length() + " bytes");
+	take(len);
+	new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
+	if (wasm.begin(payload.length, call_sign) < 0)
+		throw new Error("encoding failed");
+	while ((len = wasm.next()) > 0)
+		take(len);
+	take(wasm.stop());
+	chunks.push(new Float32Array(Math.round(silence * rate)));
+	const samples = new Float32Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+	let pos = 0;
+	for (const chunk of chunks) {
+		samples.set(chunk, pos);
+		pos += chunk.length;
+	}
+	return samples;
+}
+function wav_file(samples, rate) {
+	const view = new DataView(new ArrayBuffer(44 + 4 * samples.length));
+	const text = (pos, str) => { for (let i = 0; i < str.length; ++i) view.setUint8(pos + i, str.charCodeAt(i)); };
+	text(0, "RIFF");
+	view.setUint32(4, 36 + 4 * samples.length, true);
+	text(8, "WAVE");
+	text(12, "fmt ");
+	view.setUint32(16, 16, true);
+	view.setUint16(20, 3, true);
+	view.setUint16(22, 1, true);
+	view.setUint32(24, rate, true);
+	view.setUint32(28, 4 * rate, true);
+	view.setUint16(32, 4, true);
+	view.setUint16(34, 32, true);
+	text(36, "data");
+	view.setUint32(40, 4 * samples.length, true);
+	for (let i = 0; i < samples.length; ++i)
+		view.setFloat32(44 + 4 * i, samples[i], true);
+	return new Blob([view.buffer], { type: "audio/wav" });
+}
+function play() {
+	try {
+		const samples = encode(0.1);
+		const buffer = context.createBuffer(1, samples.length, context.sampleRate);
+		buffer.copyToChannel(samples, 0);
+		const source = context.createBufferSource();
+		source.buffer = buffer;
+		source.connect(context.destination);
+		source.onended = () => status("done");
+		context.resume();
+		source.start();
+		status("playing " + (samples.length / context.sampleRate).toFixed(1) + "s at " + context.sampleRate + " Hz");
+	} catch (error) {
+		status(error.message, true);
+	}
+}
+function save() {
+	try {
+		const samples = encode(1);
+		const link = document.createElement("a");
+		link.href = URL.createObjectURL(wav_file(samples, context.sampleRate));
+		link.download = "encoded.wav";
+		link.click();
+		URL.revokeObjectURL(link.href);
+		status("saved " + (samples.length / context.sampleRate).toFixed(1) + "s at " + context.sampleRate + " Hz");
+	} catch (error) {
+		status(error.message, true);
+	}
+}
+async function main() {
+	context = new AudioContext();
+	if (context.sampleRate != 44100 && context.sampleRate != 48000) {
+		context.close();
+		context = new AudioContext({ sampleRate: 48000 });
+	}
+	try {
+		wasm = await load(context.sampleRate);
+	} catch (error) {
+		status("couldn't load encoder module: " + error.message, true);
+		return;
+	}
+	for (const id of ["modulation", "code-rate", "frame-size", "message"])
+		document.getElementById(id).addEventListener("input", update);
+	document.getElementById("play").addEventListener("click", play);
+	document.getElementById("save").addEventListener("click", save);
+	update();
+	status("ready, " + context.sampleRate + " Hz");
+}
+main();
+</script>
+</body>
+</html>
