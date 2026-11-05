@@ -10,6 +10,7 @@ typedef float value;
 typedef DSP::Complex<value> cmplx;
 typedef Encoder<value, cmplx, RATE> encoder_type;
 static encoder_type encoder;
+static bool analog;
 
 extern "C" {
 
@@ -17,6 +18,8 @@ __attribute__((visibility("default")))
 unsigned char payload[Common::data_max];
 __attribute__((visibility("default")))
 float audio[encoder_type::audio_max];
+__attribute__((visibility("default")))
+float values[2*Common::analog_max];
 
 static int copy_audio()
 {
@@ -28,8 +31,9 @@ static int copy_audio()
 __attribute__((visibility("default")))
 int start(int oper_mode)
 {
-	if (oper_mode < 0 || oper_mode > 127)
+	if (oper_mode < 0 || oper_mode > 128)
 		return -1;
+	analog = oper_mode == 128;
 	if (!encoder.start(oper_mode))
 		return -1;
 	return copy_audio();
@@ -44,11 +48,33 @@ int payload_length()
 __attribute__((visibility("default")))
 int begin(int length, long long call_sign)
 {
+	if (analog)
+		return -1;
 	if (length < 0 || length > encoder.data_bytes)
 		return -1;
 	if (call_sign <= 0 || call_sign >= 262144000000000LL)
 		return -1;
 	if (!encoder.begin(payload, length, call_sign))
+		return -1;
+	return 0;
+}
+
+__attribute__((visibility("default")))
+int values_length()
+{
+	return Common::analog_max;
+}
+
+__attribute__((visibility("default")))
+int begin_analog(int count, long long call_sign)
+{
+	if (!analog)
+		return -1;
+	if (count < 1 || count > Common::analog_max)
+		return -1;
+	if (call_sign <= 0 || call_sign >= 262144000000000LL)
+		return -1;
+	if (!encoder.begin(reinterpret_cast<cmplx *>(values), count, call_sign))
 		return -1;
 	return 0;
 }
