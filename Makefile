@@ -10,6 +10,11 @@ CXX = clang++ -stdlib=libc++ -march=native
 #CXX = aarch64-unknown-linux-gnu-g++ -static -march=armv8-a+crc+simd -mtune=cortex-a72
 #QEMU = qemu-aarch64
 
+WASMCXX = clang++
+WASMFLAGS = -std=c++17 -W -Wall -O3 -ffast-math -fno-exceptions -fno-rtti -ffreestanding -fvisibility=hidden --target=wasm32 -Iquirks -I../dsp -I../code
+WASMLDFLAGS = -nostdlib -Wl,--export-dynamic,--no-entry,--export=__wasm_call_ctors
+QUIRKS = quirks/algorithm quirks/cassert quirks/cmath quirks/cstdint quirks/cstdlib quirks/cstring quirks/type_traits
+
 .PHONY: all
 
 all: encode decode
@@ -24,6 +29,13 @@ encode: encode.cc encoder.hh native.hh common.hh psk.hh qam.hh quantize.hh
 decode: decode.cc native.hh common.hh schmidl_cox.hh psk.hh qam.hh quantize.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
+.PHONY: wasm
+
+wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm
+
+temp/encoder_%.wasm: encoder_module.cc encoder.hh common.hh psk.hh qam.hh quantize.hh $(QUIRKS)
+	$(WASMCXX) $(WASMFLAGS) $(WASMLDFLAGS) -DRATE=$* -o $@ $<
+
 freezer: freezer.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
 
@@ -33,5 +45,5 @@ polar_tables.hh: freezer
 .PHONY: clean
 
 clean:
-	rm -f encode decode freezer
+	rm -f encode decode freezer temp/*.wasm
 

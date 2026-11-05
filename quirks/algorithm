@@ -1,0 +1,19 @@
+/*
+Quirks
+
+Copyright 2026 Ahmet Inan <inan@aicodix.de>
+*/
+
+#pragma once
+
+namespace std {
+
+template <typename T>
+constexpr const T &min(const T &a, const T &b) { return b < a ? b : a; }
+template <typename T>
+constexpr const T &max(const T &a, const T &b) { return a < b ? b : a; }
+template <typename T>
+void swap(T &a, T &b) { T t = a; a = b; b = t; }
+
+}
+

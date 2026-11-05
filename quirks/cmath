@@ -1,0 +1,31 @@
+/*
+Quirks
+
+Copyright 2026 Ahmet Inan <inan@aicodix.de>
+*/
+
+#pragma once
+
+#include <algorithm>
+
+namespace std {
+
+static inline float sqrt(float a) { return __builtin_sqrtf(a); }
+static inline double sqrt(double a) { return __builtin_sqrt(a); }
+static constexpr int abs(int a) { return a < 0 ? -a : a; }
+static inline float abs(float a) { return __builtin_fabsf(a); }
+static inline double abs(double a) { return __builtin_fabs(a); }
+static inline float nearbyint(float a) { return __builtin_nearbyintf(a); }
+static inline double nearbyint(double a) { return __builtin_nearbyint(a); }
+/* no wasm instruction, left undefined so that a use fails to link */
+float sin(float a);
+float cos(float a);
+double sin(double a);
+double cos(double a);
+
+}
+
+using std::sqrt;
+using std::abs;
+using std::nearbyint;
+
