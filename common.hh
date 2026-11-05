@@ -11,8 +11,9 @@ Copyright 2025 Ahmet Inan <inan@aicodix.de>
 #include <cassert>
 #include <cmath>
 #include <algorithm>
-namespace DSP { using std::abs; using std::min; using std::nearbyint; }
+namespace DSP { using std::abs; using std::min; using std::nearbyint; using std::copysign; }
 #include "sincos.hh"
+#include "atan2.hh"
 #include "xorshift.hh"
 #include "complex.hh"
 #include "decibel.hh"
