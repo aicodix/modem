@@ -59,11 +59,9 @@ struct Decoder : Common
 	int crc_bits;
 	DSP::Phasor<cmplx> osc;
 	CODE::MLS seq1;
-	const char *const *output_names;
-	int output_count, output_index;
 	int sample_count, countdown;
 	int symbol_index, bit_index, snr_count;
-	bool analog_mode;
+	bool analog_mode, decoded;
 
 	static int bin(int carrier)
 	{
@@ -387,15 +385,7 @@ struct Decoder : Common
 		DSP::quick_sort(snr, snr_count);
 		std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(snr_count-1)/2]) << " .. " << DSP::decibel(snr[snr_count-1]) << std::endl;
 		if (analog_mode) {
-			const char *output_name = output_names[output_index++];
-			if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
-				output_name = "/dev/stdout";
-			DSP::WriteWAV<value> output_file(output_name, analog_rate, 32, 2);
-			if (!output_file.good()) {
-				std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
-				return;
-			}
-			output_file.write(reinterpret_cast<value *>(values), symbol_count * data_tones, 2);
+			decoded = true;
 			return;
 		}
 		crc_bits = data_bits + 32;
@@ -418,20 +408,10 @@ struct Decoder : Common
 		for (int i = 0; i < data_bits; ++i)
 			CODE::set_le_bit(data, i, mesg[i].v[best] < 0);
 		reencode(best);
-
-		const char *output_name = output_names[output_index++];
-		if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
-			output_name = "/dev/stdout";
-		std::ofstream output_file(output_name, std::ios::binary | std::ios::trunc);
-		if (output_file.bad()) {
-			std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
-			return;
-		}
 		CODE::Xorshift32 scrambler;
 		for (int i = 0; i < data_bytes; ++i)
 			data[i] ^= scrambler();
-		for (int i = 0; i < data_bytes; ++i)
-			output_file.put(data[i]);
+		decoded = true;
 	}
 	void preamble(const cmplx *buf)
 	{
@@ -482,12 +462,13 @@ struct Decoder : Common
 		bit_index = 0;
 		process(buf);
 	}
-	Decoder(const char *const *output_names, int output_count) : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), seq1(mls1_poly), output_names(output_names), output_count(output_count), output_index(0), sample_count(0), countdown(0)
+	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0)
 	{
 		mix.omega(-1500, rate);
 	}
 	bool feed(value sample)
 	{
+		decoded = false;
 		const cmplx *buf = input_hist(lowpass(sample * mix()));
 		bool found = correlator(buf);
 		if (countdown) {
@@ -498,7 +479,7 @@ struct Decoder : Common
 			if (found)
 				preamble(buf);
 		}
-		return output_index < output_count;
+		return decoded;
 	}
 	bool busy()
 	{
@@ -507,19 +488,48 @@ struct Decoder : Common
 };
 
 template <typename value, typename cmplx, int rate>
+void write_output(Decoder<value, cmplx, rate> *decoder, const char *output_name, int output_count)
+{
+	if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
+		output_name = "/dev/stdout";
+	if (decoder->analog_mode) {
+		DSP::WriteWAV<value> output_file(output_name, decoder->analog_rate, 32, 2);
+		if (!output_file.good()) {
+			std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
+			return;
+		}
+		output_file.write(reinterpret_cast<value *>(decoder->values), decoder->symbol_count * decoder->data_tones, 2);
+		return;
+	}
+	std::ofstream output_file(output_name, std::ios::binary | std::ios::trunc);
+	if (output_file.bad()) {
+		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
+		return;
+	}
+	for (int i = 0; i < decoder->data_bytes; ++i)
+		output_file.put(decoder->data[i]);
+}
+
+template <typename value, typename cmplx, int rate>
 void decode(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count)
 {
-	auto *decoder = new Decoder<value, cmplx, rate>(output_names, output_count);
-	bool more = true;
-	while (more) {
-		value sample;
-		pcm->read(&sample, 1);
-		if (!pcm->good())
+	auto *decoder = new Decoder<value, cmplx, rate>();
+	int output_index = 0;
+	bool end = false;
+	while (output_index < output_count) {
+		value sample = 0;
+		if (!end) {
+			pcm->read(&sample, 1);
+			if (!pcm->good()) {
+				end = true;
+				sample = 0;
+			}
+		}
+		if (end && !decoder->busy())
 			break;
-		more = decoder->feed(sample);
+		if (decoder->feed(sample))
+			write_output(decoder, output_names[output_index++], output_count);
 	}
-	while (more && decoder->busy())
-		more = decoder->feed(0);
 	delete decoder;
 }
 
