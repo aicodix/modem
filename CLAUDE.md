@@ -6,8 +6,15 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 
 ## Layout
 
-- `encode.cc`, `decode.cc`: the two programs, each one `Encoder` or `Decoder`
-  struct templated on sample rate.
+- `encode.cc`, `decode.cc`: the two programs. `encode.cc` is the native
+  driver around the `Encoder` struct in `encoder.hh`, `decode.cc` still holds
+  its `Decoder` struct. Both are templated on sample rate.
+- `native.hh`: what only the native programs need, such as iostream, WAV
+  file I/O and `print_setup()`.
+- `encoder_module.cc`, `quirks/`: the WebAssembly encoder module and the
+  stand-ins for standard headers it is built with (see "WebAssembly module").
+- `check_encoder.mjs`, `index.html`: the Node.js check of the encoder modules
+  and the browser page that encodes and plays text.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
   mode table in `Common::setup()`.
@@ -47,6 +54,14 @@ commented-out lines for `g++` and for ARM cross-compilation under QEMU.
 Run `make clean` to remove the binaries.
 When a header joins the build, add it to the dependencies of `encode` and
 `decode` in the Makefile, but not `polar_tables.hh`, which has its own rule.
+
+`make wasm` builds `temp/encoder_44100.wasm` and `temp/encoder_48000.wasm`
+with clang for `wasm32`. `make check-wasm` runs `check_encoder.mjs` with
+Node.js: it encodes random data in all modes and both rates with the modules
+and decodes it with the native `decode`. To try `index.html`, serve the
+repository with any static web server that sends `.wasm` as
+`application/wasm`, for example `python3 -m http.server`, and open
+`index.html`.
 
 Everything is compiled with `-std=c++17 -O3 -ffast-math -fno-exceptions -fno-rtti`,
 so code must:
@@ -123,7 +138,6 @@ programs keep working and stay the reference:
   loads the decoder. The page loads the module matching
   `AudioContext.sampleRate`, or asks for a rate with
   `new AudioContext({ sampleRate: 48000 })` and lets the browser resample.
-
 - Compile straight to `--target=wasm32` with clang. No Emscripten and no libc:
   `-ffreestanding -fvisibility=hidden -fno-exceptions -fno-rtti`, linked with
   `-nostdlib -Wl,--export-dynamic,--no-entry`. Only what is marked
