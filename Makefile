@@ -36,6 +36,11 @@ wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm
 temp/encoder_%.wasm: encoder_module.cc encoder.hh common.hh psk.hh qam.hh quantize.hh $(QUIRKS)
 	$(WASMCXX) $(WASMFLAGS) $(WASMLDFLAGS) -DRATE=$* -o $@ $<
 
+.PHONY: check-wasm
+
+check-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm decode
+	node check_encoder.mjs
+
 freezer: freezer.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
 
