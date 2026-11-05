@@ -6,20 +6,17 @@ Copyright 2025 Ahmet Inan <inan@aicodix.de>
 
 #pragma once
 
-#include <iomanip>
-#include <iostream>
 #include <cstdint>
 #include <cstring>
 #include <cassert>
 #include <cmath>
+#include <algorithm>
 namespace DSP { using std::abs; using std::min; using std::cos; using std::sin; }
 #include "xorshift.hh"
 #include "complex.hh"
 #include "decibel.hh"
 #include "bitman.hh"
 #include "quick.hh"
-#include "wav.hh"
-#include "pcm.hh"
 #include "fft.hh"
 #include "mls.hh"
 #include "psk.hh"
@@ -319,31 +316,6 @@ struct Common
 		oper_mode = mode;
 		data_bytes = data_bits / 8;
 		return true;
-	}
-	void print_setup(int mode)
-	{
-		if (mode & 128) {
-			float duration = 41. / 300. * (3 + symbol_count);
-			std::cerr << "analog mode" << std::endl;
-			std::cerr << "symbols: " << symbol_count << std::endl;
-			std::cerr << "duration: " << duration << "s" << std::endl;
-			std::cerr << "payload: " << symbol_count * data_tones << " complex values" << std::endl;
-			return;
-		}
-		static const char *const modulations[8] = { "BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096" };
-		static const char *const code_rates[4] = { "1/2", "2/3", "3/4", "5/6" };
-		std::cerr << "modulation: " << modulations[(mode >> 4) & 7] << std::endl;
-		std::cerr << "frame size: " << (mode & 1 ? "normal" : "short") << std::endl;
-		int code_rate = (mode >> 1) & 7;
-		if (code_rate > 3) {
-			std::cerr << "code rate: unsupported" << std::endl;
-			return;
-		}
-		std::cerr << "code rate: " << code_rates[code_rate] << std::endl;
-		float duration = 41. / 300. * (3 + symbol_count);
-		std::cerr << "duration: " << duration << "s" << std::endl;
-		std::cerr << "payload: " << data_bytes << "B" << std::endl;
-		std::cerr << "bitrate: " << data_bits / duration / 1000. << "kb/s" << std::endl;
 	}
 };
 

@@ -5,6 +5,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
 #include "common.hh"
+#include "native.hh"
 #include "schmidl_cox.hh"
 #include "bip_buffer.hh"
 #include "theil_sen.hh"
@@ -414,7 +415,7 @@ struct Decoder : Common
 					std::cerr << "call sign: " << call_sign << std::endl;
 					int mode = meta_info & 255;
 					bool known = setup(mode);
-					print_setup(mode);
+					print_setup(*this, mode);
 					if (!known)
 						break;
 					analog_mode = mode & 128;

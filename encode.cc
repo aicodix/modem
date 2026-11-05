@@ -5,6 +5,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 */
 
 #include "encoder.hh"
+#include "native.hh"
 
 template <typename value, typename cmplx>
 int read_analog(cmplx *values, const char *input_name)
@@ -58,7 +59,7 @@ void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input
 	uint8_t payload[Common::data_max];
 	bool started = encoder->start(oper_mode);
 	if (!(oper_mode & 128))
-		encoder->print_setup(oper_mode);
+		print_setup(*encoder, oper_mode);
 	if (started) {
 		pcm->write(encoder->audio, encoder->audio_len);
 		for (int input_index = 0; input_index < input_count; ++input_index) {
@@ -69,7 +70,7 @@ void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input
 				int count = read_analog<value>(values, input_name);
 				if (!count || !encoder->begin(values, count, call_sign))
 					continue;
-				encoder->print_setup(encoder->oper_mode);
+				print_setup(*encoder, encoder->oper_mode);
 			} else {
 				int length = read_digital(payload, encoder->data_bytes, input_name);
 				if (length < 0 || !encoder->begin(payload, length, call_sign))
