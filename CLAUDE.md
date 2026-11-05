@@ -108,3 +108,57 @@ so code must:
   affected modes. A refactoring should be bit-exact: compare the outputs of
   old and new code over many inputs, including decision boundaries.
   Say how you checked it.
+
+## WebAssembly module
+
+The goal is to also build the modem as a WebAssembly module for the browser,
+the same way as [HYDRA](https://github.com/xdsopl/hydra) and the old
+WebAssembly examples on aicodix.de, while the native `encode` and `decode`
+programs keep working and stay the reference:
+
+- Compile straight to `--target=wasm32` with clang. No Emscripten and no libc:
+  `-ffreestanding -fvisibility=hidden -fno-exceptions -fno-rtti`, linked with
+  `-nostdlib -Wl,--export-dynamic,--no-entry`. Only what is marked
+  `__attribute__((visibility("default")))` is exported, wrapped in `extern "C"`.
+- Don't link with `--allow-undefined`. A missing function must fail the link,
+  not become a wasm import that only fails when the browser loads the module.
+- The encoder and decoder build filters, windows and sequences in their
+  constructors, so the module needs its static constructors run once before
+  first use: export `__wasm_call_ctors` and call it from JavaScript after
+  instantiating.
+- No heap. The interface is fixed-size exported buffers, such as the payload,
+  the audio samples and a status record, which JavaScript reads and writes
+  through typed arrays on `memory.buffer`. Exported functions take and return
+  plain integers or floats, and return -1 on bad arguments or failure.
+- `quirks.hh` replaces `<cmath>` and friends for the module. It only wraps the
+  functions that are single wasm instructions with `__builtin_*`, such as
+  `sqrt`, `abs`, `min`, `max` and `nearbyint`, and brings them into the
+  libraries with `namespace DSP { using ::sqrt; }`, the same way `common.hh`
+  does with `std::` today. Small libc pieces like `memset` and `memcpy` go
+  there too.
+- Everything else that would come from libm comes from `dsp`, which already
+  avoids it: `decibel()` needs only `sqrt`, `UnitCircle` has its own
+  polynomials, and there are `atan2.hh` (needed by `arg()`) and `exp.hh`.
+  Still missing are `sin` and `cos` of a runtime float argument, used by
+  `Phasor::omega(value)` for the CFO correction and by `polar()` for the
+  phase corrections. They belong in `dsp`, not here.
+- `SIMD<>` from `code` falls back to its generic loops on wasm32 unless a wasm
+  SIMD128 backend is added there.
+- The signal path must not depend on the host: keep iostream, `std::cerr`
+  logging, `wav.hh`/`pcm.hh` file I/O and argument parsing in the native
+  programs. The module gets samples from buffers and reports through return
+  values and the status buffer.
+- The decoder is a streaming state machine in the module: JavaScript pushes
+  blocks of samples as they arrive and polls for decoded frames, instead of
+  the decoder pulling samples in a loop. Audio comes from an `AudioWorklet`,
+  not the deprecated `ScriptProcessorNode`.
+- Every step must stay testable natively: the same sources build for the host
+  with sanitizers, and the module's output must match the native programs
+  bit for bit, or within a stated tolerance where `-ffast-math` and different
+  math functions make that impossible. Say which.
+- A plain HTML page with JavaScript, without a framework, loads the module with
+  `WebAssembly.instantiateStreaming()` and runs the tests and examples in the
+  browser.
+- Work in small, reviewable steps, one logical change per patch. Before
+  editing, say in one or two sentences what will change, and ask first if a
+  step would touch more than about three files or the scope is unclear.
