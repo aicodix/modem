@@ -28,7 +28,7 @@ function base40(str) {
 	return acc;
 }
 
-function wav_file(samples, rate) {
+function wav_file(samples, rate, channels = 1) {
 	const header = Buffer.alloc(44);
 	header.write("RIFF", 0);
 	header.writeUInt32LE(36 + 4 * samples.length, 4);
@@ -36,14 +36,19 @@ function wav_file(samples, rate) {
 	header.write("fmt ", 12);
 	header.writeUInt32LE(16, 16);
 	header.writeUInt16LE(3, 20);
-	header.writeUInt16LE(1, 22);
+	header.writeUInt16LE(channels, 22);
 	header.writeUInt32LE(rate, 24);
-	header.writeUInt32LE(4 * rate, 28);
-	header.writeUInt16LE(4, 32);
+	header.writeUInt32LE(4 * rate * channels, 28);
+	header.writeUInt16LE(4 * channels, 32);
 	header.writeUInt16LE(32, 34);
 	header.write("data", 36);
 	header.writeUInt32LE(4 * samples.length, 40);
 	return Buffer.concat([header, Buffer.from(samples.buffer, samples.byteOffset, 4 * samples.length)]);
+}
+
+function wav_samples(buffer) {
+	const data = buffer.subarray(buffer.indexOf("data") + 8);
+	return new Float32Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.length - data.length % 4));
 }
 
 function encode(wasm, rate, mode, payload, call_sign) {
@@ -53,9 +58,15 @@ function encode(wasm, rate, mode, payload, call_sign) {
 	if (len < 0)
 		return null;
 	take(len);
-	new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
-	if (wasm.begin(payload.length, call_sign) < 0)
-		return null;
+	if (mode & 128) {
+		new Float32Array(wasm.memory.buffer, wasm.values.value, payload.length).set(payload);
+		if (wasm.begin_analog(payload.length / 2, call_sign) < 0)
+			return null;
+	} else {
+		new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
+		if (wasm.begin(payload.length, call_sign) < 0)
+			return null;
+	}
 	while ((len = wasm.next()) > 0)
 		take(len);
 	take(wasm.stop());
@@ -106,6 +117,30 @@ for (const rate of [44100, 48000]) {
 			++passed;
 		} else {
 			console.log(`FAILED ${name}: decoded data differs`);
+			++failed;
+		}
+	}
+	for (const count of [1, 256, 1000, wasm.values_length()]) {
+		const name = `${rate} Hz analog with ${count} complex values`;
+		const values = new Float32Array(2 * count).map(() => 2 * Math.random() - 1);
+		const samples = encode(wasm, rate, 128, values, call_sign);
+		if (!samples) {
+			console.log(`FAILED ${name}: encode`);
+			++failed;
+			continue;
+		}
+		fs.writeFileSync("temp/check.wav", wav_file(samples, rate));
+		fs.rmSync("temp/check.dat", { force: true });
+		spawnSync("./decode", ["temp/check.wav", "temp/check.dat"], { stdio: "ignore" });
+		const decoded = fs.existsSync("temp/check.dat") ? wav_samples(fs.readFileSync("temp/check.dat")) : null;
+		/* analog frames are lossy, the encoder clips and filters, so the worst error grows with their length */
+		const expected = new Float32Array(2 * 256 * Math.ceil(count / 256));
+		expected.set(values);
+		const error = decoded && decoded.length == expected.length ? expected.map((v, i) => Math.abs(v - decoded[i])) : null;
+		if (error && error.every(e => e < 0.1) && error.reduce((a, e) => a + e) / error.length < 0.002) {
+			++passed;
+		} else {
+			console.log(`FAILED ${name}: decoded values differ`);
 			++failed;
 		}
 	}
