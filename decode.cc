@@ -32,6 +32,19 @@ struct Decoder : Common
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
 	static const int tone_off = - tone_count / 2;
+	// what happened during a call of feed(), as reported by its return value
+	static const int found_sync = 1 << 0;
+	static const int damaged_seed = 1 << 1;
+	static const int preamble_error = 1 << 2;
+	static const int unsupported_call = 1 << 3;
+	static const int read_meta = 1 << 4;
+	static const int known_mode = 1 << 5;
+	static const int erased_symbol = 1 << 6;
+	static const int frame_end = 1 << 7;
+	static const int payload_error = 1 << 8;
+	static const int reencoded = 1 << 9;
+	static const int real_snr = 1 << 10;
+	static const int decoded_frame = 1 << 11;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::Phasor<cmplx> mix;
 	DSP::FIR<cmplx, value, filter_len> lowpass;
@@ -54,14 +67,18 @@ struct Decoder : Common
 	cmplx fdom[symbol_len], tdom[symbol_len];
 	value index[tone_count], phase[tone_count];
 	value snr[symbols_max];
-	value cfo_rad, sfo_rad;
+	value cfo_rad, sfo_rad, residual_rad;
+	value es_n0[3], real_es_n0[3];
+	int64_t call_sign;
+	int meta_mode, erased_index, bit_flips;
+	int events;
 	int symbol_pos;
 	int crc_bits;
 	DSP::Phasor<cmplx> osc;
 	CODE::MLS seq1;
 	int sample_count, countdown;
 	int symbol_index, bit_index, snr_count;
-	bool analog_mode, decoded;
+	bool analog_mode;
 
 	static int bin(int carrier)
 	{
@@ -79,11 +96,6 @@ struct Decoder : Common
 				return demod;
 		}
 		return 0;
-	}
-	static void base40_decoder(char *str, int64_t val, int len)
-	{
-		for (int i = len-1; i >= 0; --i, val /= 40)
-			str[i] = "   /0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%40];
 	}
 	const cmplx *mls0_seq()
 	{
@@ -164,10 +176,11 @@ struct Decoder : Common
 		for (int i = 0; i < crc_bits; ++i)
 			perm[i] = mesg[i].v[best] < 0 ? -1 : 1;
 		polar_encoder(reenc, perm, frozen_bits, code_order);
-		int code_bits = 1 << code_order, flips = 0;
+		int code_bits = 1 << code_order;
+		bit_flips = 0;
 		for (int i = 0; i < code_bits; ++i)
-			flips += code[i] * reenc[i] <= 0;
-		std::cerr << "bit flips: " << flips << " of " << code_bits << std::endl;
+			bit_flips += code[i] * reenc[i] <= 0;
+		events |= reencoded;
 		shuffle(perm, reenc, code_order, true);
 		int count = 0;
 		for (int j = 1, k = 0, n = 0; j <= symbol_count; ++j) {
@@ -188,7 +201,10 @@ struct Decoder : Common
 		if (!count)
 			return;
 		DSP::quick_sort(snr, count);
-		std::cerr << "real Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(count-1)/2]) << " .. " << DSP::decibel(snr[count-1]) << std::endl;
+		real_es_n0[0] = DSP::decibel(snr[0]);
+		real_es_n0[1] = DSP::decibel(snr[(count-1)/2]);
+		real_es_n0[2] = DSP::decibel(snr[count-1]);
+		events |= real_snr;
 	}
 	int64_t meta_data()
 	{
@@ -239,12 +255,13 @@ struct Decoder : Common
 		bool erased = seed_value < 0;
 		lost[j] = erased;
 		if (erased && !j) {
-			std::cerr << "seed value damaged" << std::endl;
+			events |= damaged_seed;
 			oper_mode = -1;
 			return;
 		}
 		if (erased) {
-			std::cerr << "seed value damaged, erasing symbol " << j << std::endl;
+			events |= erased_symbol;
+			erased_index = j;
 			for (int i = 0; i < tone_count; ++i)
 				demod[i] = 0;
 		} else {
@@ -339,26 +356,22 @@ struct Decoder : Common
 		if (!j) {
 			int64_t meta_info = meta_data();
 			if (meta_info < 0) {
-				std::cerr << "preamble decoding error." << std::endl;
+				events |= preamble_error;
 				return;
 			}
-			int64_t call = meta_info >> 8;
-			if (call == 0 || call >= 262144000000000L) {
-				std::cerr << "call sign unsupported." << std::endl;
+			call_sign = meta_info >> 8;
+			if (call_sign == 0 || call_sign >= 262144000000000L) {
+				events |= unsupported_call;
 				return;
 			}
-			char call_sign[10];
-			base40_decoder(call_sign, call, 9);
-			call_sign[9] = 0;
-			std::cerr << "call sign: " << call_sign << std::endl;
 			int mode = meta_info & 255;
-			bool known = setup(mode);
-			print_setup(*this, mode);
-			if (!known)
+			meta_mode = mode;
+			events |= read_meta;
+			if (!setup(mode))
 				return;
+			events |= known_mode;
 			analog_mode = mode & 128;
 			bit_index = 0;
-			std::cerr << "oper mode: " << oper_mode << std::endl;
 			CODE::MLS seq(mls2_poly, seed_value);
 			for (int i = 0, m = 0; i < tone_count; ++i) {
 				if (i % block_length != seed_off) {
@@ -383,9 +396,12 @@ struct Decoder : Common
 	void finish()
 	{
 		DSP::quick_sort(snr, snr_count);
-		std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(snr_count-1)/2]) << " .. " << DSP::decibel(snr[snr_count-1]) << std::endl;
+		es_n0[0] = DSP::decibel(snr[0]);
+		es_n0[1] = DSP::decibel(snr[(snr_count-1)/2]);
+		es_n0[2] = DSP::decibel(snr[snr_count-1]);
+		events |= frame_end;
 		if (analog_mode) {
-			decoded = true;
+			events |= decoded_frame;
 			return;
 		}
 		crc_bits = data_bits + 32;
@@ -402,7 +418,7 @@ struct Decoder : Common
 			}
 		}
 		if (best < 0) {
-			std::cerr << "payload decoding error." << std::endl;
+			events |= payload_error;
 			return;
 		}
 		for (int i = 0; i < data_bits; ++i)
@@ -411,14 +427,13 @@ struct Decoder : Common
 		CODE::Xorshift32 scrambler;
 		for (int i = 0; i < data_bytes; ++i)
 			data[i] ^= scrambler();
-		decoded = true;
+		events |= decoded_frame;
 	}
 	void preamble(const cmplx *buf)
 	{
 		symbol_pos = correlator.symbol_pos;
 		cfo_rad = correlator.cfo_rad;
-		std::cerr << "symbol pos: " << sample_count - buffer_len + symbol_pos << std::endl;
-		std::cerr << "coarse cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+		events |= found_sync;
 
 		osc.omega(-cfo_rad);
 		for (int i = 0; i < symbol_len; ++i)
@@ -438,8 +453,8 @@ struct Decoder : Common
 			phase[i] = arg(demod_or_erase(chan[i], tone[i]));
 		}
 		tse.compute(index, phase, tone_count);
-		std::cerr << "coarse sfo: " << -1000000 * tse.slope() / Const::TwoPi() << " ppm" << std::endl;
-		std::cerr << "residual cfo: " << 1000 * tse.yint() * rate / (Const::TwoPi() * symbol_len) << " mHz" << std::endl;
+		sfo_rad = tse.slope();
+		residual_rad = tse.yint();
 		for (int i = 0; i < tone_count; ++i)
 			tone[i] *= DSP::polar<value>(1, tse(i+tone_off));
 		for (int i = 0; i < tone_count; ++i)
@@ -466,9 +481,9 @@ struct Decoder : Common
 	{
 		mix.omega(-1500, rate);
 	}
-	bool feed(value sample)
+	int feed(value sample)
 	{
-		decoded = false;
+		events = 0;
 		const cmplx *buf = input_hist(lowpass(sample * mix()));
 		bool found = correlator(buf);
 		if (countdown) {
@@ -479,13 +494,57 @@ struct Decoder : Common
 			if (found)
 				preamble(buf);
 		}
-		return decoded;
+		return events;
 	}
 	bool busy()
 	{
 		return countdown > 0;
 	}
 };
+
+void base40_decoder(char *str, int64_t val, int len)
+{
+	for (int i = len-1; i >= 0; --i, val /= 40)
+		str[i] = "   /0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%40];
+}
+
+template <typename value, typename cmplx, int rate>
+void report(Decoder<value, cmplx, rate> *decoder, int events)
+{
+	typedef Decoder<value, cmplx, rate> decoder_type;
+	typedef DSP::Const<value> Const;
+	if (events & decoder_type::found_sync) {
+		std::cerr << "symbol pos: " << decoder->sample_count - decoder_type::buffer_len + decoder->symbol_pos << std::endl;
+		std::cerr << "coarse cfo: " << decoder->cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+		std::cerr << "coarse sfo: " << -1000000 * decoder->sfo_rad / Const::TwoPi() << " ppm" << std::endl;
+		std::cerr << "residual cfo: " << 1000 * decoder->residual_rad * rate / (Const::TwoPi() * decoder_type::symbol_len) << " mHz" << std::endl;
+	}
+	if (events & decoder_type::damaged_seed)
+		std::cerr << "seed value damaged" << std::endl;
+	if (events & decoder_type::preamble_error)
+		std::cerr << "preamble decoding error." << std::endl;
+	if (events & decoder_type::unsupported_call)
+		std::cerr << "call sign unsupported." << std::endl;
+	if (events & decoder_type::read_meta) {
+		char call_sign[10];
+		base40_decoder(call_sign, decoder->call_sign, 9);
+		call_sign[9] = 0;
+		std::cerr << "call sign: " << call_sign << std::endl;
+		print_setup(*decoder, decoder->meta_mode);
+	}
+	if (events & decoder_type::known_mode)
+		std::cerr << "oper mode: " << decoder->oper_mode << std::endl;
+	if (events & decoder_type::erased_symbol)
+		std::cerr << "seed value damaged, erasing symbol " << decoder->erased_index << std::endl;
+	if (events & decoder_type::frame_end)
+		std::cerr << "Es/N0 (dB): " << decoder->es_n0[0] << " .. " << decoder->es_n0[1] << " .. " << decoder->es_n0[2] << std::endl;
+	if (events & decoder_type::payload_error)
+		std::cerr << "payload decoding error." << std::endl;
+	if (events & decoder_type::reencoded)
+		std::cerr << "bit flips: " << decoder->bit_flips << " of " << (1 << decoder->code_order) << std::endl;
+	if (events & decoder_type::real_snr)
+		std::cerr << "real Es/N0 (dB): " << decoder->real_es_n0[0] << " .. " << decoder->real_es_n0[1] << " .. " << decoder->real_es_n0[2] << std::endl;
+}
 
 template <typename value, typename cmplx, int rate>
 void write_output(Decoder<value, cmplx, rate> *decoder, const char *output_name, int output_count)
@@ -527,7 +586,10 @@ void decode(DSP::ReadPCM<value> *pcm, const char *const *output_names, int outpu
 		}
 		if (end && !decoder->busy())
 			break;
-		if (decoder->feed(sample))
+		int events = decoder->feed(sample);
+		if (events)
+			report(decoder, events);
+		if (events & decoder->decoded_frame)
 			write_output(decoder, output_names[output_index++], output_count);
 	}
 	delete decoder;
