@@ -6,9 +6,9 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 
 ## Layout
 
-- `encode.cc`, `decode.cc`: the two programs. `encode.cc` is the native
-  driver around the `Encoder` struct in `encoder.hh`, `decode.cc` still holds
-  its `Decoder` struct. Both are templated on sample rate.
+- `encode.cc`, `decode.cc`: the two programs, native drivers around the
+  `Encoder` struct in `encoder.hh` and the `Decoder` struct in `decoder.hh`,
+  both templated on sample rate.
 - `native.hh`: what only the native programs need, such as iostream, WAV
   file I/O and `print_setup()`.
 - `encoder_module.cc`, `quirks/`: the WebAssembly encoder module and the

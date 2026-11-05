@@ -26,7 +26,7 @@ test: encode decode
 encode: encode.cc encoder.hh native.hh common.hh psk.hh qam.hh quantize.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
-decode: decode.cc native.hh common.hh schmidl_cox.hh psk.hh qam.hh quantize.hh
+decode: decode.cc decoder.hh native.hh common.hh schmidl_cox.hh psk.hh qam.hh quantize.hh
 	$(CXX) $(CXXFLAGS) $< -o $@
 
 .PHONY: wasm
