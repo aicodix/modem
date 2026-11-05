@@ -9,7 +9,7 @@ body { color: white; background-color: black; font-family: sans-serif; max-width
 textarea, input, select, button { font-size: 1em; }
 textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
 p { margin: 0.75em 0; }
-#status { font-family: monospace; white-space: pre-wrap; }
+#status, #log { font-family: monospace; white-space: pre-wrap; }
 .failed { color: red; }
 </style>
 </head>
@@ -45,9 +45,21 @@ p { margin: 0.75em 0; }
 <span id="usage"></span>
 </p>
 <p id="status">loading ..</p>
+<h2>Receive</h2>
+<p>
+<button id="listen">listen</button>
+<label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
+</p>
+<div id="log"></div>
 <script>
-const encoders = {};
-let context, wasm;
+const encoders = {}, decoders = {};
+let context, wasm, decoder, listening;
+const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
+const code_rates = ["1/2", "2/3", "3/4", "5/6"];
+/* events reported by the decoder module, see Decoder in decoder.hh */
+const found_sync = 1 << 0, damaged_seed = 1 << 1, preamble_error = 1 << 2, unsupported_call = 1 << 3;
+const read_meta = 1 << 4, known_mode = 1 << 5, erased_symbol = 1 << 6, frame_end = 1 << 7;
+const payload_error = 1 << 8, decoded_frame = 1 << 11;
 
 function status(str, failed) {
 	const element = document.getElementById("status");
@@ -75,6 +87,168 @@ function oper_mode() {
 }
 function message() {
 	return new TextEncoder().encode(document.getElementById("message").value);
+}
+function log(str, failed) {
+	const div = document.createElement("div");
+	div.textContent = str;
+	if (failed)
+		div.className = "failed";
+	const element = document.getElementById("log");
+	element.insertBefore(div, element.firstChild);
+}
+async function load_decoder(rate) {
+	if (!decoders[rate]) {
+		const obj = await WebAssembly.instantiateStreaming(fetch("temp/decoder_" + rate + ".wasm"));
+		obj.instance.exports.__wasm_call_ctors();
+		decoders[rate] = obj.instance.exports;
+	}
+	return decoders[rate];
+}
+function report(dec) {
+	const events = dec.events();
+	const stats = new Float32Array(dec.memory.buffer, dec.stats.value, 9);
+	const db = i => stats[i].toFixed(1);
+	if (events & found_sync)
+		log("sync, cfo " + stats[0].toFixed(1) + " Hz, sfo " + stats[1].toFixed(1) + " ppm");
+	if (events & damaged_seed)
+		log("seed value damaged", true);
+	if (events & preamble_error)
+		log("preamble decoding error", true);
+	if (events & unsupported_call)
+		log("call sign unsupported", true);
+	if (events & read_meta) {
+		const call = new TextDecoder().decode(new Uint8Array(dec.memory.buffer, dec.call_sign.value, 9)).trim();
+		const mode = dec.meta_mode();
+		const name = mode & 128 ? "analog" : modulations[(mode >> 4) & 7] + " " + (code_rates[(mode >> 1) & 7] || "?") + " " + (mode & 1 ? "normal" : "short");
+		log("from " + call + ", " + name + (events & known_mode ? "" : " unsupported"), !(events & known_mode));
+	}
+	if (events & erased_symbol)
+		log("seed value damaged, erasing symbol " + dec.erased_symbol(), true);
+	if (events & payload_error)
+		log("payload decoding error, Es/N0 " + db(3) + " .. " + db(4) + " .. " + db(5) + " dB", true);
+	if (events & decoded_frame) {
+		const length = dec.payload_length();
+		if (length < 0) {
+			log("analog frame, Es/N0 " + db(3) + " .. " + db(4) + " .. " + db(5) + " dB");
+			return;
+		}
+		let bytes = new Uint8Array(dec.memory.buffer, dec.payload.value, length);
+		let end = length;
+		while (end > 0 && !bytes[end - 1])
+			--end;
+		const text = new TextDecoder().decode(bytes.subarray(0, end));
+		log("decoded, Es/N0 " + db(6) + " .. " + db(7) + " .. " + db(8) + " dB, " + dec.bit_flips() + " of " + dec.code_bits() + " bits flipped:\n" + text);
+	}
+}
+function receive(dec, samples) {
+	const size = 1024;
+	const block = new Float32Array(dec.memory.buffer, dec.samples.value, size);
+	for (let pos = 0; pos < samples.length; pos += size) {
+		const count = Math.min(size, samples.length - pos);
+		block.set(samples.subarray(pos, pos + count));
+		for (let offset = 0; offset < count;) {
+			offset += dec.feed(offset, count - offset);
+			if (dec.events())
+				report(dec);
+		}
+	}
+}
+function flush(dec) {
+	const silence = new Float32Array(1024);
+	while (dec.busy())
+		receive(dec, silence);
+}
+async function listen() {
+	if (listening) {
+		listening.getTracks().forEach(track => track.stop());
+		listening = null;
+		document.getElementById("listen").textContent = "listen";
+		status("stopped listening");
+		return;
+	}
+	try {
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
+		const code = `class Tap extends AudioWorkletProcessor {
+			constructor() { super(); this.buffer = new Float32Array(2048); this.pos = 0; }
+			process(inputs) {
+				const input = inputs[0][0];
+				if (input) {
+					for (let i = 0; i < input.length; ++i) {
+						this.buffer[this.pos++] = input[i];
+						if (this.pos == this.buffer.length) {
+							this.port.postMessage(this.buffer, [this.buffer.buffer]);
+							this.buffer = new Float32Array(2048);
+							this.pos = 0;
+						}
+					}
+				}
+				return true;
+			}
+		}
+		registerProcessor("tap", Tap);`;
+		const url = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
+		await context.audioWorklet.addModule(url);
+		URL.revokeObjectURL(url);
+		const tap = new AudioWorkletNode(context, "tap", { numberOfInputs: 1, numberOfOutputs: 0 });
+		tap.port.onmessage = event => receive(decoder, event.data);
+		context.createMediaStreamSource(stream).connect(tap);
+		await context.resume();
+		listening = stream;
+		document.getElementById("listen").textContent = "stop";
+		status("listening at " + context.sampleRate + " Hz");
+	} catch (error) {
+		status("couldn't listen: " + error.message, true);
+	}
+}
+async function decode_file(event) {
+	const file = event.target.files[0];
+	if (!file)
+		return;
+	try {
+		const buffer = await file.arrayBuffer();
+		const view = new DataView(buffer);
+		if (view.getUint32(0, false) != 0x52494646 || view.getUint32(8, false) != 0x57415645)
+			throw new Error("not a WAV file");
+		let pos = 12, format, channels, rate, bits, data, length;
+		while (pos + 8 <= buffer.byteLength) {
+			const id = view.getUint32(pos, false), size = view.getUint32(pos + 4, true);
+			if (id == 0x666d7420) {
+				format = view.getUint16(pos + 8, true);
+				channels = view.getUint16(pos + 10, true);
+				rate = view.getUint32(pos + 12, true);
+				bits = view.getUint16(pos + 22, true);
+			} else if (id == 0x64617461) {
+				data = pos + 8;
+				length = Math.min(size, buffer.byteLength - data);
+				break;
+			}
+			pos += 8 + size + (size & 1);
+		}
+		if (data === undefined || channels != 1)
+			throw new Error("need a one channel WAV file");
+		if (rate != 44100 && rate != 48000)
+			throw new Error("unsupported sample rate " + rate + " Hz");
+		let samples;
+		if (format == 3 && bits == 32) {
+			samples = new Float32Array(length / 4);
+			for (let i = 0; i < samples.length; ++i)
+				samples[i] = view.getFloat32(data + 4 * i, true);
+		} else if (format == 1 && bits == 16) {
+			samples = new Float32Array(length / 2);
+			for (let i = 0; i < samples.length; ++i)
+				samples[i] = view.getInt16(data + 2 * i, true) / 32768;
+		} else {
+			throw new Error("need 16 bit integer or 32 bit float samples");
+		}
+		const dec = await load_decoder(rate);
+		status("decoding " + file.name + " at " + rate + " Hz");
+		receive(dec, samples);
+		flush(dec);
+		status("decoded " + file.name);
+	} catch (error) {
+		status("couldn't decode " + file.name + ": " + error.message, true);
+	}
+	event.target.value = "";
 }
 async function load(rate) {
 	if (!encoders[rate]) {
@@ -182,14 +356,17 @@ async function main() {
 	}
 	try {
 		wasm = await load(context.sampleRate);
+		decoder = await load_decoder(context.sampleRate);
 	} catch (error) {
-		status("couldn't load encoder module: " + error.message, true);
+		status("couldn't load modules: " + error.message, true);
 		return;
 	}
 	for (const id of ["modulation", "code-rate", "frame-size", "message"])
 		document.getElementById(id).addEventListener("input", update);
 	document.getElementById("play").addEventListener("click", play);
 	document.getElementById("save").addEventListener("click", save);
+	document.getElementById("listen").addEventListener("click", listen);
+	document.getElementById("wav-file").addEventListener("change", decode_file);
 	update();
 	status("ready, " + context.sampleRate + " Hz");
 }
