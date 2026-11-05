@@ -15,10 +15,11 @@ struct Encoder : public Common
 	static const int guard_len = rate / 300;
 	static const int symbol_len = guard_len * 40;
 	static const int tone_off = (1500 * symbol_len) / rate - tone_count / 2;
-	DSP::WritePCM<value> *pcm;
+	static const int audio_max = symbol_len + guard_len;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::PolarEncoder<code_type> polar_encoder;
+	CODE::MLS seq1;
 	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[data_tones];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
@@ -30,6 +31,9 @@ struct Encoder : public Common
 	cmplx analog[analog_max];
 	value weight[guard_len];
 	value papr[symbols_max];
+	value audio[audio_max];
+	int audio_len;
+	int symbol_index, tone_index, meta_index;
 
 	static int bin(int carrier)
 	{
@@ -38,6 +42,11 @@ struct Encoder : public Common
 	static int nrz(bool bit)
 	{
 		return 1 - 2 * bit;
+	}
+	void emit(const cmplx *buf, int len)
+	{
+		for (int i = 0; i < len; ++i)
+			audio[audio_len++] = buf[i].real();
 	}
 	void clipping_and_filtering(value scale)
 	{
@@ -115,17 +124,17 @@ struct Encoder : public Common
 		if (symbol_number != -1) {
 			for (int i = 0; i < guard_len; ++i)
 				guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
-			pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
+			emit(guard, guard_len);
 		}
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = tdom[i];
-		pcm->write(reinterpret_cast<value *>(tdom), symbol_len, 2);
+		emit(tdom, symbol_len);
 	}
 	void finish()
 	{
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] *= 1 - weight[i];
-		pcm->write(reinterpret_cast<value *>(guard), guard_len, 2);
+		emit(guard, guard_len);
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = 0;
 	}
@@ -143,8 +152,6 @@ struct Encoder : public Common
 		CODE::MLS seq0(mls0_poly, mls0_seed);
 		for (int i = 0; i < tone_count; ++i)
 			tone[i] = nrz(seq0());
-		symbol(-2);
-		symbol(-1);
 	}
 	void meta_data(uint64_t md)
 	{
@@ -220,68 +227,115 @@ struct Encoder : public Common
 			analog[i] = 0;
 		return count;
 	}
-	Encoder(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int64_t call_sign, int oper_mode) : pcm(pcm)
+	Encoder() : seq1(mls1_poly), audio_len(0), symbol_index(-3)
 	{
+		guard_interval_weights();
+	}
+	bool start(int oper_mode)
+	{
+		audio_len = 0;
 		bool analog_mode = oper_mode & 128;
 		if (!analog_mode && !setup(oper_mode))
-			return;
-		guard_interval_weights();
+			return false;
 		leading_noise();
+		return true;
+	}
+	bool begin(const char *input_name, int64_t call_sign, bool analog_mode)
+	{
+		symbol_index = -3;
+		if (analog_mode) {
+			int count = read_analog(input_name);
+			if (!count || !setup(128 | (count - 1) / data_tones))
+				return false;
+		} else {
+			std::ifstream input_file(input_name, std::ios::binary);
+			if (input_file.bad()) {
+				std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
+				return false;
+			}
+			for (int i = 0; i < data_bytes; ++i)
+				data[i] = std::max(input_file.get(), 0);
+			CODE::Xorshift32 scrambler;
+			for (int i = 0; i < data_bytes; ++i)
+				data[i] ^= scrambler();
+			for (int i = 0; i < data_bits; ++i)
+				mesg[i] = nrz(CODE::get_le_bit(data, i));
+			crc1.reset();
+			for (int i = 0; i < data_bytes; ++i)
+				crc1(data[i]);
+			for (int i = 0; i < 32; ++i)
+				mesg[i+data_bits] = nrz((crc1()>>i)&1);
+			polar_encoder(code, mesg, frozen_bits, code_order);
+			shuffle(perm, code, code_order, true);
+		}
+		meta_data((call_sign << 8) | this->oper_mode);
+		seq1.reset();
+		symbol_index = -2;
+		tone_index = 0;
+		meta_index = 0;
+		return true;
+	}
+	int next()
+	{
+		audio_len = 0;
+		if (symbol_index < -2 || symbol_index > symbol_count)
+			return 0;
+		if (symbol_index == -2)
+			schmidl_cox();
+		if (symbol_index < 0) {
+			symbol(symbol_index++);
+			return audio_len;
+		}
+		bool analog_mode = oper_mode & 128;
+		int j = symbol_index++;
+		seed_off = (block_skew * j + first_seed) % block_length;
+		for (int i = 0; i < tone_count; ++i) {
+			if (i % block_length == seed_off) {
+				tone[i] = nrz(seq1());
+			} else if (j && analog_mode) {
+				tone[i] = analog[tone_index++];
+			} else if (j) {
+				int bits = bits_at(tone_index);
+				tone[i] = map_bits(perm+tone_index, bits);
+				tone_index += bits;
+			} else {
+				tone[i] = map_bits(meta+meta_index++, 1);
+			}
+		}
+		symbol(j);
+		if (j == symbol_count) {
+			DSP::quick_sort(papr, symbol_count + 1);
+			std::cerr << "PAPR (dB): " << DSP::decibel(papr[0]) << " .. " << DSP::decibel(papr[symbol_count/2]) << " .. " << DSP::decibel(papr[symbol_count]) << std::endl;
+		}
+		return audio_len;
+	}
+	void stop()
+	{
+		audio_len = 0;
+		finish();
+	}
+};
+
+template <typename value, typename cmplx, int rate>
+void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int64_t call_sign, int oper_mode)
+{
+	auto *encoder = new Encoder<value, cmplx, rate>();
+	if (encoder->start(oper_mode)) {
+		pcm->write(encoder->audio, encoder->audio_len);
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
 			if (input_count == 1 && input_name[0] == '-' && input_name[1] == 0)
 				input_name = "/dev/stdin";
-			if (analog_mode) {
-				int count = read_analog(input_name);
-				if (!count || !setup(128 | (count - 1) / data_tones))
-					continue;
-			} else {
-				std::ifstream input_file(input_name, std::ios::binary);
-				if (input_file.bad()) {
-					std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
-					continue;
-				}
-				for (int i = 0; i < data_bytes; ++i)
-					data[i] = std::max(input_file.get(), 0);
-				CODE::Xorshift32 scrambler;
-				for (int i = 0; i < data_bytes; ++i)
-					data[i] ^= scrambler();
-				for (int i = 0; i < data_bits; ++i)
-					mesg[i] = nrz(CODE::get_le_bit(data, i));
-				crc1.reset();
-				for (int i = 0; i < data_bytes; ++i)
-					crc1(data[i]);
-				for (int i = 0; i < 32; ++i)
-					mesg[i+data_bits] = nrz((crc1()>>i)&1);
-				polar_encoder(code, mesg, frozen_bits, code_order);
-				shuffle(perm, code, code_order, true);
-			}
-			meta_data((call_sign << 8) | this->oper_mode);
-			schmidl_cox();
-			CODE::MLS seq1(mls1_poly);
-			for (int j = 0, k = 0, m = 0; j < symbol_count + 1; ++j) {
-				seed_off = (block_skew * j + first_seed) % block_length;
-				for (int i = 0; i < tone_count; ++i) {
-					if (i % block_length == seed_off) {
-						tone[i] = nrz(seq1());
-					} else if (j && analog_mode) {
-						tone[i] = analog[k++];
-					} else if (j) {
-						int bits = bits_at(k);
-						tone[i] = map_bits(perm+k, bits);
-						k += bits;
-					} else {
-						tone[i] = map_bits(meta+m++, 1);
-					}
-				}
-				symbol(j);
-			}
-			DSP::quick_sort(papr, symbol_count + 1);
-			std::cerr << "PAPR (dB): " << DSP::decibel(papr[0]) << " .. " << DSP::decibel(papr[symbol_count/2]) << " .. " << DSP::decibel(papr[symbol_count]) << std::endl;
+			if (!encoder->begin(input_name, call_sign, oper_mode & 128))
+				continue;
+			while (encoder->next())
+				pcm->write(encoder->audio, encoder->audio_len);
 		}
-		finish();
+		encoder->stop();
+		pcm->write(encoder->audio, encoder->audio_len);
 	}
-};
+	delete encoder;
+}
 
 int64_t base40_encoder(const char *str)
 {
@@ -379,10 +433,10 @@ int main(int argc, char **argv)
 	int input_count = argc - input_index;
 	switch (output_rate) {
 	case 44100:
-		delete new Encoder<value, cmplx, 44100>(&output_file, argv + input_index, input_count, call_sign, oper_mode);
+		encode<value, cmplx, 44100>(&output_file, argv + input_index, input_count, call_sign, oper_mode);
 		break;
 	case 48000:
-		delete new Encoder<value, cmplx, 48000>(&output_file, argv + input_index, input_count, call_sign, oper_mode);
+		encode<value, cmplx, 48000>(&output_file, argv + input_index, input_count, call_sign, oper_mode);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
