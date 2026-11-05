@@ -190,10 +190,8 @@ struct Encoder : public Common
 	{
 		for (int i = 0; i < guard_len / 4; ++i)
 			weight[i] = 0;
-		for (int i = guard_len / 4; i < guard_len / 4 + guard_len / 2; ++i) {
-			value x = value(i - guard_len / 4) / value(guard_len / 2 - 1);
-			weight[i] = value(0.5) * (value(1) - std::cos(DSP::Const<value>::Pi() * x));
-		}
+		for (int i = guard_len / 4; i < guard_len / 4 + guard_len / 2; ++i)
+			weight[i] = value(0.5) * (value(1) - DSP::UnitCircle<value>::cos(i - guard_len / 4, 2 * (guard_len / 2 - 1)));
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
