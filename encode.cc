@@ -197,36 +197,6 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
-	int read_analog(const char *input_name)
-	{
-		DSP::ReadWAV<value> input_file(input_name);
-		if (!input_file.good()) {
-			std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
-			return 0;
-		}
-		if (input_file.channels() != 2 || input_file.bits() != 32) {
-			std::cerr << "Only complex values (two channels, 32 bit float) supported." << std::endl;
-			return 0;
-		}
-		int count = 0;
-		while (count < analog_max) {
-			input_file.read(reinterpret_cast<value *>(analog + count), 1);
-			if (!input_file.good())
-				break;
-			++count;
-		}
-		if (count == analog_max) {
-			cmplx tmp;
-			input_file.read(reinterpret_cast<value *>(&tmp), 1);
-			if (input_file.good())
-				std::cerr << "Ignoring complex values beyond " << analog_max << " in file \"" << input_name << "\"." << std::endl;
-		}
-		if (!count)
-			std::cerr << "No complex values in file \"" << input_name << "\"." << std::endl;
-		for (int i = count; i % data_tones; ++i)
-			analog[i] = 0;
-		return count;
-	}
 	Encoder() : seq1(mls1_poly), audio_len(0), symbol_index(-3)
 	{
 		guard_interval_weights();
@@ -240,39 +210,48 @@ struct Encoder : public Common
 		leading_noise();
 		return true;
 	}
-	bool begin(const char *input_name, int64_t call_sign, bool analog_mode)
+	void prepare(int64_t call_sign)
 	{
-		symbol_index = -3;
-		if (analog_mode) {
-			int count = read_analog(input_name);
-			if (!count || !setup(128 | (count - 1) / data_tones))
-				return false;
-		} else {
-			std::ifstream input_file(input_name, std::ios::binary);
-			if (input_file.bad()) {
-				std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
-				return false;
-			}
-			for (int i = 0; i < data_bytes; ++i)
-				data[i] = std::max(input_file.get(), 0);
-			CODE::Xorshift32 scrambler;
-			for (int i = 0; i < data_bytes; ++i)
-				data[i] ^= scrambler();
-			for (int i = 0; i < data_bits; ++i)
-				mesg[i] = nrz(CODE::get_le_bit(data, i));
-			crc1.reset();
-			for (int i = 0; i < data_bytes; ++i)
-				crc1(data[i]);
-			for (int i = 0; i < 32; ++i)
-				mesg[i+data_bits] = nrz((crc1()>>i)&1);
-			polar_encoder(code, mesg, frozen_bits, code_order);
-			shuffle(perm, code, code_order, true);
-		}
-		meta_data((call_sign << 8) | this->oper_mode);
+		meta_data((call_sign << 8) | oper_mode);
 		seq1.reset();
 		symbol_index = -2;
 		tone_index = 0;
 		meta_index = 0;
+	}
+	bool begin(const uint8_t *payload, int length, int64_t call_sign)
+	{
+		symbol_index = -3;
+		if (length < 0)
+			return false;
+		for (int i = 0; i < data_bytes; ++i)
+			data[i] = i < length ? payload[i] : 0;
+		CODE::Xorshift32 scrambler;
+		for (int i = 0; i < data_bytes; ++i)
+			data[i] ^= scrambler();
+		for (int i = 0; i < data_bits; ++i)
+			mesg[i] = nrz(CODE::get_le_bit(data, i));
+		crc1.reset();
+		for (int i = 0; i < data_bytes; ++i)
+			crc1(data[i]);
+		for (int i = 0; i < 32; ++i)
+			mesg[i+data_bits] = nrz((crc1()>>i)&1);
+		polar_encoder(code, mesg, frozen_bits, code_order);
+		shuffle(perm, code, code_order, true);
+		prepare(call_sign);
+		return true;
+	}
+	bool begin(const cmplx *values, int count, int64_t call_sign)
+	{
+		symbol_index = -3;
+		if (count < 1 || count > analog_max)
+			return false;
+		if (!setup(128 | (count - 1) / data_tones))
+			return false;
+		for (int i = 0; i < count; ++i)
+			analog[i] = values[i];
+		for (int i = count; i % data_tones; ++i)
+			analog[i] = 0;
+		prepare(call_sign);
 		return true;
 	}
 	int next()
@@ -316,24 +295,78 @@ struct Encoder : public Common
 	}
 };
 
+template <typename value, typename cmplx>
+int read_analog(cmplx *values, const char *input_name)
+{
+	const int analog_max = Common::analog_max;
+	DSP::ReadWAV<value> input_file(input_name);
+	if (!input_file.good()) {
+		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
+		return 0;
+	}
+	if (input_file.channels() != 2 || input_file.bits() != 32) {
+		std::cerr << "Only complex values (two channels, 32 bit float) supported." << std::endl;
+		return 0;
+	}
+	int count = 0;
+	while (count < analog_max) {
+		input_file.read(reinterpret_cast<value *>(values + count), 1);
+		if (!input_file.good())
+			break;
+		++count;
+	}
+	if (count == analog_max) {
+		cmplx tmp;
+		input_file.read(reinterpret_cast<value *>(&tmp), 1);
+		if (input_file.good())
+			std::cerr << "Ignoring complex values beyond " << analog_max << " in file \"" << input_name << "\"." << std::endl;
+	}
+	if (!count)
+		std::cerr << "No complex values in file \"" << input_name << "\"." << std::endl;
+	return count;
+}
+
+int read_digital(uint8_t *payload, int length, const char *input_name)
+{
+	std::ifstream input_file(input_name, std::ios::binary);
+	if (input_file.bad()) {
+		std::cerr << "Couldn't open file \"" << input_name << "\" for reading." << std::endl;
+		return -1;
+	}
+	int count = 0;
+	for (int c; count < length && (c = input_file.get()) >= 0; ++count)
+		payload[count] = c;
+	return count;
+}
+
 template <typename value, typename cmplx, int rate>
 void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int64_t call_sign, int oper_mode)
 {
 	auto *encoder = new Encoder<value, cmplx, rate>();
+	auto *values = new cmplx[Common::analog_max];
+	uint8_t payload[Common::data_max];
 	if (encoder->start(oper_mode)) {
 		pcm->write(encoder->audio, encoder->audio_len);
 		for (int input_index = 0; input_index < input_count; ++input_index) {
 			const char *input_name = input_names[input_index];
 			if (input_count == 1 && input_name[0] == '-' && input_name[1] == 0)
 				input_name = "/dev/stdin";
-			if (!encoder->begin(input_name, call_sign, oper_mode & 128))
-				continue;
+			if (oper_mode & 128) {
+				int count = read_analog<value>(values, input_name);
+				if (!count || !encoder->begin(values, count, call_sign))
+					continue;
+			} else {
+				int length = read_digital(payload, encoder->data_bytes, input_name);
+				if (length < 0 || !encoder->begin(payload, length, call_sign))
+					continue;
+			}
 			while (encoder->next())
 				pcm->write(encoder->audio, encoder->audio_len);
 		}
 		encoder->stop();
 		pcm->write(encoder->audio, encoder->audio_len);
 	}
+	delete[] values;
 	delete encoder;
 }
 
