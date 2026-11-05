@@ -413,7 +413,9 @@ struct Decoder : Common
 					call_sign[9] = 0;
 					std::cerr << "call sign: " << call_sign << std::endl;
 					int mode = meta_info & 255;
-					if (!setup(mode))
+					bool known = setup(mode);
+					print_setup(mode);
+					if (!known)
 						break;
 					analog_mode = mode & 128;
 					k = 0;

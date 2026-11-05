@@ -139,70 +139,54 @@ struct Common
 		if (analog_mode) {
 			symbol_count = (mode & 127) + 1;
 			oper_mode = mode;
-			float duration = 41. / 300. * (3 + symbol_count);
-			std::cerr << "analog mode" << std::endl;
-			std::cerr << "symbols: " << symbol_count << std::endl;
-			std::cerr << "duration: " << duration << "s" << std::endl;
-			std::cerr << "payload: " << symbol_count * data_tones << " complex values" << std::endl;
 			return true;
 		}
-		std::cerr << "modulation: ";
 		int modulation = (mode >> 4) & 7;
 		switch (modulation) {
 		case 0:
 			mod_bits = 1;
 			symbol_count = 8;
 			code_order = 11;
-			std::cerr << "BPSK";
 			break;
 		case 1:
 			mod_bits = 2;
 			symbol_count = 4;
 			code_order = 11;
-			std::cerr << "QPSK";
 			break;
 		case 2:
 			mod_bits = 3;
 			symbol_count = 11;
 			code_order = 13;
-			std::cerr << "8PSK";
 			break;
 		case 3:
 			mod_bits = 4;
 			symbol_count = 4;
 			code_order = 12;
-			std::cerr << "QAM16";
 			break;
 		case 4:
 			mod_bits = 6;
 			symbol_count = 11;
 			code_order = 14;
-			std::cerr << "QAM64";
 			break;
 		case 5:
 			mod_bits = 8;
 			symbol_count = 8;
 			code_order = 14;
-			std::cerr << "QAM256";
 			break;
 		case 6:
 			mod_bits = 10;
 			symbol_count = 13;
 			code_order = 15;
-			std::cerr << "QAM1024";
 			break;
 		case 7:
 			mod_bits = 12;
 			symbol_count = 11;
 			code_order = 15;
-			std::cerr << "QAM4096";
 			break;
 		default:
 			return false;
 		}
-		std::cerr << std::endl;
 		bool frame_size = mode & 1;
-		std::cerr << "frame size: " << (frame_size ? "normal" : "short") << std::endl;
 		if (frame_size) {
 			if (symbol_count == 4) {
 				symbol_count *= 4;
@@ -213,9 +197,7 @@ struct Common
 			}
 		}
 		int code_rate = (mode >> 1) & 7;
-		std::cerr << "code rate: ";
 		if (code_rate == 0) {
-			std::cerr << "1/2";
 			switch (code_order) {
 			case 11:
 				data_bits = 1024;
@@ -245,7 +227,6 @@ struct Common
 				return false;
 			}
 		} else if (code_rate == 1) {
-			std::cerr << "2/3";
 			switch (code_order) {
 			case 11:
 				data_bits = 1368;
@@ -275,7 +256,6 @@ struct Common
 				return false;
 			}
 		} else if (code_rate == 2) {
-			std::cerr << "3/4";
 			switch (code_order) {
 			case 11:
 				data_bits = 1536;
@@ -305,7 +285,6 @@ struct Common
 				return false;
 			}
 		} else if (code_rate == 3) {
-			std::cerr << "5/6";
 			switch (code_order) {
 			case 11:
 				data_bits = 1704;
@@ -335,17 +314,36 @@ struct Common
 				return false;
 			}
 		} else {
-			std::cerr << "unsupported" << std::endl;
 			return false;
 		}
-		std::cerr << std::endl;
 		oper_mode = mode;
 		data_bytes = data_bits / 8;
+		return true;
+	}
+	void print_setup(int mode)
+	{
+		if (mode & 128) {
+			float duration = 41. / 300. * (3 + symbol_count);
+			std::cerr << "analog mode" << std::endl;
+			std::cerr << "symbols: " << symbol_count << std::endl;
+			std::cerr << "duration: " << duration << "s" << std::endl;
+			std::cerr << "payload: " << symbol_count * data_tones << " complex values" << std::endl;
+			return;
+		}
+		static const char *const modulations[8] = { "BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096" };
+		static const char *const code_rates[4] = { "1/2", "2/3", "3/4", "5/6" };
+		std::cerr << "modulation: " << modulations[(mode >> 4) & 7] << std::endl;
+		std::cerr << "frame size: " << (mode & 1 ? "normal" : "short") << std::endl;
+		int code_rate = (mode >> 1) & 7;
+		if (code_rate > 3) {
+			std::cerr << "code rate: unsupported" << std::endl;
+			return;
+		}
+		std::cerr << "code rate: " << code_rates[code_rate] << std::endl;
 		float duration = 41. / 300. * (3 + symbol_count);
 		std::cerr << "duration: " << duration << "s" << std::endl;
 		std::cerr << "payload: " << data_bytes << "B" << std::endl;
 		std::cerr << "bitrate: " << data_bits / duration / 1000. << "kb/s" << std::endl;
-		return true;
 	}
 };
 
