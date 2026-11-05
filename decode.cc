@@ -32,7 +32,6 @@ struct Decoder : Common
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
 	static const int tone_off = - tone_count / 2;
-	DSP::ReadPCM<value> *pcm;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::Phasor<cmplx> mix;
 	DSP::FIR<cmplx, value, filter_len> lowpass;
@@ -58,6 +57,13 @@ struct Decoder : Common
 	value cfo_rad, sfo_rad;
 	int symbol_pos;
 	int crc_bits;
+	DSP::Phasor<cmplx> osc;
+	CODE::MLS seq1;
+	const char *const *output_names;
+	int output_count, output_index;
+	int sample_count, countdown;
+	int symbol_index, bit_index, snr_count;
+	bool analog_mode;
 
 	static int bin(int carrier)
 	{
@@ -186,14 +192,6 @@ struct Decoder : Common
 		DSP::quick_sort(snr, count);
 		std::cerr << "real Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(count-1)/2]) << " .. " << DSP::decibel(snr[count-1]) << std::endl;
 	}
-	const cmplx *next_sample()
-	{
-		value tmp;
-		pcm->read(&tmp, 1);
-		if (!pcm->good())
-			tmp = 0;
-		return input_hist(lowpass(tmp * mix()));
-	}
 	int64_t meta_data()
 	{
 		shuffle(code, perm, 8, false);
@@ -219,275 +217,311 @@ struct Decoder : Common
 			md |= uint64_t(mesg[i].v[best] < 0) << i;
 		return md;
 	}
-	Decoder(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count) : pcm(pcm), lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq())
+	void process(const cmplx *buf)
 	{
-		mix.omega(-1500, rate);
-		DSP::Phasor<cmplx> osc;
-		const cmplx *buf;
-		int output_index = 0;
-		int sample_count = 0;
-		while (output_index < output_count) {
-			do {
-				buf = next_sample();
-				if (!pcm->good())
-					return;
-				++sample_count;
-			} while (!correlator(buf));
-
-			symbol_pos = correlator.symbol_pos;
-			cfo_rad = correlator.cfo_rad;
-			std::cerr << "symbol pos: " << sample_count - buffer_len + symbol_pos << std::endl;
-			std::cerr << "coarse cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
-
-			osc.omega(-cfo_rad);
+		auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
+		int j = symbol_index;
+		seed_off = (block_skew * j + first_seed) % block_length;
+		if (j) {
 			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i+symbol_pos] * osc();
-			fwd(fdom, tdom);
-			for (int i = 0; i < tone_count; ++i)
-				tone[i] = fdom[bin(i+tone_off)];
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i+symbol_pos+symbol_len] * osc();
+				tdom[i] = buf[i] * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
+		}
+		for (int i = 0; i < tone_count; ++i)
+			tone[i] = fdom[bin(i+tone_off)];
+		for (int i = seed_off; i < tone_count; i += block_length)
+			tone[i] *= nrz(seq1());
+		for (int i = 0; i < tone_count; ++i)
+			demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
+		for (int i = 0; i < seed_tones; ++i)
+			seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
+		int seed_value = hadamard_decoder(seed);
+		bool erased = seed_value < 0;
+		lost[j] = erased;
+		if (erased && !j) {
+			std::cerr << "seed value damaged" << std::endl;
+			oper_mode = -1;
+			return;
+		}
+		if (erased) {
+			std::cerr << "seed value damaged, erasing symbol " << j << std::endl;
 			for (int i = 0; i < tone_count; ++i)
-				chan[i] = fdom[bin(i+tone_off)];
-			for (int i = 0; i < tone_count; ++i) {
-				index[i] = tone_off + i;
-				phase[i] = arg(demod_or_erase(chan[i], tone[i]));
+				demod[i] = 0;
+		} else {
+			hadamard_encoder(seed, seed_value);
+			for (int i = 0; i < seed_tones; ++i) {
+				tone[block_length*i+seed_off] *= seed[i];
+				demod[block_length*i+seed_off] *= seed[i];
 			}
-			tse.compute(index, phase, tone_count);
-			std::cerr << "coarse sfo: " << -1000000 * tse.slope() / Const::TwoPi() << " ppm" << std::endl;
-			std::cerr << "residual cfo: " << 1000 * tse.yint() * rate / (Const::TwoPi() * symbol_len) << " mHz" << std::endl;
+			for (int i = 0; i < seed_tones; ++i) {
+				index[i] = tone_off + block_length * i + seed_off;
+				phase[i] = arg(demod[block_length*i+seed_off]);
+			}
+			tse.compute(index, phase, seed_tones);
+			//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
+			//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
 			for (int i = 0; i < tone_count; ++i)
-				tone[i] *= DSP::polar<value>(1, tse(i+tone_off));
+				demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
+			for (int i = 0; i < tone_count; ++i)
+				chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
+			if (j) {
+				// update all tones with the seed tones of this symbol, interpolated values with a lower weight
+				// keep the estimate where a seed tone changed far more than the median, as with a carrier
+				for (int i = 0; i < seed_tones; ++i)
+					sorted[i] = innov[i] = norm(tone[block_length*i+seed_off] - chan[block_length*i+seed_off]);
+				value limit = 10 * DSP::quick_select(sorted, seed_tones / 2, seed_tones);
+				for (int i = 0; i < seed_tones; ++i)
+					knots[i] = innov[i] <= limit ? tone[block_length*i+seed_off] : chan[block_length*i+seed_off];
+				DSP::UniformNaturalCubicSpline<seed_tones, cmplx, value> spline(knots, seed_off, block_length);
+				for (int i = 0; i < tone_count; ++i) {
+					if (i % block_length == seed_off) {
+						chan[i] = DSP::lerp(chan[i], knots[i/block_length], value(0.5));
+					} else {
+						chan[i] = DSP::lerp(chan[i], spline(i), value(1) / value(3));
+						demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
+					}
+				}
+			}
+			if (seed_value) {
+				CODE::MLS seq(mls2_poly, seed_value);
+				for (int i = 0; i < tone_count; ++i)
+					if (i % block_length != seed_off)
+						demod[i] *= nrz(seq());
+			}
+		}
+		if (analog_mode) {
+			value sp = 0, np = 0;
+			for (int i = seed_off; !erased && i < tone_count; i += block_length) {
+				sp += 1;
+				np += norm(demod[i] - cmplx(1, 0));
+			}
+			if (!erased)
+				snr[snr_count++] = sp / std::max(np, value(1e-9) * sp);
+			for (int i = 0; i < tone_count; ++i)
+				if (i % block_length != seed_off)
+					values[bit_index++] = demod[i];
+		} else {
+			value sp = 0, np = 0, mg = 0;
+			for (int i = 0, l = bit_index; !erased && i < tone_count; ++i) {
+				cmplx hard(1, 0);
+				if (i % block_length != seed_off) {
+					int bits = bits_at(l);
+					demap_hard(perm+l, demod[i], bits);
+					hard = map_bits(perm+l, bits);
+					l += bits;
+				}
+				cmplx error = demod[i] - hard;
+				sp += norm(hard);
+				np += norm(error);
+				// the precision of each tone follows its channel power
+				gain[i] = norm(chan[i]);
+				mg += gain[i];
+			}
+			// erased symbols get zero LLRs
+			value precision = 0;
+			if (!erased) {
+				snr[snr_count++] = precision = sp / np;
+				// relative to the average channel power of this symbol
+				precision *= value(tone_count) / std::max(mg, value(1e-30));
+			}
+			// more resolution after rounding, quantize() caps the slope
+			precision *= value(300);
+			for (int i = 0, n = (j - 1) * data_tones; i < tone_count; ++i) {
+				if (i % block_length != seed_off) {
+					if (j)
+						values[n++] = demod[i];
+					int bits = bits_at(bit_index);
+					demap_soft(perm+bit_index, demod[i], precision * gain[i], bits);
+					bit_index += bits;
+				}
+			}
+		}
+		if (!j) {
+			int64_t meta_info = meta_data();
+			if (meta_info < 0) {
+				std::cerr << "preamble decoding error." << std::endl;
+				return;
+			}
+			int64_t call = meta_info >> 8;
+			if (call == 0 || call >= 262144000000000L) {
+				std::cerr << "call sign unsupported." << std::endl;
+				return;
+			}
+			char call_sign[10];
+			base40_decoder(call_sign, call, 9);
+			call_sign[9] = 0;
+			std::cerr << "call sign: " << call_sign << std::endl;
+			int mode = meta_info & 255;
+			bool known = setup(mode);
+			print_setup(*this, mode);
+			if (!known)
+				return;
+			analog_mode = mode & 128;
+			bit_index = 0;
+			std::cerr << "oper mode: " << oper_mode << std::endl;
+			CODE::MLS seq(mls2_poly, seed_value);
+			for (int i = 0, m = 0; i < tone_count; ++i) {
+				if (i % block_length != seed_off) {
+					tone[i] *= value(meta[m++]);
+					if (seed_value)
+						tone[i] *= nrz(seq());
+				}
+			}
 			for (int i = 0; i < tone_count; ++i)
 				chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-			CODE::MLS seq0(mls0_poly, mls0_seed);
-			for (int i = 0; i < tone_count; ++i)
-				chan[i] *= nrz(seq0());
-			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i+symbol_pos+symbol_len+extended_len] * osc();
-			for (int i = 0; i < guard_len; ++i)
-				osc();
-			fwd(fdom, tdom);
-			CODE::MLS seq1(mls1_poly);
-			auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
-			mod_bits = 1;
-			oper_mode = -1;
-			symbol_count = 0;
-			int snr_count = 0;
-			bool analog_mode = false;
-			for (int j = 0, k = 0; j < symbol_count + 1; ++j) {
-				seed_off = (block_skew * j + first_seed) % block_length;
-				if (j) {
-					for (int i = 0; i < extended_len; ++i)
-						correlator(buf = next_sample());
-					for (int i = 0; i < symbol_len; ++i)
-						tdom[i] = buf[i] * osc();
-					for (int i = 0; i < guard_len; ++i)
-						osc();
-					fwd(fdom, tdom);
-				}
-				for (int i = 0; i < tone_count; ++i)
-					tone[i] = fdom[bin(i+tone_off)];
-				for (int i = seed_off; i < tone_count; i += block_length)
-					tone[i] *= nrz(seq1());
-				for (int i = 0; i < tone_count; ++i)
-					demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
-				for (int i = 0; i < seed_tones; ++i)
-					seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
-				int seed_value = hadamard_decoder(seed);
-				bool erased = seed_value < 0;
-				lost[j] = erased;
-				if (erased && !j) {
-					std::cerr << "seed value damaged" << std::endl;
-					oper_mode = -1;
-					break;
-				}
-				if (erased) {
-					std::cerr << "seed value damaged, erasing symbol " << j << std::endl;
-					for (int i = 0; i < tone_count; ++i)
-						demod[i] = 0;
-				} else {
-					hadamard_encoder(seed, seed_value);
-					for (int i = 0; i < seed_tones; ++i) {
-						tone[block_length*i+seed_off] *= seed[i];
-						demod[block_length*i+seed_off] *= seed[i];
-					}
-					for (int i = 0; i < seed_tones; ++i) {
-						index[i] = tone_off + block_length * i + seed_off;
-						phase[i] = arg(demod[block_length*i+seed_off]);
-					}
-					tse.compute(index, phase, seed_tones);
-					//std::cerr << "Theil-Sen slope = " << tse.slope() << std::endl;
-					//std::cerr << "Theil-Sen yint = " << tse.yint() << std::endl;
-					for (int i = 0; i < tone_count; ++i)
-						demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
-					for (int i = 0; i < tone_count; ++i)
-						chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
-					if (j) {
-						// update all tones with the seed tones of this symbol, interpolated values with a lower weight
-						// keep the estimate where a seed tone changed far more than the median, as with a carrier
-						for (int i = 0; i < seed_tones; ++i)
-							sorted[i] = innov[i] = norm(tone[block_length*i+seed_off] - chan[block_length*i+seed_off]);
-						value limit = 10 * DSP::quick_select(sorted, seed_tones / 2, seed_tones);
-						for (int i = 0; i < seed_tones; ++i)
-							knots[i] = innov[i] <= limit ? tone[block_length*i+seed_off] : chan[block_length*i+seed_off];
-						DSP::UniformNaturalCubicSpline<seed_tones, cmplx, value> spline(knots, seed_off, block_length);
-						for (int i = 0; i < tone_count; ++i) {
-							if (i % block_length == seed_off) {
-								chan[i] = DSP::lerp(chan[i], knots[i/block_length], value(0.5));
-							} else {
-								chan[i] = DSP::lerp(chan[i], spline(i), value(1) / value(3));
-								demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
-							}
-						}
-					}
-					if (seed_value) {
-						CODE::MLS seq(mls2_poly, seed_value);
-						for (int i = 0; i < tone_count; ++i)
-							if (i % block_length != seed_off)
-								demod[i] *= nrz(seq());
-					}
-				}
-				if (analog_mode) {
-					value sp = 0, np = 0;
-					for (int i = seed_off; !erased && i < tone_count; i += block_length) {
-						sp += 1;
-						np += norm(demod[i] - cmplx(1, 0));
-					}
-					if (!erased)
-						snr[snr_count++] = sp / std::max(np, value(1e-9) * sp);
-					for (int i = 0; i < tone_count; ++i)
-						if (i % block_length != seed_off)
-							values[k++] = demod[i];
-				} else {
-					value sp = 0, np = 0, mg = 0;
-					for (int i = 0, l = k; !erased && i < tone_count; ++i) {
-						cmplx hard(1, 0);
-						if (i % block_length != seed_off) {
-							int bits = bits_at(l);
-							demap_hard(perm+l, demod[i], bits);
-							hard = map_bits(perm+l, bits);
-							l += bits;
-						}
-						cmplx error = demod[i] - hard;
-						sp += norm(hard);
-						np += norm(error);
-						// the precision of each tone follows its channel power
-						gain[i] = norm(chan[i]);
-						mg += gain[i];
-					}
-					// erased symbols get zero LLRs
-					value precision = 0;
-					if (!erased) {
-						snr[snr_count++] = precision = sp / np;
-						// relative to the average channel power of this symbol
-						precision *= value(tone_count) / std::max(mg, value(1e-30));
-					}
-					// more resolution after rounding, quantize() caps the slope
-					precision *= value(300);
-					for (int i = 0, n = (j - 1) * data_tones; i < tone_count; ++i) {
-						if (i % block_length != seed_off) {
-							if (j)
-								values[n++] = demod[i];
-							int bits = bits_at(k);
-							demap_soft(perm+k, demod[i], precision * gain[i], bits);
-							k += bits;
-						}
-					}
-				}
-				if (!j) {
-					int64_t meta_info = meta_data();
-					if (meta_info < 0) {
-						std::cerr << "preamble decoding error." << std::endl;
-						break;
-					}
-					int64_t call = meta_info >> 8;
-					if (call == 0 || call >= 262144000000000L) {
-						std::cerr << "call sign unsupported." << std::endl;
-						break;
-					}
-					char call_sign[10];
-					base40_decoder(call_sign, call, 9);
-					call_sign[9] = 0;
-					std::cerr << "call sign: " << call_sign << std::endl;
-					int mode = meta_info & 255;
-					bool known = setup(mode);
-					print_setup(*this, mode);
-					if (!known)
-						break;
-					analog_mode = mode & 128;
-					k = 0;
-					for (int i = 0; i < symbol_pos+symbol_len+extended_len; ++i)
-						correlator(buf = next_sample());
-					std::cerr << "oper mode: " << oper_mode << std::endl;
-					CODE::MLS seq(mls2_poly, seed_value);
-					for (int i = 0, m = 0; i < tone_count; ++i) {
-						if (i % block_length != seed_off) {
-							tone[i] *= value(meta[m++]);
-							if (seed_value)
-								tone[i] *= nrz(seq());
-						}
-					}
-					for (int i = 0; i < tone_count; ++i)
-						chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
-				}
-			}
-			if (oper_mode < 0)
-				continue;
-			DSP::quick_sort(snr, snr_count);
-			std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(snr_count-1)/2]) << " .. " << DSP::decibel(snr[snr_count-1]) << std::endl;
-			if (analog_mode) {
-				const char *output_name = output_names[output_index++];
-				if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
-					output_name = "/dev/stdout";
-				DSP::WriteWAV<value> output_file(output_name, analog_rate, 32, 2);
-				if (!output_file.good()) {
-					std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
-					continue;
-				}
-				output_file.write(reinterpret_cast<value *>(values), symbol_count * data_tones, 2);
-				continue;
-			}
-			crc_bits = data_bits + 32;
-			shuffle(code, perm, code_order, false);
-			polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
-			int best = -1;
-			for (int k = 0; k < mesg_type::SIZE; ++k) {
-				crc1.reset();
-				for (int i = 0; i < crc_bits; ++i)
-					crc1(mesg[i].v[k] < 0);
-				if (crc1() == 0) {
-					best = k;
-					break;
-				}
-			}
-			if (best < 0) {
-				std::cerr << "payload decoding error." << std::endl;
-				continue;
-			}
-			for (int i = 0; i < data_bits; ++i)
-				CODE::set_le_bit(data, i, mesg[i].v[best] < 0);
-			reencode(best);
-
+			symbol_index = 1;
+			countdown = symbol_pos + symbol_len + extended_len + extended_len;
+			return;
+		}
+		if (j < symbol_count) {
+			++symbol_index;
+			countdown = extended_len;
+			return;
+		}
+		finish();
+	}
+	void finish()
+	{
+		DSP::quick_sort(snr, snr_count);
+		std::cerr << "Es/N0 (dB): " << DSP::decibel(snr[0]) << " .. " << DSP::decibel(snr[(snr_count-1)/2]) << " .. " << DSP::decibel(snr[snr_count-1]) << std::endl;
+		if (analog_mode) {
 			const char *output_name = output_names[output_index++];
 			if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
 				output_name = "/dev/stdout";
-			std::ofstream output_file(output_name, std::ios::binary | std::ios::trunc);
-			if (output_file.bad()) {
+			DSP::WriteWAV<value> output_file(output_name, analog_rate, 32, 2);
+			if (!output_file.good()) {
 				std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
-				continue;
+				return;
 			}
-			CODE::Xorshift32 scrambler;
-			for (int i = 0; i < data_bytes; ++i)
-				data[i] ^= scrambler();
-			for (int i = 0; i < data_bytes; ++i)
-				output_file.put(data[i]);
+			output_file.write(reinterpret_cast<value *>(values), symbol_count * data_tones, 2);
+			return;
 		}
+		crc_bits = data_bits + 32;
+		shuffle(code, perm, code_order, false);
+		polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
+		int best = -1;
+		for (int k = 0; k < mesg_type::SIZE; ++k) {
+			crc1.reset();
+			for (int i = 0; i < crc_bits; ++i)
+				crc1(mesg[i].v[k] < 0);
+			if (crc1() == 0) {
+				best = k;
+				break;
+			}
+		}
+		if (best < 0) {
+			std::cerr << "payload decoding error." << std::endl;
+			return;
+		}
+		for (int i = 0; i < data_bits; ++i)
+			CODE::set_le_bit(data, i, mesg[i].v[best] < 0);
+		reencode(best);
+
+		const char *output_name = output_names[output_index++];
+		if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
+			output_name = "/dev/stdout";
+		std::ofstream output_file(output_name, std::ios::binary | std::ios::trunc);
+		if (output_file.bad()) {
+			std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
+			return;
+		}
+		CODE::Xorshift32 scrambler;
+		for (int i = 0; i < data_bytes; ++i)
+			data[i] ^= scrambler();
+		for (int i = 0; i < data_bytes; ++i)
+			output_file.put(data[i]);
+	}
+	void preamble(const cmplx *buf)
+	{
+		symbol_pos = correlator.symbol_pos;
+		cfo_rad = correlator.cfo_rad;
+		std::cerr << "symbol pos: " << sample_count - buffer_len + symbol_pos << std::endl;
+		std::cerr << "coarse cfo: " << cfo_rad * (rate / Const::TwoPi()) << " Hz " << std::endl;
+
+		osc.omega(-cfo_rad);
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] = buf[i+symbol_pos] * osc();
+		fwd(fdom, tdom);
+		for (int i = 0; i < tone_count; ++i)
+			tone[i] = fdom[bin(i+tone_off)];
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] = buf[i+symbol_pos+symbol_len] * osc();
+		for (int i = 0; i < guard_len; ++i)
+			osc();
+		fwd(fdom, tdom);
+		for (int i = 0; i < tone_count; ++i)
+			chan[i] = fdom[bin(i+tone_off)];
+		for (int i = 0; i < tone_count; ++i) {
+			index[i] = tone_off + i;
+			phase[i] = arg(demod_or_erase(chan[i], tone[i]));
+		}
+		tse.compute(index, phase, tone_count);
+		std::cerr << "coarse sfo: " << -1000000 * tse.slope() / Const::TwoPi() << " ppm" << std::endl;
+		std::cerr << "residual cfo: " << 1000 * tse.yint() * rate / (Const::TwoPi() * symbol_len) << " mHz" << std::endl;
+		for (int i = 0; i < tone_count; ++i)
+			tone[i] *= DSP::polar<value>(1, tse(i+tone_off));
+		for (int i = 0; i < tone_count; ++i)
+			chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
+		CODE::MLS seq0(mls0_poly, mls0_seed);
+		for (int i = 0; i < tone_count; ++i)
+			chan[i] *= nrz(seq0());
+		for (int i = 0; i < symbol_len; ++i)
+			tdom[i] = buf[i+symbol_pos+symbol_len+extended_len] * osc();
+		for (int i = 0; i < guard_len; ++i)
+			osc();
+		fwd(fdom, tdom);
+		seq1.reset();
+		mod_bits = 1;
+		oper_mode = -1;
+		symbol_count = 0;
+		snr_count = 0;
+		analog_mode = false;
+		symbol_index = 0;
+		bit_index = 0;
+		process(buf);
+	}
+	Decoder(const char *const *output_names, int output_count) : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), seq1(mls1_poly), output_names(output_names), output_count(output_count), output_index(0), sample_count(0), countdown(0)
+	{
+		mix.omega(-1500, rate);
+	}
+	bool feed(value sample)
+	{
+		const cmplx *buf = input_hist(lowpass(sample * mix()));
+		bool found = correlator(buf);
+		if (countdown) {
+			if (!--countdown)
+				process(buf);
+		} else {
+			++sample_count;
+			if (found)
+				preamble(buf);
+		}
+		return output_index < output_count;
+	}
+	bool busy()
+	{
+		return countdown > 0;
 	}
 };
+
+template <typename value, typename cmplx, int rate>
+void decode(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count)
+{
+	auto *decoder = new Decoder<value, cmplx, rate>(output_names, output_count);
+	bool more = true;
+	while (more) {
+		value sample;
+		pcm->read(&sample, 1);
+		if (!pcm->good())
+			break;
+		more = decoder->feed(sample);
+	}
+	while (more && decoder->busy())
+		more = decoder->feed(0);
+	delete decoder;
+}
 
 int main(int argc, char **argv)
 {
@@ -514,10 +548,10 @@ int main(int argc, char **argv)
 	int output_count = argc - 2;
 	switch (input_file.rate()) {
 	case 44100:
-		delete new Decoder<value, cmplx, 44100>(&input_file, argv+2, output_count);
+		decode<value, cmplx, 44100>(&input_file, argv+2, output_count);
 		break;
 	case 48000:
-		delete new Decoder<value, cmplx, 48000>(&input_file, argv+2, output_count);
+		decode<value, cmplx, 48000>(&input_file, argv+2, output_count);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
