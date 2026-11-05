@@ -16,7 +16,8 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   "WebAssembly module").
 - `check_encoder.mjs`, `check_decoder.mjs`, `index.html`: the Node.js checks
   of the modules and the browser page that sends text and receives it from
-  the microphone or a WAV file.
+  the microphone or a WAV file. For analog frames, the page takes and gives
+  their complex values as stereo WAV files, like the native programs.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
   mode table in `Common::setup()`.
