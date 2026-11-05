@@ -41,8 +41,9 @@ temp/decoder_%.wasm: decoder_module.cc decoder.hh common.hh schmidl_cox.hh psk.h
 
 .PHONY: check-wasm
 
-check-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm decode
+check-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm encode decode
 	node check_encoder.mjs
+	node check_decoder.mjs
 
 freezer: freezer.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
