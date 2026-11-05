@@ -11,10 +11,12 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   both templated on sample rate.
 - `native.hh`: what only the native programs need, such as iostream, WAV
   file I/O and `print_setup()`.
-- `encoder_module.cc`, `quirks/`: the WebAssembly encoder module and the
-  stand-ins for standard headers it is built with (see "WebAssembly module").
-- `check_encoder.mjs`, `index.html`: the Node.js check of the encoder modules
-  and the browser page that encodes and plays text.
+- `encoder_module.cc`, `decoder_module.cc`, `quirks/`: the WebAssembly
+  modules and the stand-ins for standard headers they are built with (see
+  "WebAssembly module").
+- `check_encoder.mjs`, `check_decoder.mjs`, `index.html`: the Node.js checks
+  of the modules and the browser page that sends text and receives it from
+  the microphone or a WAV file.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
   mode table in `Common::setup()`.
@@ -55,13 +57,15 @@ Run `make clean` to remove the binaries.
 When a header joins the build, add it to the dependencies of `encode` and
 `decode` in the Makefile, but not `polar_tables.hh`, which has its own rule.
 
-`make wasm` builds `temp/encoder_44100.wasm` and `temp/encoder_48000.wasm`
-with clang for `wasm32`. `make check-wasm` runs `check_encoder.mjs` with
-Node.js: it encodes random data in all modes and both rates with the modules
-and decodes it with the native `decode`. To try `index.html`, serve the
-repository with any static web server that sends `.wasm` as
-`application/wasm`, for example `python3 -m http.server`, and open
-`index.html`.
+`make wasm` builds the encoder and decoder modules `temp/encoder_44100.wasm`,
+`temp/encoder_48000.wasm`, `temp/decoder_44100.wasm` and
+`temp/decoder_48000.wasm` with clang for `wasm32`. `make check-wasm` runs
+`check_encoder.mjs` and `check_decoder.mjs` with Node.js: they encode random
+data in all modes and both rates with the encoder modules and decode it with
+the native `decode`, and the other way around with the native `encode` and
+the decoder modules. To try `index.html`, serve the repository with any
+static web server that sends `.wasm` as `application/wasm`, for example
+`python3 -m http.server`, and open `index.html`.
 
 Everything is compiled with `-std=c++17 -O3 -ffast-math -fno-exceptions -fno-rtti`,
 so code must:
@@ -155,21 +159,20 @@ programs keep working and stay the reference:
 - The modem, `dsp` and `code` include standard headers and call `std::abs`,
   `std::min`, `std::nearbyint` and the like. For the module, a `quirks/`
   directory found first with `-Iquirks` holds minimal stand-ins for these
-  headers (`cmath`, `algorithm`, `type_traits`, `cstdint`, ...). They define
-  only what the code uses, in namespace `std`, and map math to the
-  `__builtin_*` functions that are single wasm instructions, such as `sqrt`,
-  `abs`, `min`, `max` and `nearbyint`, like `quirks.hh` in the old examples.
-  `sin` and `cos` are declared there but not defined, so a use in a module
-  fails at link time. Small libc pieces like `memset` and `memcpy` go there
-  too when the compiler needs them.
+  headers (`cmath`, `algorithm`, `functional`, `type_traits`, `cstdint`,
+  ...). They define only what the code uses, in namespace `std`, and map math
+  to the `__builtin_*` functions that are single wasm instructions, such as
+  `sqrt`, `abs`, `min`, `max`, `nearbyint` and `copysign`, like `quirks.hh`
+  in the old examples. `sin` and `cos` are declared there but not defined,
+  so a use in a module fails at link time. Small libc pieces like `memset`
+  and `memcpy` go there too when the compiler needs them.
 - Everything else that would come from libm comes from `dsp`, which already
   avoids it: `decibel()` needs only `sqrt`, `UnitCircle` has its own
-  polynomials, and there are `atan2.hh` (needed by `arg()`) and `exp.hh`.
-  Use `UnitCircle` for angles that are fractions of a circle, as the
-  encoder's guard interval weights do. Still missing are `sin` and `cos` of
-  a runtime float argument, used by `Phasor::omega(value)` for the CFO
-  correction and by `polar()` for the phase corrections. They belong in
-  `dsp`, not here.
+  polynomials, and `common.hh` includes `sincos.hh` and `atan2.hh` before
+  `complex.hh`, so `Phasor::omega(value)`, `polar()` and `arg()` use them,
+  natively as well as in the modules. Use `UnitCircle` for angles that are
+  fractions of a circle, as the encoder's guard interval weights do. When
+  a module needs another such function, add it to `dsp`, not here.
 - `SIMD<>` from `code` falls back to its generic loops on wasm32 unless a wasm
   SIMD128 backend is added there.
 - The signal path must not depend on the host: keep iostream, `std::cerr`
@@ -179,10 +182,14 @@ programs keep working and stay the reference:
   native driver in `encode.cc` reads the input, calls `start()`, `begin()`,
   `next()` once per symbol and `stop()`, writes each symbol's samples from
   `audio` and does the logging, including `print_setup()` and the PAPR line.
-- The decoder is a streaming state machine in the module: JavaScript pushes
-  blocks of samples as they arrive and polls for decoded frames, instead of
-  the decoder pulling samples in a loop. Audio comes from an `AudioWorklet`,
-  not the deprecated `ScriptProcessorNode`.
+- The decoder is a streaming state machine: `Decoder::feed()` takes one
+  sample and returns a bit mask of events, such as a sync, the metadata, a
+  damaged seed or a decoded frame, with their values in members. The native
+  driver in `decode.cc` prints them in `report()` and writes the output
+  files. The module's `feed()` stops after each sample with events, so
+  JavaScript reads them with their values before the next sample can change
+  them. On the page, audio comes from an `AudioWorklet`, not the deprecated
+  `ScriptProcessorNode`.
 - Every step must stay testable natively: the same sources build for the host
   with sanitizers. A change on the way to the module doesn't have to be bit
   exact, since `-ffast-math` and `UnitCircle` instead of `std::cos` move
