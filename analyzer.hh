@@ -22,7 +22,6 @@ struct Analyzer
 	static const int scope_height = bins;
 	static const int spectrum_height = bins / 4;
 	static const int spectrogram_height = bins / 2;
-	static const int subchannels_height = bins / 2;
 	DSP::Hann<value> hann;
 	DSP::Coeffs<symbol_len, value, true> win;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
@@ -33,17 +32,17 @@ struct Analyzer
 	int scope[width * scope_height];
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
-	int subchannels[width * subchannels_height];
-	// the channel estimate of the decoder, only for the tones
+	// the channel estimate of the decoder, only for the tones, in dB of a full scale sine
 	static const int channel_width = Common::tone_count;
-	int subchannel_spectrum[channel_width * spectrum_height];
+	static constexpr value channel_top = 0, channel_range = 100;
+	int channel[channel_width * spectrum_height];
 	int pos;
-	bool fresh, spectrum_on, scope_on, subchannels_on, show_rainbow, spectrum_phosphor, subchannels_rainbow, subchannels_phosphor;
+	bool fresh, spectrum_on, scope_on, channel_on, show_rainbow, spectrum_phosphor, channel_phosphor;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
-		spectrum_on(false), scope_on(false), subchannels_on(false),
-		show_rainbow(true), spectrum_phosphor(true), subchannels_rainbow(true), subchannels_phosphor(true), intensity(0.5), decay(0.5)
+		spectrum_on(false), scope_on(false), channel_on(false),
+		show_rainbow(true), spectrum_phosphor(true), channel_phosphor(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			hist[i] = 0;
@@ -53,10 +52,8 @@ struct Analyzer
 			spectrum[i] = 0;
 		for (int i = 0; i < width * spectrogram_height; ++i)
 			spectrogram[i] = 0;
-		for (int i = 0; i < width * subchannels_height; ++i)
-			subchannels[i] = 0;
 		for (int i = 0; i < channel_width * spectrum_height; ++i)
-			subchannel_spectrum[i] = 0;
+			channel[i] = 0;
 	}
 	static int rgba(value r, value g, value b, value a)
 	{
@@ -184,37 +181,17 @@ struct Analyzer
 			spectrogram[b] = show_rainbow ? rainbow(v) : alpha(v);
 		}
 	}
-	// takes the FFT of a symbol and the channel estimate from the decoder after synchronization
-	void symbol(const cmplx *symbol_fdom, const cmplx *chan)
+	// takes the channel estimate of the decoder after each symbol, on a fixed scale without any gain control
+	void channel_estimate(const cmplx *chan)
 	{
-		if (!subchannels_on)
+		if (!channel_on)
 			return;
-		value row[bins];
-		for (int i = 0; i < bins; ++i)
-			row[i] = DSP::decibel(norm(symbol_fdom[(i - bins / 2 + symbol_len) % symbol_len]));
-		value row_max = row[0], row_min = row[0];
-		for (int i = 1; i < bins; ++i) {
-			row_max = std::max(row_max, row[i]);
-			row_min = std::min(row_min, row[i]);
-		}
-		row_min = std::min(std::max(row_min, row_max - 120), row_max - 10);
-		value range = 1 / (row_max - row_min);
 		value est[channel_width];
+		// a full scale sine gives a tone of half its amplitude after mixing, times symbol_len after the FFT
+		const value full_scale = value(symbol_len * symbol_len) / 4;
 		for (int i = 0; i < channel_width; ++i)
-			est[i] = DSP::decibel(norm(chan[i]));
-		value est_max = est[0], est_min = est[0];
-		for (int i = 1; i < channel_width; ++i) {
-			est_max = std::max(est_max, est[i]);
-			est_min = std::min(est_min, est[i]);
-		}
-		est_min = std::min(std::max(est_min, est_max - 120), est_max - 10);
-		plot<channel_width>(subchannel_spectrum, est, est_max, 1 / (est_max - est_min), subchannels_phosphor);
-		for (int i = width * subchannels_height - 1; i >= width; --i)
-			subchannels[i] = subchannels[i - width];
-		for (int b = 0; b < bins; ++b) {
-			value v = 1 - range * (row_max - row[b]);
-			subchannels[b] = subchannels_rainbow ? rainbow(v) : alpha(v);
-		}
+			est[i] = DSP::decibel(norm(chan[i]) / full_scale);
+		plot<channel_width>(channel, est, channel_top, 1 / channel_range, channel_phosphor);
 	}
 	// takes one sample of the baseband, does nothing while turned off
 	void operator()(cmplx sample)

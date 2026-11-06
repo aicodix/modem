@@ -13,7 +13,7 @@ p { margin: 0.75em 0; }
 .failed { color: red; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
 canvas[hidden] { display: none; }
-#subchannel-spectrum { margin: 0.5em auto; }
+#channel { margin: 0.5em auto; }
 fieldset { border: 1px solid gray; margin: 0.75em 0; }
 fieldset label { white-space: nowrap; margin-right: 0.5em; }
 #scope { width: 60%; margin: 0.5em auto; }
@@ -73,12 +73,10 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <canvas id="spectrogram" hidden></canvas>
 </fieldset>
 <fieldset>
-<legend><label><input type="checkbox" id="subchannels-on"> subchannels</label></legend>
-<label><input type="checkbox" id="subchannels-phosphor" checked> phosphor</label>
-<label><input type="checkbox" id="subchannels-rainbow" checked> rainbow</label>
-<span>one row per symbol after synchronization</span>
-<canvas id="subchannel-spectrum" hidden></canvas>
-<canvas id="subchannels" hidden></canvas>
+<legend><label><input type="checkbox" id="channel-on"> channel estimation</label></legend>
+<label><input type="checkbox" id="channel-phosphor" checked> phosphor</label>
+<span>300 to 2700 Hz, 0 to -100 dB of full scale</span>
+<canvas id="channel" hidden></canvas>
 </fieldset>
 <div id="log"></div>
 <script>
@@ -143,9 +141,8 @@ function analyzer_options(dec) {
 	const element = id => document.getElementById(id);
 	dec.enable_spectrum(element("spectrum-on").checked ? 1 : 0);
 	dec.enable_scope(element("scope-on").checked ? 1 : 0);
-	dec.enable_subchannels(element("subchannels-on").checked ? 1 : 0);
-	dec.subchannels_rainbow(element("subchannels-rainbow").checked ? 1 : 0);
-	dec.subchannels_phosphor(element("subchannels-phosphor").checked ? 1 : 0);
+	dec.enable_channel(element("channel-on").checked ? 1 : 0);
+	dec.channel_phosphor(element("channel-phosphor").checked ? 1 : 0);
 	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
 	dec.spectrum_phosphor(element("spectrum-phosphor").checked ? 1 : 0);
 	dec.scope_intensity(Number(element("intensity").value));
@@ -155,12 +152,11 @@ function analyzer_options(dec) {
 function analyzer_controls() {
 	const element = id => document.getElementById(id);
 	const spectrum = element("spectrum-on").checked, scope = element("scope-on").checked;
-	const subchannels = element("subchannels-on").checked;
+	const channel = element("channel-on").checked;
 	element("spectrum").hidden = element("spectrogram").hidden = !spectrum;
 	element("scope").hidden = !scope;
-	element("subchannels").hidden = element("subchannel-spectrum").hidden = !subchannels;
-	for (const id of ["subchannels-phosphor", "subchannels-rainbow"])
-		element(id).disabled = !subchannels;
+	element("channel").hidden = !channel;
+	element("channel-phosphor").disabled = !channel;
 	for (const id of ["spectrum-phosphor", "rainbow"])
 		element(id).disabled = !spectrum;
 	for (const id of ["intensity", "decay"])
@@ -180,8 +176,7 @@ function draw() {
 				scope: image(shown.scope(), shown.scope_height()),
 				spectrum: image(shown.spectrum(), shown.spectrum_height()),
 				spectrogram: image(shown.spectrogram(), shown.spectrogram_height()),
-				"subchannel-spectrum": image(shown.subchannel_spectrum(), shown.spectrum_height(), shown.channel_width()),
-				subchannels: image(shown.subchannels(), shown.subchannels_height())
+				channel: image(shown.channel(), shown.spectrum_height(), shown.channel_width())
 			});
 		}
 		const shown_images = images.get(shown);
@@ -192,8 +187,8 @@ function draw() {
 			if (canvas.width != image.width || canvas.height != image.height) {
 				canvas.width = image.width;
 				canvas.height = image.height;
-				/* the tones are the middle bins of the waterfall below */
-				if (id == "subchannel-spectrum")
+				/* as many Hz per pixel as the spectrum, the tones are its middle bins */
+				if (id == "channel")
 					canvas.style.width = 100 * image.width / shown.analyzer_width() + "%";
 			}
 			canvas.getContext("2d").putImageData(image, 0, 0);
@@ -528,7 +523,7 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "intensity", "decay", "subchannels-on", "subchannels-phosphor", "subchannels-rainbow"])
+	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "intensity", "decay", "channel-on", "channel-phosphor"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	window.requestAnimationFrame(draw);

@@ -72,7 +72,7 @@ int feed(int offset, int count)
 		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
 		/* only for the analyzer, the page doesn't need to stop for it */
 		if (events & decoder_type::new_symbol)
-			analyzer.symbol(decoder.fdom, decoder.chan);
+			analyzer.channel_estimate(decoder.chan);
 		events &= ~decoder_type::new_symbol;
 		if (events) {
 			last_events = events;
@@ -166,18 +166,11 @@ int *spectrogram()
 	return analyzer.spectrogram;
 }
 
-/* the decoder's subchannels, one row per symbol after synchronization */
+/* the decoder's channel estimate after each symbol, channel_width() wide and spectrum_height() high */
 __attribute__((visibility("default")))
-int *subchannels()
+int *channel()
 {
-	return analyzer.subchannels;
-}
-
-/* the channel estimate of the latest symbol, channel_width() wide and spectrum_height() high */
-__attribute__((visibility("default")))
-int *subchannel_spectrum()
-{
-	return analyzer.subchannel_spectrum;
+	return analyzer.channel;
 }
 
 __attribute__((visibility("default")))
@@ -187,35 +180,20 @@ int channel_width()
 }
 
 __attribute__((visibility("default")))
-int subchannels_phosphor(int on)
+int enable_channel(int on)
 {
 	if (on < 0 || on > 1)
 		return -1;
-	analyzer.subchannels_phosphor = on;
+	analyzer.channel_on = on;
 	return 0;
 }
 
 __attribute__((visibility("default")))
-int subchannels_height()
-{
-	return analyzer_type::subchannels_height;
-}
-
-__attribute__((visibility("default")))
-int enable_subchannels(int on)
+int channel_phosphor(int on)
 {
 	if (on < 0 || on > 1)
 		return -1;
-	analyzer.subchannels_on = on;
-	return 0;
-}
-
-__attribute__((visibility("default")))
-int subchannels_rainbow(int on)
-{
-	if (on < 0 || on > 1)
-		return -1;
-	analyzer.subchannels_rainbow = on;
+	analyzer.channel_phosphor = on;
 	return 0;
 }
 

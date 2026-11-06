@@ -28,13 +28,13 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as
-  the tones, and draws the middle 400 bins, from 0 to 3000 Hz. Its subchannel
-  waterfall draws the same bins of the decoder's own FFT, and the spectrum
-  above it the decoder's channel estimate of the 320 tones, one row and one
-  line per symbol after synchronization, when the decoder reports the
-  `new_symbol` event, which the module keeps from the page. Spectrum, scope
-  and subchannels are off until the page turns them on, and take no time
-  while off.
+  the tones, and draws the middle 400 bins, from 0 to 3000 Hz. It also plots
+  the decoder's channel estimate of the 320 tones, one line per symbol after
+  synchronization, when the decoder reports the `new_symbol` event, which the
+  module keeps from the page. That plot has a fixed scale, from 0 to -100 dB
+  of a full scale sine, without gain control. Spectrum, scope and channel
+  estimation are off until the page turns them on, and take no time while
+  off.
 - `freezer.cc`: generates `polar_tables.hh`. Don't edit the tables by hand;
   regenerate them with `make polar_tables.hh`.
 
