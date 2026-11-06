@@ -33,11 +33,11 @@ struct Analyzer
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
 	int pos;
-	bool fresh, spectrum_on, scope_on, show_rainbow, show_phosphor;
+	bool fresh, spectrum_on, scope_on, show_rainbow, spectrum_phosphor, scope_phosphor;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
-		spectrum_on(false), scope_on(false), show_rainbow(true), show_phosphor(true), intensity(0.5), decay(0.5)
+		spectrum_on(false), scope_on(false), show_rainbow(true), spectrum_phosphor(true), scope_phosphor(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			hist[i] = 0;
@@ -104,7 +104,7 @@ struct Analyzer
 		value half = (scope_height - 1) / value(2);
 		// three times the RMS reaches the edge
 		value scale = half / std::max(3 * std::sqrt(power), value(0.000001));
-		if (show_phosphor) {
+		if (scope_phosphor) {
 			for (int i = 0; i < width * scope_height; ++i)
 				phosphor[i] *= decay;
 		} else {
@@ -150,7 +150,7 @@ struct Analyzer
 		value dB_max = avg_max;
 		value dB_min = std::min(std::max(tmp_min, value(-120)), dB_max - 10);
 		value range = 1 / (dB_max - dB_min);
-		if (show_phosphor) {
+		if (spectrum_phosphor) {
 			for (int i = 0; i < width * spectrum_height; ++i)
 				spectrum[i] = 0xffffff | ((((unsigned)spectrum[i] >> 24) * 7) >> 3) << 24;
 		} else {
