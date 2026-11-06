@@ -34,13 +34,14 @@ struct Analyzer
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
 	int subchannels[width * subchannels_height];
+	int subchannel_spectrum[width * spectrum_height];
 	int pos;
-	bool fresh, spectrum_on, scope_on, subchannels_on, show_rainbow, spectrum_phosphor, subchannels_rainbow;
+	bool fresh, spectrum_on, scope_on, subchannels_on, show_rainbow, spectrum_phosphor, subchannels_rainbow, subchannels_phosphor;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
 		spectrum_on(false), scope_on(false), subchannels_on(false),
-		show_rainbow(true), spectrum_phosphor(true), subchannels_rainbow(true), intensity(0.5), decay(0.5)
+		show_rainbow(true), spectrum_phosphor(true), subchannels_rainbow(true), subchannels_phosphor(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			hist[i] = 0;
@@ -52,6 +53,8 @@ struct Analyzer
 			spectrogram[i] = 0;
 		for (int i = 0; i < width * subchannels_height; ++i)
 			subchannels[i] = 0;
+		for (int i = 0; i < width * spectrum_height; ++i)
+			subchannel_spectrum[i] = 0;
 	}
 	static int rgba(value r, value g, value b, value a)
 	{
@@ -91,13 +94,31 @@ struct Analyzer
 		}
 	}
 	// vertical span from y0 to y1, the first half in column x0 and the second in x0+1
-	void span(int x0, int y0, int y1, int color)
+	static void span(int *image, int x0, int y0, int y1, int color)
 	{
 		int mid = (y0 + y1) / 2;
 		for (int y = std::min(y0, mid); y <= std::max(y0, mid); ++y)
-			spectrum[width * y + x0] = color;
+			image[width * y + x0] = color;
 		for (int y = std::min(mid, y1); y <= std::max(mid, y1); ++y)
-			spectrum[width * y + x0 + 1] = color;
+			image[width * y + x0 + 1] = color;
+	}
+	// draws a line through the dB values of the bins, the old lines fade with phosphor
+	static void plot(int *image, const value *dB, value dB_max, value range, bool phosphor)
+	{
+		if (phosphor) {
+			for (int i = 0; i < width * spectrum_height; ++i)
+				image[i] = 0xffffff | ((((unsigned)image[i] >> 24) * 7) >> 3) << 24;
+		} else {
+			for (int i = 0; i < width * spectrum_height; ++i)
+				image[i] = 0xffffff;
+		}
+		for (int b = 0, y0 = 0; b < bins; ++b) {
+			int y1 = nearbyint((spectrum_height - 1) * range * (dB_max - dB[b]));
+			y1 = std::min(std::max(y1, 0), spectrum_height - 1);
+			if (b)
+				span(image, b - 1, y0, y1, -1);
+			y0 = y1;
+		}
 	}
 	void draw_scope()
 	{
@@ -151,20 +172,7 @@ struct Analyzer
 		value dB_max = avg_max;
 		value dB_min = std::min(std::max(tmp_min, value(-120)), dB_max - 10);
 		value range = 1 / (dB_max - dB_min);
-		if (spectrum_phosphor) {
-			for (int i = 0; i < width * spectrum_height; ++i)
-				spectrum[i] = 0xffffff | ((((unsigned)spectrum[i] >> 24) * 7) >> 3) << 24;
-		} else {
-			for (int i = 0; i < width * spectrum_height; ++i)
-				spectrum[i] = 0xffffff;
-		}
-		for (int b = 0, y0 = 0; b < bins; ++b) {
-			int y1 = nearbyint((spectrum_height - 1) * range * (dB_max - dB[b]));
-			y1 = std::min(std::max(y1, 0), spectrum_height - 1);
-			if (b)
-				span(b - 1, y0, y1, -1);
-			y0 = y1;
-		}
+		plot(spectrum, dB, dB_max, range, spectrum_phosphor);
 		for (int i = width * spectrogram_height - 1; i >= width; --i)
 			spectrogram[i] = spectrogram[i - width];
 		for (int b = 0; b < bins; ++b) {
@@ -187,6 +195,7 @@ struct Analyzer
 		}
 		row_min = std::min(std::max(row_min, row_max - 120), row_max - 10);
 		value range = 1 / (row_max - row_min);
+		plot(subchannel_spectrum, row, row_max, range, subchannels_phosphor);
 		for (int i = width * subchannels_height - 1; i >= width; --i)
 			subchannels[i] = subchannels[i - width];
 		for (int b = 0; b < bins; ++b) {

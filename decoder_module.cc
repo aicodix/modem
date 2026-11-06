@@ -173,6 +173,22 @@ int *subchannels()
 	return analyzer.subchannels;
 }
 
+/* the subchannels of the latest symbol, spectrum_height() high */
+__attribute__((visibility("default")))
+int *subchannel_spectrum()
+{
+	return analyzer.subchannel_spectrum;
+}
+
+__attribute__((visibility("default")))
+int subchannels_phosphor(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.subchannels_phosphor = on;
+	return 0;
+}
+
 __attribute__((visibility("default")))
 int subchannels_height()
 {
