@@ -71,8 +71,7 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <label><input type="checkbox" id="spectrum-phosphor" checked> phosphor</label>
 <label><input type="checkbox" id="rainbow" checked> rainbow</label>
 <span id="span"></span>
-<label>max <input type="range" id="spectrum-max" min="-100" max="0" value="0"> <span id="spectrum-max-value"></span></label>
-<label>min <input type="range" id="spectrum-min" min="-160" max="-20" value="-100"> <span id="spectrum-min-value"></span></label>
+<label>level <input type="range" id="spectrum-top" min="-60" max="0" value="0"> <span id="spectrum-top-value"></span></label>
 <canvas id="spectrum" hidden></canvas>
 <canvas id="spectrogram" hidden></canvas>
 </fieldset>
@@ -95,6 +94,8 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <script>
 const encoders = {}, decoders = {};
 const images = new Map();
+/* the spectrum and spectrogram always show this many dB below the top set by the slider */
+const spectrum_dB = 100;
 let context, wasm, decoder, listening, analog_values, shown, tap_module;
 const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
 const code_rates = ["1/2", "2/3", "3/4", "5/6"];
@@ -159,7 +160,8 @@ function analyzer_options(dec) {
 	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
 	dec.spectrum_phosphor(element("spectrum-phosphor").checked ? 1 : 0);
 	dec.scope_gain(Number(element("gain").value));
-	dec.spectrum_range(Number(element("spectrum-max").value), Number(element("spectrum-min").value));
+	const top = Number(element("spectrum-top").value);
+	dec.spectrum_range(top, top - spectrum_dB);
 	dec.scope_intensity(Number(element("intensity").value));
 	dec.phosphor_decay(Number(element("decay").value));
 }
@@ -173,18 +175,10 @@ function analyzer_controls() {
 	for (const id of ["channel-power", "channel-phase", "channel-snr"])
 		element(id).hidden = !channel;
 	element("constellation").hidden = !element("constellation-on").checked;
-	/* keep the spectrum at least 10 dB high, moving the other slider */
-	const max = element("spectrum-max"), min = element("spectrum-min");
-	if (Number(min.value) > Number(max.value) - 10) {
-		if (document.activeElement == min)
-			max.value = Number(min.value) + 10;
-		else
-			min.value = Number(max.value) - 10;
-	}
 	element("gain-value").textContent = element("gain").value + " dB";
-	element("spectrum-max-value").textContent = max.value + " dB";
-	element("spectrum-min-value").textContent = min.value + " dB";
-	for (const id of ["spectrum-phosphor", "rainbow", "spectrum-max", "spectrum-min"])
+	const top = Number(element("spectrum-top").value);
+	element("spectrum-top-value").textContent = "from " + top + " to " + (top - spectrum_dB) + " dB";
+	for (const id of ["spectrum-phosphor", "rainbow", "spectrum-top"])
 		element(id).disabled = !spectrum;
 	for (const id of ["gain", "intensity", "decay"])
 		element(id).disabled = !scope;
@@ -553,7 +547,7 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "spectrum-max", "spectrum-min", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
+	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	window.requestAnimationFrame(draw);
