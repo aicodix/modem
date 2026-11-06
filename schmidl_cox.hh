@@ -117,7 +117,8 @@ public:
 			return false;
 
 		int pos_err = std::nearbyint(arg(tmp1[shift]) * symbol_len / Const::TwoPi());
-		if (abs(pos_err) > guard_len)
+		// near threshold, the coarse timing can be off by more than a guard interval
+		if (abs(pos_err) > 2 * guard_len)
 			return false;
 		symbol_pos -= pos_err;
 

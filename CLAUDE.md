@@ -128,10 +128,13 @@ so code must:
   The decoder mixes it down by 1500 Hz and lowpass filters it, flat to ±1050 Hz
   and at least 65 dB down from ±1500 Hz, which removes DC and out-of-band noise
   before synchronization. This limits the CFO to about ±250 Hz.
-- Below roughly 7 dB in-band SNR the preamble no longer synchronizes, so BPSK and
-  QPSK at low code rates fail at sync before the code is tested. To compare
-  decoder changes, use denser modulations or higher code rates near their
-  threshold, many noise seeds per point, and report decoded frames out of trials.
+- Near threshold, the coarse timing of the Schmidl & Cox correlator is often
+  off by more than a guard interval, which the cross-correlation after it
+  corrects for up to two guard intervals. BPSK 1/2 short then decodes all frames
+  from about 3 dB in-band SNR, also with multipath, CFO and SFO, and fails at
+  about the same point as its code does. To compare decoder changes, use many
+  noise seeds per point near the threshold of the affected modes, and report
+  decoded frames out of trials.
 - Don't take the QAM1024 and QAM4096 modes too seriously. They are only there
   for fun and might be replaced with something else in the future, so don't
   tune or design anything around them.
