@@ -13,6 +13,7 @@ p { margin: 0.75em 0; }
 .failed { color: red; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
 canvas[hidden] { display: none; }
+#subchannel-spectrum { margin: 0.5em auto; }
 fieldset { border: 1px solid gray; margin: 0.75em 0; }
 fieldset label { white-space: nowrap; margin-right: 0.5em; }
 #scope { width: 60%; margin: 0.5em auto; }
@@ -174,12 +175,12 @@ function draw() {
 	if (shown) {
 		if (!images.has(shown)) {
 			const width = shown.analyzer_width();
-			const image = (pixels, height) => new ImageData(new Uint8ClampedArray(shown.memory.buffer, pixels, 4 * width * height), width, height);
+			const image = (pixels, height, w = width) => new ImageData(new Uint8ClampedArray(shown.memory.buffer, pixels, 4 * w * height), w, height);
 			images.set(shown, {
 				scope: image(shown.scope(), shown.scope_height()),
 				spectrum: image(shown.spectrum(), shown.spectrum_height()),
 				spectrogram: image(shown.spectrogram(), shown.spectrogram_height()),
-				"subchannel-spectrum": image(shown.subchannel_spectrum(), shown.spectrum_height()),
+				"subchannel-spectrum": image(shown.subchannel_spectrum(), shown.spectrum_height(), shown.channel_width()),
 				subchannels: image(shown.subchannels(), shown.subchannels_height())
 			});
 		}
@@ -191,6 +192,9 @@ function draw() {
 			if (canvas.width != image.width || canvas.height != image.height) {
 				canvas.width = image.width;
 				canvas.height = image.height;
+				/* the tones are the middle bins of the waterfall below */
+				if (id == "subchannel-spectrum")
+					canvas.style.width = 100 * image.width / shown.analyzer_width() + "%";
 			}
 			canvas.getContext("2d").putImageData(image, 0, 0);
 		}

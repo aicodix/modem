@@ -72,7 +72,7 @@ int feed(int offset, int count)
 		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
 		/* only for the analyzer, the page doesn't need to stop for it */
 		if (events & decoder_type::new_symbol)
-			analyzer.symbol(decoder.fdom);
+			analyzer.symbol(decoder.fdom, decoder.chan);
 		events &= ~decoder_type::new_symbol;
 		if (events) {
 			last_events = events;
@@ -173,11 +173,17 @@ int *subchannels()
 	return analyzer.subchannels;
 }
 
-/* the subchannels of the latest symbol, spectrum_height() high */
+/* the channel estimate of the latest symbol, channel_width() wide and spectrum_height() high */
 __attribute__((visibility("default")))
 int *subchannel_spectrum()
 {
 	return analyzer.subchannel_spectrum;
+}
+
+__attribute__((visibility("default")))
+int channel_width()
+{
+	return analyzer_type::channel_width;
 }
 
 __attribute__((visibility("default")))

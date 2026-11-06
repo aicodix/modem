@@ -34,7 +34,9 @@ struct Analyzer
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
 	int subchannels[width * subchannels_height];
-	int subchannel_spectrum[width * spectrum_height];
+	// the channel estimate of the decoder, only for the tones
+	static const int channel_width = Common::tone_count;
+	int subchannel_spectrum[channel_width * spectrum_height];
 	int pos;
 	bool fresh, spectrum_on, scope_on, subchannels_on, show_rainbow, spectrum_phosphor, subchannels_rainbow, subchannels_phosphor;
 	value intensity, decay;
@@ -53,7 +55,7 @@ struct Analyzer
 			spectrogram[i] = 0;
 		for (int i = 0; i < width * subchannels_height; ++i)
 			subchannels[i] = 0;
-		for (int i = 0; i < width * spectrum_height; ++i)
+		for (int i = 0; i < channel_width * spectrum_height; ++i)
 			subchannel_spectrum[i] = 0;
 	}
 	static int rgba(value r, value g, value b, value a)
@@ -94,29 +96,31 @@ struct Analyzer
 		}
 	}
 	// vertical span from y0 to y1, the first half in column x0 and the second in x0+1
+	template <int W>
 	static void span(int *image, int x0, int y0, int y1, int color)
 	{
 		int mid = (y0 + y1) / 2;
 		for (int y = std::min(y0, mid); y <= std::max(y0, mid); ++y)
-			image[width * y + x0] = color;
+			image[W * y + x0] = color;
 		for (int y = std::min(mid, y1); y <= std::max(mid, y1); ++y)
-			image[width * y + x0 + 1] = color;
+			image[W * y + x0 + 1] = color;
 	}
-	// draws a line through the dB values of the bins, the old lines fade with phosphor
+	// draws a line through the W dB values, the old lines fade with phosphor
+	template <int W>
 	static void plot(int *image, const value *dB, value dB_max, value range, bool phosphor)
 	{
 		if (phosphor) {
-			for (int i = 0; i < width * spectrum_height; ++i)
+			for (int i = 0; i < W * spectrum_height; ++i)
 				image[i] = 0xffffff | ((((unsigned)image[i] >> 24) * 7) >> 3) << 24;
 		} else {
-			for (int i = 0; i < width * spectrum_height; ++i)
+			for (int i = 0; i < W * spectrum_height; ++i)
 				image[i] = 0xffffff;
 		}
-		for (int b = 0, y0 = 0; b < bins; ++b) {
+		for (int b = 0, y0 = 0; b < W; ++b) {
 			int y1 = nearbyint((spectrum_height - 1) * range * (dB_max - dB[b]));
 			y1 = std::min(std::max(y1, 0), spectrum_height - 1);
 			if (b)
-				span(image, b - 1, y0, y1, -1);
+				span<W>(image, b - 1, y0, y1, -1);
 			y0 = y1;
 		}
 	}
@@ -172,7 +176,7 @@ struct Analyzer
 		value dB_max = avg_max;
 		value dB_min = std::min(std::max(tmp_min, value(-120)), dB_max - 10);
 		value range = 1 / (dB_max - dB_min);
-		plot(spectrum, dB, dB_max, range, spectrum_phosphor);
+		plot<width>(spectrum, dB, dB_max, range, spectrum_phosphor);
 		for (int i = width * spectrogram_height - 1; i >= width; --i)
 			spectrogram[i] = spectrogram[i - width];
 		for (int b = 0; b < bins; ++b) {
@@ -180,8 +184,8 @@ struct Analyzer
 			spectrogram[b] = show_rainbow ? rainbow(v) : alpha(v);
 		}
 	}
-	// takes the FFT of a symbol from the decoder after synchronization and draws one row
-	void symbol(const cmplx *symbol_fdom)
+	// takes the FFT of a symbol and the channel estimate from the decoder after synchronization
+	void symbol(const cmplx *symbol_fdom, const cmplx *chan)
 	{
 		if (!subchannels_on)
 			return;
@@ -195,7 +199,16 @@ struct Analyzer
 		}
 		row_min = std::min(std::max(row_min, row_max - 120), row_max - 10);
 		value range = 1 / (row_max - row_min);
-		plot(subchannel_spectrum, row, row_max, range, subchannels_phosphor);
+		value est[channel_width];
+		for (int i = 0; i < channel_width; ++i)
+			est[i] = DSP::decibel(norm(chan[i]));
+		value est_max = est[0], est_min = est[0];
+		for (int i = 1; i < channel_width; ++i) {
+			est_max = std::max(est_max, est[i]);
+			est_min = std::min(est_min, est[i]);
+		}
+		est_min = std::min(std::max(est_min, est_max - 120), est_max - 10);
+		plot<channel_width>(subchannel_spectrum, est, est_max, 1 / (est_max - est_min), subchannels_phosphor);
 		for (int i = width * subchannels_height - 1; i >= width; --i)
 			subchannels[i] = subchannels[i - width];
 		for (int b = 0; b < bins; ++b) {
