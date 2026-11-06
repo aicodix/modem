@@ -45,6 +45,7 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <option value="0" selected>short</option>
 <option value="1">normal</option>
 </select>
+<span id="mode-info"></span>
 </p>
 <p id="message-input"><textarea id="message" rows="8">Hello World!</textarea></p>
 <p id="analog-input" hidden><label>complex values from a stereo WAV <input type="file" id="analog-file" accept=".wav,audio/wav"></label></p>
@@ -129,6 +130,10 @@ function oper_mode() {
 	if (value("modulation") == 8)
 		return 128;
 	return (value("modulation") << 4) | (value("code-rate") << 1) | value("frame-size");
+}
+/* the same as print_setup() in native.hh, symbols after the sync and preamble symbols */
+function duration(symbols) {
+	return 41 / 300 * (3 + symbols);
 }
 function message() {
 	return new TextEncoder().encode(document.getElementById("message").value);
@@ -422,20 +427,24 @@ function update() {
 	document.getElementById("frame-size").disabled = analog;
 	if (!wasm)
 		return;
-	const usage = document.getElementById("usage");
+	const usage = document.getElementById("usage"), info = document.getElementById("mode-info");
 	if (analog) {
 		const used = analog_values ? analog_values.length / 2 : 0, capacity = wasm.values_length();
 		usage.textContent = used + " of " + capacity + " complex values";
 		usage.className = !used || used > capacity ? "failed" : "";
+		/* the encoder pads the values to whole symbols */
+		info.textContent = used && used <= capacity ? duration(Math.ceil(used / 256)).toFixed(1) + "s" : "";
 		return;
 	}
 	if (wasm.start(oper_mode()) < 0) {
-		usage.textContent = "";
+		usage.textContent = info.textContent = "";
 		return;
 	}
 	const used = message().length, capacity = wasm.payload_length();
 	usage.textContent = used + " of " + capacity + " bytes";
 	usage.className = used > capacity ? "failed" : "";
+	const seconds = duration(wasm.symbol_count());
+	info.textContent = seconds.toFixed(1) + "s, " + (8 * capacity / seconds / 1000).toFixed(1) + "kb/s";
 }
 function encode(silence) {
 	const payload = message();

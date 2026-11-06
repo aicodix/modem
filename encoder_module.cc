@@ -46,6 +46,14 @@ int payload_length()
 }
 
 __attribute__((visibility("default")))
+int symbol_count()
+{
+	if (analog)
+		return -1;
+	return encoder.symbol_count;
+}
+
+__attribute__((visibility("default")))
 int begin(int length, long long call_sign)
 {
 	if (analog)
