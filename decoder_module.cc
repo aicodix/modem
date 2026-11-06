@@ -77,6 +77,8 @@ int feed(int offset, int count)
 			analyzer.channel_estimate(decoder.chan);
 			analyzer.constellation_symbol(decoder, events & decoder_type::found_sync ? 0 : symbol, start);
 		}
+		if (events & decoder_type::real_snr)
+			analyzer.tone_snr(decoder.real_tone_snr);
 		events &= ~decoder_type::new_symbol;
 		if (events) {
 			last_events = events;
@@ -181,6 +183,13 @@ __attribute__((visibility("default")))
 int *channel_phase()
 {
 	return analyzer.channel_phase;
+}
+
+/* the real Es/N0 of each tone after a decoded frame, channel_width() wide and spectrum_height() high */
+__attribute__((visibility("default")))
+int *channel_snr()
+{
+	return analyzer.channel_snr;
 }
 
 __attribute__((visibility("default")))

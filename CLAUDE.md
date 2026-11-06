@@ -35,12 +35,13 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   each symbol after synchronization, when the decoder reports the `new_symbol`
   event, which the module keeps from the page. Both have fixed scales: the
   power from 0 to -100 dB of a full scale sine, the phase from -180 to 180
-  degrees, one dot per tone. Its constellation shows the equalized tones of
-  the latest symbol on a fixed scale: the BPSK tones of the preamble symbol,
-  then only the payload tones that carry all bits of the mode, without seed
-  tones, the tones with fewer bits that pad the code to whole symbols, or
-  erased symbols. All views are off until the page turns them on, and take no
-  time while off.
+  degrees, one dot per tone. After each decoded frame it plots the real Es/N0
+  of each tone, `real_tone_snr` of the decoder, from 0 to 50 dB. Its
+  constellation shows the equalized tones of the latest symbol on a fixed
+  scale: the BPSK tones of the preamble symbol, then only the payload tones
+  that carry all bits of the mode, without seed tones, the tones with fewer
+  bits that pad the code to whole symbols, or erased symbols. All views are
+  off until the page turns them on, and take no time while off.
 - `freezer.cc`: generates `polar_tables.hh`. Don't edit the tables by hand;
   regenerate them with `make polar_tables.hh`.
 
@@ -66,6 +67,8 @@ The decoder reports the operation mode and Es/N0 statistics on stderr. After a
 frame decodes, it re-encodes the message and also reports the number of code
 bits whose soft value had the wrong sign (erased bits count too) and the real
 Es/N0 against the re-encoded symbols, which is exact also near threshold.
+It also keeps the real Es/N0 of each tone, averaged over the payload symbols
+of the frame, in `real_tone_snr`, which the page plots.
 
 The default compiler is `clang++ -stdlib=libc++ -march=native`. If libc++ is
 not installed, build with `make CXX="g++ -march=native"`. The Makefile has

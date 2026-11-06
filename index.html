@@ -13,7 +13,7 @@ p { margin: 0.75em 0; }
 .failed { color: red; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
 canvas[hidden] { display: none; }
-#channel-power, #channel-phase { margin: 0.5em auto; }
+#channel-power, #channel-phase, #channel-snr { margin: 0.5em auto; }
 #constellation { width: 60%; margin: 0.5em auto; image-rendering: pixelated; }
 fieldset { border: 1px solid gray; margin: 0.75em 0; }
 fieldset label { white-space: nowrap; margin-right: 0.5em; }
@@ -83,6 +83,8 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <canvas id="channel-power" hidden></canvas>
 <p>channel phase, from -180 to 180 degrees</p>
 <canvas id="channel-phase" hidden></canvas>
+<p>channel SNR, the real Es/N0 of each tone after a decoded frame, from 0 to 50 dB</p>
+<canvas id="channel-snr" hidden></canvas>
 </fieldset>
 <fieldset>
 <legend><label><input type="checkbox" id="constellation-on"> constellation</label></legend>
@@ -168,7 +170,8 @@ function analyzer_controls() {
 	const channel = element("channel-on").checked;
 	element("spectrum").hidden = element("spectrogram").hidden = !spectrum;
 	element("scope").hidden = !scope;
-	element("channel-power").hidden = element("channel-phase").hidden = !channel;
+	for (const id of ["channel-power", "channel-phase", "channel-snr"])
+		element(id).hidden = !channel;
 	element("constellation").hidden = !element("constellation-on").checked;
 	/* keep the spectrum at least 10 dB high, moving the other slider */
 	const max = element("spectrum-max"), min = element("spectrum-min");
@@ -202,6 +205,7 @@ function draw() {
 				spectrogram: image(shown.spectrogram(), shown.spectrogram_height()),
 				"channel-power": image(shown.channel_power(), shown.spectrum_height(), shown.channel_width()),
 				"channel-phase": image(shown.channel_phase(), shown.spectrum_height(), shown.channel_width()),
+				"channel-snr": image(shown.channel_snr(), shown.spectrum_height(), shown.channel_width()),
 				constellation: image(shown.constellation(), shown.constellation_size(), shown.constellation_size())
 			});
 		}
@@ -214,7 +218,7 @@ function draw() {
 				canvas.width = image.width;
 				canvas.height = image.height;
 				/* as many Hz per pixel as the spectrum, the tones are its middle bins */
-				if (id == "channel-power" || id == "channel-phase")
+				if (id.startsWith("channel-"))
 					canvas.style.width = 100 * image.width / shown.analyzer_width() + "%";
 			}
 			canvas.getContext("2d").putImageData(image, 0, 0);

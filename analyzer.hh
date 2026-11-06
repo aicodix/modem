@@ -41,6 +41,9 @@ struct Analyzer
 	static constexpr value channel_top = 0, channel_range = 100;
 	int channel_power[channel_width * spectrum_height];
 	int channel_phase[channel_width * spectrum_height];
+	// the real Es/N0 of each tone after a decoded frame, from 0 to 50 dB
+	static constexpr value snr_top = 50, snr_range = 50;
+	int channel_snr[channel_width * spectrum_height];
 	int pos;
 	// the equalized tones of the latest symbol, on a fixed scale
 	// few but large pixels
@@ -63,7 +66,7 @@ struct Analyzer
 		for (int i = 0; i < width * spectrogram_height; ++i)
 			spectrogram[i] = 0;
 		for (int i = 0; i < channel_width * spectrum_height; ++i)
-			channel_power[i] = channel_phase[i] = 0;
+			channel_power[i] = channel_phase[i] = channel_snr[i] = 0;
 		for (int i = 0; i < constellation_size * constellation_size; ++i)
 			constellation[i] = 0;
 	}
@@ -200,6 +203,12 @@ struct Analyzer
 			y = std::min(std::max(y, 0), spectrum_height - 1);
 			channel_phase[channel_width * y + i] = -1;
 		}
+	}
+	// takes the real Es/N0 in dB of each tone from the decoder after a decoded frame
+	void tone_snr(const value *snr)
+	{
+		if (channel_on)
+			plot<channel_width>(channel_snr, snr, snr_top, 1 / snr_range, false);
 	}
 	void point(cmplx c)
 	{

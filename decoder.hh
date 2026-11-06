@@ -71,6 +71,9 @@ struct Decoder : Common
 	value snr[symbols_max];
 	value cfo_rad, sfo_rad, residual_rad;
 	value es_n0[3], real_es_n0[3];
+	// real Es/N0 in dB of each tone, averaged over the payload symbols of the frame
+	value real_tone_snr[tone_count];
+	value tone_sp[tone_count], tone_np[tone_count];
 	int64_t call_sign;
 	int meta_mode, erased_index, bit_flips;
 	int events;
@@ -185,6 +188,8 @@ struct Decoder : Common
 		events |= reencoded;
 		shuffle(perm, reenc, code_order, true);
 		int count = 0;
+		for (int i = 0; i < tone_count; ++i)
+			tone_sp[i] = tone_np[i] = 0;
 		for (int j = 1, k = 0, n = 0; j <= symbol_count; ++j) {
 			seed_off = (block_skew * j + first_seed) % block_length;
 			value sp = 0, np = 0;
@@ -193,8 +198,13 @@ struct Decoder : Common
 					int bits = bits_at(k);
 					cmplx hard = map_bits(perm+k, bits);
 					k += bits;
-					sp += norm(hard);
-					np += norm(values[n++] - hard);
+					value s = norm(hard), e = norm(values[n++] - hard);
+					sp += s;
+					np += e;
+					if (!lost[j]) {
+						tone_sp[i] += s;
+						tone_np[i] += e;
+					}
 				}
 			}
 			if (!lost[j])
@@ -202,6 +212,9 @@ struct Decoder : Common
 		}
 		if (!count)
 			return;
+		// a tone that carried no payload, as a seed tone in every symbol of a short frame, gets 0 dB
+		for (int i = 0; i < tone_count; ++i)
+			real_tone_snr[i] = tone_sp[i] > 0 ? DSP::decibel(tone_sp[i] / std::max(tone_np[i], value(1e-30) * tone_sp[i])) : 0;
 		DSP::quick_sort(snr, count);
 		real_es_n0[0] = DSP::decibel(snr[0]);
 		real_es_n0[1] = DSP::decibel(snr[(count-1)/2]);
