@@ -75,7 +75,7 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <script>
 const encoders = {}, decoders = {};
 const images = new Map();
-let context, wasm, decoder, listening, analog_values, shown;
+let context, wasm, decoder, listening, analog_values, shown, tap_module;
 const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
 const code_rates = ["1/2", "2/3", "3/4", "5/6"];
 /* events reported by the decoder module, see Decoder in decoder.hh */
@@ -245,7 +245,10 @@ function flush(dec) {
 }
 async function listen() {
 	if (listening) {
-		listening.getTracks().forEach(track => track.stop());
+		/* disconnect the tap too, or it keeps feeding the decoder with silence */
+		listening.stream.getTracks().forEach(track => track.stop());
+		listening.source.disconnect();
+		listening.tap.port.onmessage = null;
 		listening = null;
 		document.getElementById("listen").textContent = "listen";
 		status("stopped listening");
@@ -271,14 +274,19 @@ async function listen() {
 			}
 		}
 		registerProcessor("tap", Tap);`;
-		const url = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
-		await context.audioWorklet.addModule(url);
-		URL.revokeObjectURL(url);
+		/* the processor can only be registered once */
+		if (!tap_module) {
+			const url = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
+			tap_module = context.audioWorklet.addModule(url).finally(() => URL.revokeObjectURL(url));
+			tap_module.catch(() => tap_module = null);
+		}
+		await tap_module;
 		const tap = new AudioWorkletNode(context, "tap", { numberOfInputs: 1, numberOfOutputs: 0 });
 		tap.port.onmessage = event => receive(decoder, event.data);
-		context.createMediaStreamSource(stream).connect(tap);
+		const source = context.createMediaStreamSource(stream);
+		source.connect(tap);
 		await context.resume();
-		listening = stream;
+		listening = { stream, source, tap };
 		document.getElementById("listen").textContent = "stop";
 		status("listening at " + context.sampleRate + " Hz");
 	} catch (error) {
