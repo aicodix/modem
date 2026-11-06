@@ -12,6 +12,9 @@ p { margin: 0.75em 0; }
 #status, #log { font-family: monospace; white-space: pre-wrap; }
 .failed { color: red; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
+canvas[hidden] { display: none; }
+fieldset { border: 1px solid gray; margin: 0.75em 0; }
+fieldset label { white-space: nowrap; margin-right: 0.5em; }
 #scope { width: 60%; margin: 0.5em auto; }
 </style>
 </head>
@@ -54,16 +57,25 @@ canvas { display: block; width: 100%; margin: 0.5em 0; }
 <button id="listen">listen</button>
 <label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
 </p>
-<canvas id="scope"></canvas>
-<canvas id="spectrum"></canvas>
-<canvas id="spectrogram"></canvas>
+<fieldset>
+<legend>analyzer</legend>
 <p>
-<span id="span"></span>
+<label><input type="checkbox" id="spectrum-on"> spectrum</label>
 <label><input type="checkbox" id="rainbow" checked> rainbow</label>
-<label><input type="checkbox" id="phosphor" checked> phosphor</label>
+<span id="span"></span>
+</p>
+<p>
+<label><input type="checkbox" id="scope-on"> scope</label>
 <label>intensity <input type="range" id="intensity" min="0" max="100" value="50"></label>
+</p>
+<p>
+<label><input type="checkbox" id="phosphor" checked> phosphor</label>
 <label>decay <input type="range" id="decay" min="0" max="100" value="50"></label>
 </p>
+</fieldset>
+<canvas id="scope" hidden></canvas>
+<canvas id="spectrum" hidden></canvas>
+<canvas id="spectrogram" hidden></canvas>
 <div id="log"></div>
 <script>
 const encoders = {}, decoders = {};
@@ -125,10 +137,26 @@ async function load_decoder(rate) {
 }
 function analyzer_options(dec) {
 	const element = id => document.getElementById(id);
+	dec.enable_spectrum(element("spectrum-on").checked ? 1 : 0);
+	dec.enable_scope(element("scope-on").checked ? 1 : 0);
 	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
 	dec.show_phosphor(element("phosphor").checked ? 1 : 0);
 	dec.scope_intensity(Number(element("intensity").value));
 	dec.phosphor_decay(Number(element("decay").value));
+}
+/* the views are optional, so they don't take time while turned off */
+function analyzer_controls() {
+	const element = id => document.getElementById(id);
+	const spectrum = element("spectrum-on").checked, scope = element("scope-on").checked;
+	element("spectrum").hidden = element("spectrogram").hidden = !spectrum;
+	element("scope").hidden = !scope;
+	element("rainbow").disabled = !spectrum;
+	element("intensity").disabled = !scope;
+	element("phosphor").disabled = element("decay").disabled = !spectrum && !scope;
+	/* each bin is as wide as a tone, 300 / 40 Hz */
+	const half = (decoder ? decoder.analyzer_width() : 400) * 300 / 40 / 2;
+	element("span").textContent = spectrum ? "from " + (1500 - half) + " to " + (1500 + half) + " Hz" : "";
+	Object.values(decoders).forEach(analyzer_options);
 }
 /* shows the analyzer of the decoder that got samples last */
 function draw() {
@@ -145,6 +173,8 @@ function draw() {
 		const shown_images = images.get(shown);
 		for (const id in shown_images) {
 			const image = shown_images[id], canvas = document.getElementById(id);
+			if (canvas.hidden)
+				continue;
 			if (canvas.width != image.width || canvas.height != image.height) {
 				canvas.width = image.width;
 				canvas.height = image.height;
@@ -152,8 +182,6 @@ function draw() {
 			canvas.getContext("2d").putImageData(image, 0, 0);
 		}
 		/* each bin is as wide as a tone, 300 / 40 Hz */
-		const half = shown.analyzer_width() * 300 / 40 / 2;
-		document.getElementById("span").textContent = "spectrum from " + (1500 - half) + " to " + (1500 + half) + " Hz";
 	}
 	window.requestAnimationFrame(draw);
 }
@@ -475,8 +503,9 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["rainbow", "phosphor", "intensity", "decay"])
-		document.getElementById(id).addEventListener("input", () => Object.values(decoders).forEach(analyzer_options));
+	for (const id of ["spectrum-on", "scope-on", "rainbow", "phosphor", "intensity", "decay"])
+		document.getElementById(id).addEventListener("input", analyzer_controls);
+	analyzer_controls();
 	window.requestAnimationFrame(draw);
 	update();
 	status("ready, " + context.sampleRate + " Hz");

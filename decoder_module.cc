@@ -185,6 +185,25 @@ int spectrogram_height()
 	return analyzer_type::spectrogram_height;
 }
 
+/* spectrum and spectrogram */
+__attribute__((visibility("default")))
+int enable_spectrum(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.spectrum_on = on;
+	return 0;
+}
+
+__attribute__((visibility("default")))
+int enable_scope(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.scope_on = on;
+	return 0;
+}
+
 __attribute__((visibility("default")))
 int show_rainbow(int on)
 {

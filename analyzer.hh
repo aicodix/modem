@@ -33,11 +33,11 @@ struct Analyzer
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
 	int pos;
-	bool fresh, show_rainbow, show_phosphor;
+	bool fresh, spectrum_on, scope_on, show_rainbow, show_phosphor;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
-		show_rainbow(true), show_phosphor(true), intensity(0.5), decay(0.5)
+		spectrum_on(false), scope_on(false), show_rainbow(true), show_phosphor(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			hist[i] = 0;
@@ -171,15 +171,19 @@ struct Analyzer
 			spectrogram[b] = show_rainbow ? rainbow(v) : alpha(v);
 		}
 	}
-	// takes one sample of the baseband
+	// takes one sample of the baseband, does nothing while turned off
 	void operator()(cmplx sample)
 	{
+		if (!spectrum_on && !scope_on)
+			return;
 		hist[symbol_len - hop + pos++] = sample;
 		if (pos < hop)
 			return;
 		pos = 0;
-		draw_spectrum();
-		draw_scope();
+		if (spectrum_on)
+			draw_spectrum();
+		if (scope_on)
+			draw_scope();
 		for (int i = 0; i < symbol_len - hop; ++i)
 			hist[i] = hist[i + hop];
 	}
