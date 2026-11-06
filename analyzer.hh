@@ -40,12 +40,12 @@ struct Analyzer
 	int channel_power[channel_width * spectrum_height];
 	int channel_phase[channel_width * spectrum_height];
 	int pos;
-	bool fresh, spectrum_on, scope_on, channel_on, show_rainbow, spectrum_phosphor, channel_phosphor;
+	bool fresh, spectrum_on, scope_on, channel_on, show_rainbow, spectrum_phosphor;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
 		spectrum_on(false), scope_on(false), channel_on(false),
-		show_rainbow(true), spectrum_phosphor(true), channel_phosphor(true), intensity(0.5), decay(0.5)
+		show_rainbow(true), spectrum_phosphor(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			hist[i] = 0;
@@ -200,9 +200,10 @@ struct Analyzer
 		const value full_scale = value(symbol_len * symbol_len) / 4;
 		for (int i = 0; i < channel_width; ++i)
 			est[i] = DSP::decibel(norm(chan[i]) / full_scale);
-		plot<channel_width>(channel_power, est, channel_top, 1 / channel_range, channel_phosphor);
+		// without phosphor, so only the latest estimate is shown
+		plot<channel_width>(channel_power, est, channel_top, 1 / channel_range, false);
 		// one dot per tone, as a line would jump where the phase wraps around
-		fade<channel_width>(channel_phase, channel_phosphor);
+		fade<channel_width>(channel_phase, false);
 		for (int i = 0; i < channel_width; ++i) {
 			int y = nearbyint((spectrum_height - 1) * (value(0.5) - arg(chan[i]) / Const::TwoPi()));
 			y = std::min(std::max(y, 0), spectrum_height - 1);

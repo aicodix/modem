@@ -195,15 +195,6 @@ int enable_channel(int on)
 }
 
 __attribute__((visibility("default")))
-int channel_phosphor(int on)
-{
-	if (on < 0 || on > 1)
-		return -1;
-	analyzer.channel_phosphor = on;
-	return 0;
-}
-
-__attribute__((visibility("default")))
 int analyzer_width()
 {
 	return analyzer_type::width;
