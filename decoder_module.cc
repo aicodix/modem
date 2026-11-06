@@ -291,6 +291,27 @@ int scope_intensity(int percent)
 	return 0;
 }
 
+/* in dB, at 0 dB an amplitude of one reaches the edge */
+__attribute__((visibility("default")))
+int scope_gain(int dB)
+{
+	if (dB < -20 || dB > 60)
+		return -1;
+	analyzer.scope_gain = std::sqrt(DSP::idecibel(value(dB)));
+	return 0;
+}
+
+/* top and bottom of spectrum and spectrogram in dB of a full scale sine, at least 10 dB apart */
+__attribute__((visibility("default")))
+int spectrum_range(int max, int min)
+{
+	if (max < -100 || max > 0 || min < -160 || min > max - 10)
+		return -1;
+	analyzer.spectrum_max = max;
+	analyzer.spectrum_min = min;
+	return 0;
+}
+
 /* in percent per update */
 __attribute__((visibility("default")))
 int phosphor_decay(int percent)

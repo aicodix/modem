@@ -28,18 +28,19 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as
-  the tones, and draws the middle 400 bins, from 0 to 3000 Hz. It also plots
-  the power and phase of the decoder's channel estimate of the 320 tones
-  after each symbol after synchronization, when the decoder reports the
-  `new_symbol` event, which the module keeps from the page. Both have fixed
-  scales without gain control: the power from 0 to -100 dB of a full scale
-  sine, the phase from -180 to 180 degrees, one dot per tone. Its
-  constellation shows the equalized tones of the latest symbol on a fixed
-  scale: the BPSK tones of the preamble symbol, then only the payload tones
-  that carry all bits of the mode, without seed tones, the tones with fewer
-  bits that pad the code to whole symbols, or erased symbols. Spectrum, scope and channel
-  estimation are off until the page turns them on, and take no time while
-  off.
+  the tones, and draws the middle 400 bins, from 0 to 3000 Hz. None of its
+  views has gain control: the page sets the scope gain and the top and bottom
+  of spectrum and spectrogram in dB of a full scale sine. It also plots the
+  power and phase of the decoder's channel estimate of the 320 tones after
+  each symbol after synchronization, when the decoder reports the `new_symbol`
+  event, which the module keeps from the page. Both have fixed scales: the
+  power from 0 to -100 dB of a full scale sine, the phase from -180 to 180
+  degrees, one dot per tone. Its constellation shows the equalized tones of
+  the latest symbol on a fixed scale: the BPSK tones of the preamble symbol,
+  then only the payload tones that carry all bits of the mode, without seed
+  tones, the tones with fewer bits that pad the code to whole symbols, or
+  erased symbols. All views are off until the page turns them on, and take no
+  time while off.
 - `freezer.cc`: generates `polar_tables.hh`. Don't edit the tables by hand;
   regenerate them with `make polar_tables.hh`.
 

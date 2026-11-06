@@ -29,7 +29,9 @@ struct Analyzer
 	// the newest hop samples also go to the scope
 	cmplx hist[symbol_len], tmp[symbol_len], fdom[symbol_len];
 	value phosphor[width * scope_height];
-	value dB[bins], dB_avg[bins], avg_max, power;
+	value dB[bins];
+	// fixed scales without gain control: the scope gain, and the spectrum in dB of a full scale sine
+	value scope_gain, spectrum_max, spectrum_min;
 	int scope[width * scope_height];
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
@@ -45,10 +47,10 @@ struct Analyzer
 	static const int constellation_size = 128;
 	static constexpr value constellation_scale = 2;
 	int constellation[constellation_size * constellation_size];
-	bool fresh, spectrum_on, scope_on, channel_on, constellation_on, show_rainbow, spectrum_phosphor;
+	bool spectrum_on, scope_on, channel_on, constellation_on, show_rainbow, spectrum_phosphor;
 	value intensity, decay;
 
-	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
+	Analyzer() : win(&hann), scope_gain(1), spectrum_max(0), spectrum_min(-100), pos(0),
 		spectrum_on(false), scope_on(false), channel_on(false), constellation_on(false),
 		show_rainbow(true), spectrum_phosphor(true), intensity(0.5), decay(0.5)
 	{
@@ -140,13 +142,9 @@ struct Analyzer
 	void draw_scope()
 	{
 		const cmplx *trace = hist + symbol_len - hop;
-		value sum = 0;
-		for (int i = 0; i < hop; ++i)
-			sum += norm(trace[i]);
-		power = DSP::lerp(power, sum / hop, value(0.1));
 		value half = (scope_height - 1) / value(2);
-		// three times the RMS reaches the edge
-		value scale = half / std::max(3 * std::sqrt(power), value(0.000001));
+		// without gain, an amplitude of one reaches the edge, about three times the RMS of a full scale signal
+		value scale = half * scope_gain;
 		// a decay of 100% clears the scope with each update
 		for (int i = 0; i < width * scope_height; ++i)
 			phosphor[i] *= decay;
@@ -168,26 +166,12 @@ struct Analyzer
 		for (int i = 0; i < symbol_len; ++i)
 			tmp[i] = win[i] * hist[i];
 		fwd(fdom, tmp);
-		// center the spectrum at 1500 Hz
+		// center the spectrum at 1500 Hz, the window is normalized and
+		// a full scale sine gives a tone of half its amplitude after mixing
 		for (int i = 0; i < bins; ++i)
-			dB[i] = DSP::decibel(norm(fdom[(i - bins / 2 + symbol_len) % symbol_len]));
-		value tmp_max = dB[0];
-		for (int i = 1; i < bins; ++i)
-			tmp_max = std::max(tmp_max, dB[i]);
-		if (fresh) {
-			for (int i = 0; i < bins; ++i)
-				dB_avg[i] = dB[i];
-			avg_max = tmp_max;
-			fresh = false;
-		}
-		for (int i = 0; i < bins; ++i)
-			dB_avg[i] = DSP::lerp(dB_avg[i], dB[i], value(0.05));
-		avg_max = DSP::lerp(avg_max, tmp_max, avg_max < tmp_max ? value(0.5) : value(0.05));
-		value tmp_min = dB_avg[0];
-		for (int i = 1; i < bins; ++i)
-			tmp_min = std::min(tmp_min, dB_avg[i]);
-		value dB_max = avg_max;
-		value dB_min = std::min(std::max(tmp_min, value(-120)), dB_max - 10);
+			dB[i] = DSP::decibel(4 * norm(fdom[(i - bins / 2 + symbol_len) % symbol_len]));
+		value dB_max = spectrum_max;
+		value dB_min = std::min(spectrum_min, dB_max - 10);
 		value range = 1 / (dB_max - dB_min);
 		plot<width>(spectrum, dB, dB_max, range, spectrum_phosphor);
 		for (int i = width * spectrogram_height - 1; i >= width; --i)
