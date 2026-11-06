@@ -128,6 +128,9 @@ so code must:
   QPSK at low code rates fail at sync before the code is tested. To compare
   decoder changes, use denser modulations or higher code rates near their
   threshold, many noise seeds per point, and report decoded frames out of trials.
+- Don't take the QAM1024 and QAM4096 modes too seriously. They are only there
+  for fun and might be replaced with something else in the future, so don't
+  tune or design anything around them.
 
 ## Workflow
 
