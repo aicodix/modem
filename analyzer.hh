@@ -22,6 +22,7 @@ struct Analyzer
 	static const int scope_height = bins;
 	static const int spectrum_height = bins / 4;
 	static const int spectrogram_height = bins / 2;
+	static const int subchannels_height = bins / 2;
 	DSP::Hann<value> hann;
 	DSP::Coeffs<symbol_len, value, true> win;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
@@ -32,12 +33,14 @@ struct Analyzer
 	int scope[width * scope_height];
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
+	int subchannels[width * subchannels_height];
 	int pos;
-	bool fresh, spectrum_on, scope_on, show_rainbow, spectrum_phosphor;
+	bool fresh, spectrum_on, scope_on, subchannels_on, show_rainbow, spectrum_phosphor, subchannels_rainbow;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
-		spectrum_on(false), scope_on(false), show_rainbow(true), spectrum_phosphor(true), intensity(0.5), decay(0.5)
+		spectrum_on(false), scope_on(false), subchannels_on(false),
+		show_rainbow(true), spectrum_phosphor(true), subchannels_rainbow(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			hist[i] = 0;
@@ -47,6 +50,8 @@ struct Analyzer
 			spectrum[i] = 0;
 		for (int i = 0; i < width * spectrogram_height; ++i)
 			spectrogram[i] = 0;
+		for (int i = 0; i < width * subchannels_height; ++i)
+			subchannels[i] = 0;
 	}
 	static int rgba(value r, value g, value b, value a)
 	{
@@ -165,6 +170,28 @@ struct Analyzer
 		for (int b = 0; b < bins; ++b) {
 			value v = 1 - range * (dB_max - dB[b]);
 			spectrogram[b] = show_rainbow ? rainbow(v) : alpha(v);
+		}
+	}
+	// takes the FFT of a symbol from the decoder after synchronization and draws one row
+	void symbol(const cmplx *symbol_fdom)
+	{
+		if (!subchannels_on)
+			return;
+		value row[bins];
+		for (int i = 0; i < bins; ++i)
+			row[i] = DSP::decibel(norm(symbol_fdom[(i - bins / 2 + symbol_len) % symbol_len]));
+		value row_max = row[0], row_min = row[0];
+		for (int i = 1; i < bins; ++i) {
+			row_max = std::max(row_max, row[i]);
+			row_min = std::min(row_min, row[i]);
+		}
+		row_min = std::min(std::max(row_min, row_max - 120), row_max - 10);
+		value range = 1 / (row_max - row_min);
+		for (int i = width * subchannels_height - 1; i >= width; --i)
+			subchannels[i] = subchannels[i - width];
+		for (int b = 0; b < bins; ++b) {
+			value v = 1 - range * (row_max - row[b]);
+			subchannels[b] = subchannels_rainbow ? rainbow(v) : alpha(v);
 		}
 	}
 	// takes one sample of the baseband, does nothing while turned off

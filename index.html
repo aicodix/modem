@@ -71,6 +71,12 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <canvas id="spectrum" hidden></canvas>
 <canvas id="spectrogram" hidden></canvas>
 </fieldset>
+<fieldset>
+<legend><label><input type="checkbox" id="subchannels-on"> subchannels</label></legend>
+<label><input type="checkbox" id="subchannels-rainbow" checked> rainbow</label>
+<span>one row per symbol after synchronization</span>
+<canvas id="subchannels" hidden></canvas>
+</fieldset>
 <div id="log"></div>
 <script>
 const encoders = {}, decoders = {};
@@ -134,6 +140,8 @@ function analyzer_options(dec) {
 	const element = id => document.getElementById(id);
 	dec.enable_spectrum(element("spectrum-on").checked ? 1 : 0);
 	dec.enable_scope(element("scope-on").checked ? 1 : 0);
+	dec.enable_subchannels(element("subchannels-on").checked ? 1 : 0);
+	dec.subchannels_rainbow(element("subchannels-rainbow").checked ? 1 : 0);
 	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
 	dec.spectrum_phosphor(element("spectrum-phosphor").checked ? 1 : 0);
 	dec.scope_intensity(Number(element("intensity").value));
@@ -143,8 +151,11 @@ function analyzer_options(dec) {
 function analyzer_controls() {
 	const element = id => document.getElementById(id);
 	const spectrum = element("spectrum-on").checked, scope = element("scope-on").checked;
+	const subchannels = element("subchannels-on").checked;
 	element("spectrum").hidden = element("spectrogram").hidden = !spectrum;
 	element("scope").hidden = !scope;
+	element("subchannels").hidden = !subchannels;
+	element("subchannels-rainbow").disabled = !subchannels;
 	for (const id of ["spectrum-phosphor", "rainbow"])
 		element(id).disabled = !spectrum;
 	for (const id of ["intensity", "decay"])
@@ -163,7 +174,8 @@ function draw() {
 			images.set(shown, {
 				scope: image(shown.scope(), shown.scope_height()),
 				spectrum: image(shown.spectrum(), shown.spectrum_height()),
-				spectrogram: image(shown.spectrogram(), shown.spectrogram_height())
+				spectrogram: image(shown.spectrogram(), shown.spectrogram_height()),
+				subchannels: image(shown.subchannels(), shown.subchannels_height())
 			});
 		}
 		const shown_images = images.get(shown);
@@ -507,7 +519,7 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "intensity", "decay"])
+	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "intensity", "decay", "subchannels-on", "subchannels-rainbow"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	window.requestAnimationFrame(draw);

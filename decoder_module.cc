@@ -13,6 +13,7 @@ typedef Decoder<value, cmplx, RATE> decoder_type;
 typedef DSP::Const<value> Const;
 static decoder_type decoder;
 typedef Analyzer<value, cmplx, RATE> analyzer_type;
+static_assert(analyzer_type::symbol_len == decoder_type::symbol_len, "analyzer and decoder must agree on the symbol length");
 static analyzer_type analyzer;
 static int last_events;
 
@@ -69,6 +70,10 @@ int feed(int offset, int count)
 	for (int i = 0; i < count; ++i) {
 		int events = decoder.feed(samples[offset+i]);
 		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
+		/* only for the analyzer, the page doesn't need to stop for it */
+		if (events & decoder_type::new_symbol)
+			analyzer.symbol(decoder.fdom);
+		events &= ~decoder_type::new_symbol;
 		if (events) {
 			last_events = events;
 			update(events);
@@ -159,6 +164,37 @@ __attribute__((visibility("default")))
 int *spectrogram()
 {
 	return analyzer.spectrogram;
+}
+
+/* the decoder's subchannels, one row per symbol after synchronization */
+__attribute__((visibility("default")))
+int *subchannels()
+{
+	return analyzer.subchannels;
+}
+
+__attribute__((visibility("default")))
+int subchannels_height()
+{
+	return analyzer_type::subchannels_height;
+}
+
+__attribute__((visibility("default")))
+int enable_subchannels(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.subchannels_on = on;
+	return 0;
+}
+
+__attribute__((visibility("default")))
+int subchannels_rainbow(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.subchannels_rainbow = on;
+	return 0;
 }
 
 __attribute__((visibility("default")))

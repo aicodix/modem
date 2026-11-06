@@ -46,6 +46,7 @@ struct Decoder : Common
 	static const int reencoded = 1 << 9;
 	static const int real_snr = 1 << 10;
 	static const int decoded_frame = 1 << 11;
+	static const int new_symbol = 1 << 12;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::Phasor<cmplx> mix;
 	DSP::FIR<cmplx, value, filter_len> lowpass;
@@ -236,6 +237,7 @@ struct Decoder : Common
 	{
 		auto clamp = [](int v){ return v < -127 ? -127 : v > 127 ? 127 : v; };
 		int j = symbol_index;
+		events |= new_symbol;
 		seed_off = (block_skew * j + first_seed) % block_length;
 		if (j) {
 			for (int i = 0; i < symbol_len; ++i)
