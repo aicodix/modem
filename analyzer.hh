@@ -33,11 +33,11 @@ struct Analyzer
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
 	int pos;
-	bool fresh, spectrum_on, scope_on, show_rainbow, spectrum_phosphor, scope_phosphor;
+	bool fresh, spectrum_on, scope_on, show_rainbow, spectrum_phosphor;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
-		spectrum_on(false), scope_on(false), show_rainbow(true), spectrum_phosphor(true), scope_phosphor(true), intensity(0.5), decay(0.5)
+		spectrum_on(false), scope_on(false), show_rainbow(true), spectrum_phosphor(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
 			hist[i] = 0;
@@ -104,13 +104,9 @@ struct Analyzer
 		value half = (scope_height - 1) / value(2);
 		// three times the RMS reaches the edge
 		value scale = half / std::max(3 * std::sqrt(power), value(0.000001));
-		if (scope_phosphor) {
-			for (int i = 0; i < width * scope_height; ++i)
-				phosphor[i] *= decay;
-		} else {
-			for (int i = 0; i < width * scope_height; ++i)
-				phosphor[i] = 0;
-		}
+		// a decay of 100% clears the scope with each update
+		for (int i = 0; i < width * scope_height; ++i)
+			phosphor[i] *= decay;
 		// the brightness of each update, spread over a quarter of the image
 		value a = intensity * (width * scope_height / 4) / hop;
 		for (int i = 0, x0 = 0, y0 = 0; i < hop; ++i) {

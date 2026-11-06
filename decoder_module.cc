@@ -222,15 +222,6 @@ int spectrum_phosphor(int on)
 	return 0;
 }
 
-__attribute__((visibility("default")))
-int scope_phosphor(int on)
-{
-	if (on < 0 || on > 1)
-		return -1;
-	analyzer.scope_phosphor = on;
-	return 0;
-}
-
 /* in percent */
 __attribute__((visibility("default")))
 int scope_intensity(int percent)

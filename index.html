@@ -59,7 +59,6 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 </p>
 <fieldset>
 <legend><label><input type="checkbox" id="scope-on"> scope</label></legend>
-<label><input type="checkbox" id="scope-phosphor" checked> phosphor</label>
 <label>intensity <input type="range" id="intensity" min="0" max="100" value="50"></label>
 <label>decay <input type="range" id="decay" min="0" max="100" value="50"></label>
 <canvas id="scope" hidden></canvas>
@@ -137,7 +136,6 @@ function analyzer_options(dec) {
 	dec.enable_scope(element("scope-on").checked ? 1 : 0);
 	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
 	dec.spectrum_phosphor(element("spectrum-phosphor").checked ? 1 : 0);
-	dec.scope_phosphor(element("scope-phosphor").checked ? 1 : 0);
 	dec.scope_intensity(Number(element("intensity").value));
 	dec.phosphor_decay(Number(element("decay").value));
 }
@@ -149,7 +147,7 @@ function analyzer_controls() {
 	element("scope").hidden = !scope;
 	for (const id of ["spectrum-phosphor", "rainbow"])
 		element(id).disabled = !spectrum;
-	for (const id of ["scope-phosphor", "intensity", "decay"])
+	for (const id of ["intensity", "decay"])
 		element(id).disabled = !scope;
 	/* each bin is as wide as a tone, 300 / 40 Hz */
 	const half = (decoder ? decoder.analyzer_width() : 400) * 300 / 40 / 2;
@@ -501,7 +499,7 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "scope-phosphor", "intensity", "decay"])
+	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "intensity", "decay"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	window.requestAnimationFrame(draw);
