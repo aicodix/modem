@@ -5,12 +5,15 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 */
 
 #include "decoder.hh"
+#include "analyzer.hh"
 
 typedef float value;
 typedef DSP::Complex<value> cmplx;
 typedef Decoder<value, cmplx, RATE> decoder_type;
 typedef DSP::Const<value> Const;
 static decoder_type decoder;
+typedef Analyzer<value, cmplx, RATE> analyzer_type;
+static analyzer_type analyzer;
 static int last_events;
 
 extern "C" {
@@ -65,6 +68,7 @@ int feed(int offset, int count)
 	last_events = 0;
 	for (int i = 0; i < count; ++i) {
 		int events = decoder.feed(samples[offset+i]);
+		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
 		if (events) {
 			last_events = events;
 			update(events);
@@ -138,5 +142,85 @@ int payload_length()
 	return decoder.data_bytes;
 }
 
+/* RGBA pixels of the analyzer images, all analyzer_width() wide */
+__attribute__((visibility("default")))
+int *scope()
+{
+	return analyzer.scope;
 }
 
+__attribute__((visibility("default")))
+int *spectrum()
+{
+	return analyzer.spectrum;
+}
+
+__attribute__((visibility("default")))
+int *spectrogram()
+{
+	return analyzer.spectrogram;
+}
+
+__attribute__((visibility("default")))
+int analyzer_width()
+{
+	return analyzer_type::width;
+}
+
+__attribute__((visibility("default")))
+int scope_height()
+{
+	return analyzer_type::scope_height;
+}
+
+__attribute__((visibility("default")))
+int spectrum_height()
+{
+	return analyzer_type::spectrum_height;
+}
+
+__attribute__((visibility("default")))
+int spectrogram_height()
+{
+	return analyzer_type::spectrogram_height;
+}
+
+__attribute__((visibility("default")))
+int show_rainbow(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.show_rainbow = on;
+	return 0;
+}
+
+__attribute__((visibility("default")))
+int show_phosphor(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.show_phosphor = on;
+	return 0;
+}
+
+/* in percent */
+__attribute__((visibility("default")))
+int scope_intensity(int percent)
+{
+	if (percent < 0 || percent > 100)
+		return -1;
+	analyzer.intensity = value(0.01) * percent;
+	return 0;
+}
+
+/* in percent per update */
+__attribute__((visibility("default")))
+int phosphor_decay(int percent)
+{
+	if (percent < 0 || percent > 100)
+		return -1;
+	analyzer.decay = 1 - value(0.01) * percent;
+	return 0;
+}
+
+}

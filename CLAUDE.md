@@ -25,6 +25,10 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
 - `quantize.hh`: turns soft values into the code type of the LLRs.
 - `schmidl_cox.hh`: synchronization (timing, CFO, SFO).
+- `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
+  baseband for the page, fed by the decoder module and drawn as RGBA pixels.
+  It takes FFTs as long as the decoder's symbols, so the bins are as wide as
+  the tones, and draws the middle 400 bins, from 0 to 3000 Hz.
 - `freezer.cc`: generates `polar_tables.hh`. Don't edit the tables by hand;
   regenerate them with `make polar_tables.hh`.
 

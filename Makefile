@@ -36,7 +36,7 @@ wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm te
 temp/encoder_%.wasm: encoder_module.cc encoder.hh common.hh psk.hh qam.hh quantize.hh $(QUIRKS)
 	$(WASMCXX) $(WASMFLAGS) $(WASMLDFLAGS) -DRATE=$* -o $@ $<
 
-temp/decoder_%.wasm: decoder_module.cc decoder.hh common.hh schmidl_cox.hh psk.hh qam.hh quantize.hh $(QUIRKS)
+temp/decoder_%.wasm: decoder_module.cc decoder.hh analyzer.hh common.hh schmidl_cox.hh psk.hh qam.hh quantize.hh $(QUIRKS)
 	$(WASMCXX) $(WASMFLAGS) $(WASMLDFLAGS) -DRATE=$* -o $@ $<
 
 .PHONY: check-wasm

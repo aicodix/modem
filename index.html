@@ -11,6 +11,8 @@ textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
 p { margin: 0.75em 0; }
 #status, #log { font-family: monospace; white-space: pre-wrap; }
 .failed { color: red; }
+canvas { display: block; width: 100%; margin: 0.5em 0; }
+#scope { width: 60%; margin: 0.5em auto; }
 </style>
 </head>
 <body>
@@ -52,10 +54,21 @@ p { margin: 0.75em 0; }
 <button id="listen">listen</button>
 <label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
 </p>
+<canvas id="scope"></canvas>
+<canvas id="spectrum"></canvas>
+<canvas id="spectrogram"></canvas>
+<p>
+<span id="span"></span>
+<label><input type="checkbox" id="rainbow" checked> rainbow</label>
+<label><input type="checkbox" id="phosphor" checked> phosphor</label>
+<label>intensity <input type="range" id="intensity" min="0" max="100" value="50"></label>
+<label>decay <input type="range" id="decay" min="0" max="100" value="50"></label>
+</p>
 <div id="log"></div>
 <script>
 const encoders = {}, decoders = {};
-let context, wasm, decoder, listening, analog_values;
+const images = new Map();
+let context, wasm, decoder, listening, analog_values, shown;
 const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
 const code_rates = ["1/2", "2/3", "3/4", "5/6"];
 /* events reported by the decoder module, see Decoder in decoder.hh */
@@ -106,8 +119,43 @@ async function load_decoder(rate) {
 		const obj = await WebAssembly.instantiateStreaming(fetch("temp/decoder_" + rate + ".wasm"));
 		obj.instance.exports.__wasm_call_ctors();
 		decoders[rate] = obj.instance.exports;
+		analyzer_options(decoders[rate]);
 	}
 	return decoders[rate];
+}
+function analyzer_options(dec) {
+	const element = id => document.getElementById(id);
+	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
+	dec.show_phosphor(element("phosphor").checked ? 1 : 0);
+	dec.scope_intensity(Number(element("intensity").value));
+	dec.phosphor_decay(Number(element("decay").value));
+}
+/* shows the analyzer of the decoder that got samples last */
+function draw() {
+	if (shown) {
+		if (!images.has(shown)) {
+			const width = shown.analyzer_width();
+			const image = (pixels, height) => new ImageData(new Uint8ClampedArray(shown.memory.buffer, pixels, 4 * width * height), width, height);
+			images.set(shown, {
+				scope: image(shown.scope(), shown.scope_height()),
+				spectrum: image(shown.spectrum(), shown.spectrum_height()),
+				spectrogram: image(shown.spectrogram(), shown.spectrogram_height())
+			});
+		}
+		const shown_images = images.get(shown);
+		for (const id in shown_images) {
+			const image = shown_images[id], canvas = document.getElementById(id);
+			if (canvas.width != image.width || canvas.height != image.height) {
+				canvas.width = image.width;
+				canvas.height = image.height;
+			}
+			canvas.getContext("2d").putImageData(image, 0, 0);
+		}
+		/* each bin is as wide as a tone, 300 / 40 Hz */
+		const half = shown.analyzer_width() * 300 / 40 / 2;
+		document.getElementById("span").textContent = "spectrum from " + (1500 - half) + " to " + (1500 + half) + " Hz";
+	}
+	window.requestAnimationFrame(draw);
 }
 function report(dec) {
 	const events = dec.events();
@@ -153,6 +201,7 @@ function report(dec) {
 	}
 }
 function receive(dec, samples) {
+	shown = dec;
 	const size = 1024;
 	const block = new Float32Array(dec.memory.buffer, dec.samples.value, size);
 	for (let pos = 0; pos < samples.length; pos += size) {
@@ -426,6 +475,9 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
+	for (const id of ["rainbow", "phosphor", "intensity", "decay"])
+		document.getElementById(id).addEventListener("input", () => Object.values(decoders).forEach(analyzer_options));
+	window.requestAnimationFrame(draw);
 	update();
 	status("ready, " + context.sampleRate + " Hz");
 }
