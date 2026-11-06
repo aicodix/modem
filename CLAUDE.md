@@ -33,7 +33,11 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   after each symbol after synchronization, when the decoder reports the
   `new_symbol` event, which the module keeps from the page. Both have fixed
   scales without gain control: the power from 0 to -100 dB of a full scale
-  sine, the phase from -180 to 180 degrees, one dot per tone. Spectrum, scope and channel
+  sine, the phase from -180 to 180 degrees, one dot per tone. Its
+  constellation shows the equalized tones of the latest symbol on a fixed
+  scale: the BPSK tones of the preamble symbol, then only the payload tones
+  that carry all bits of the mode, without seed tones, the tones with fewer
+  bits that pad the code to whole symbols, or erased symbols. Spectrum, scope and channel
   estimation are off until the page turns them on, and take no time while
   off.
 - `freezer.cc`: generates `polar_tables.hh`. Don't edit the tables by hand;

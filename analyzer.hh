@@ -40,11 +40,16 @@ struct Analyzer
 	int channel_power[channel_width * spectrum_height];
 	int channel_phase[channel_width * spectrum_height];
 	int pos;
-	bool fresh, spectrum_on, scope_on, channel_on, show_rainbow, spectrum_phosphor;
+	// the equalized tones of the latest symbol, on a fixed scale
+	// few but large pixels
+	static const int constellation_size = 128;
+	static constexpr value constellation_scale = 2;
+	int constellation[constellation_size * constellation_size];
+	bool fresh, spectrum_on, scope_on, channel_on, constellation_on, show_rainbow, spectrum_phosphor;
 	value intensity, decay;
 
 	Analyzer() : win(&hann), avg_max(0), power(0), pos(0), fresh(true),
-		spectrum_on(false), scope_on(false), channel_on(false),
+		spectrum_on(false), scope_on(false), channel_on(false), constellation_on(false),
 		show_rainbow(true), spectrum_phosphor(true), intensity(0.5), decay(0.5)
 	{
 		for (int i = 0; i < symbol_len; ++i)
@@ -57,6 +62,8 @@ struct Analyzer
 			spectrogram[i] = 0;
 		for (int i = 0; i < channel_width * spectrum_height; ++i)
 			channel_power[i] = channel_phase[i] = 0;
+		for (int i = 0; i < constellation_size * constellation_size; ++i)
+			constellation[i] = 0;
 	}
 	static int rgba(value r, value g, value b, value a)
 	{
@@ -208,6 +215,39 @@ struct Analyzer
 			int y = nearbyint((spectrum_height - 1) * (value(0.5) - arg(chan[i]) / Const::TwoPi()));
 			y = std::min(std::max(y, 0), spectrum_height - 1);
 			channel_phase[channel_width * y + i] = -1;
+		}
+	}
+	void point(cmplx c)
+	{
+		value half = (constellation_size - 1) / value(2);
+		int x = nearbyint(half + half / constellation_scale * c.real());
+		int y = nearbyint(half - half / constellation_scale * c.imag());
+		if (x < 0 || x >= constellation_size || y < 0 || y >= constellation_size)
+			return;
+		constellation[constellation_size * y + x] = -1;
+	}
+	// takes the equalized symbol j from the decoder and draws a new picture of it,
+	// the BPSK tones of the preamble symbol, of the payload symbols only the tones with all bits
+	template <typename DECODER>
+	void constellation_symbol(DECODER &dec, int j, int start)
+	{
+		if (!constellation_on)
+			return;
+		for (int i = 0; i < constellation_size * constellation_size; ++i)
+			constellation[i] = 0;
+		if (dec.lost[j])
+			return;
+		for (int i = 0, l = start; i < Common::tone_count; ++i) {
+			if (i % Common::block_length == dec.seed_off)
+				continue;
+			if (!j || dec.analog_mode) {
+				point(dec.demod[i]);
+			} else {
+				int bits = dec.bits_at(l);
+				l += bits;
+				if (bits == dec.mod_bits)
+					point(dec.demod[i]);
+			}
 		}
 	}
 	// takes one sample of the baseband, does nothing while turned off

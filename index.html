@@ -14,6 +14,7 @@ p { margin: 0.75em 0; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
 canvas[hidden] { display: none; }
 #channel-power, #channel-phase { margin: 0.5em auto; }
+#constellation { width: 60%; margin: 0.5em auto; image-rendering: pixelated; }
 fieldset { border: 1px solid gray; margin: 0.75em 0; }
 fieldset label { white-space: nowrap; margin-right: 0.5em; }
 #scope { width: 60%; margin: 0.5em auto; }
@@ -80,6 +81,11 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <p>channel phase, from -180 to 180 degrees</p>
 <canvas id="channel-phase" hidden></canvas>
 </fieldset>
+<fieldset>
+<legend><label><input type="checkbox" id="constellation-on"> constellation</label></legend>
+<span>of the latest symbol, from -2 to 2</span>
+<canvas id="constellation" hidden></canvas>
+</fieldset>
 <div id="log"></div>
 <script>
 const encoders = {}, decoders = {};
@@ -144,6 +150,7 @@ function analyzer_options(dec) {
 	dec.enable_spectrum(element("spectrum-on").checked ? 1 : 0);
 	dec.enable_scope(element("scope-on").checked ? 1 : 0);
 	dec.enable_channel(element("channel-on").checked ? 1 : 0);
+	dec.enable_constellation(element("constellation-on").checked ? 1 : 0);
 	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
 	dec.spectrum_phosphor(element("spectrum-phosphor").checked ? 1 : 0);
 	dec.scope_intensity(Number(element("intensity").value));
@@ -157,6 +164,7 @@ function analyzer_controls() {
 	element("spectrum").hidden = element("spectrogram").hidden = !spectrum;
 	element("scope").hidden = !scope;
 	element("channel-power").hidden = element("channel-phase").hidden = !channel;
+	element("constellation").hidden = !element("constellation-on").checked;
 	for (const id of ["spectrum-phosphor", "rainbow"])
 		element(id).disabled = !spectrum;
 	for (const id of ["intensity", "decay"])
@@ -177,7 +185,8 @@ function draw() {
 				spectrum: image(shown.spectrum(), shown.spectrum_height()),
 				spectrogram: image(shown.spectrogram(), shown.spectrogram_height()),
 				"channel-power": image(shown.channel_power(), shown.spectrum_height(), shown.channel_width()),
-				"channel-phase": image(shown.channel_phase(), shown.spectrum_height(), shown.channel_width())
+				"channel-phase": image(shown.channel_phase(), shown.spectrum_height(), shown.channel_width()),
+				constellation: image(shown.constellation(), shown.constellation_size(), shown.constellation_size())
 			});
 		}
 		const shown_images = images.get(shown);
@@ -524,7 +533,7 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "intensity", "decay", "channel-on"])
+	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "scope-on", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	window.requestAnimationFrame(draw);

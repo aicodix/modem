@@ -68,11 +68,15 @@ int feed(int offset, int count)
 		return -1;
 	last_events = 0;
 	for (int i = 0; i < count; ++i) {
+		/* the symbol and bit index of the next symbol, unless it follows a sync */
+		int symbol = decoder.symbol_index, start = decoder.bit_index;
 		int events = decoder.feed(samples[offset+i]);
 		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
 		/* only for the analyzer, the page doesn't need to stop for it */
-		if (events & decoder_type::new_symbol)
+		if (events & decoder_type::new_symbol) {
 			analyzer.channel_estimate(decoder.chan);
+			analyzer.constellation_symbol(decoder, events & decoder_type::found_sync ? 0 : symbol, start);
+		}
 		events &= ~decoder_type::new_symbol;
 		if (events) {
 			last_events = events;
@@ -191,6 +195,28 @@ int enable_channel(int on)
 	if (on < 0 || on > 1)
 		return -1;
 	analyzer.channel_on = on;
+	return 0;
+}
+
+/* the equalized symbols of the latest frame, constellation_size() wide and high */
+__attribute__((visibility("default")))
+int *constellation()
+{
+	return analyzer.constellation;
+}
+
+__attribute__((visibility("default")))
+int constellation_size()
+{
+	return analyzer_type::constellation_size;
+}
+
+__attribute__((visibility("default")))
+int enable_constellation(int on)
+{
+	if (on < 0 || on > 1)
+		return -1;
+	analyzer.constellation_on = on;
 	return 0;
 }
 
