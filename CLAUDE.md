@@ -72,9 +72,10 @@ When a header joins the build, add it to the dependencies of `encode` and
 `check_encoder.mjs` and `check_decoder.mjs` with Node.js: they encode random
 data in all modes and both rates with the encoder modules and decode it with
 the native `decode`, and the other way around with the native `encode` and
-the decoder modules. To try `index.html`, serve the repository with any
-static web server that sends `.wasm` as `application/wasm`, for example
-`python3 -m http.server`, and open `index.html`.
+the decoder modules. To try `index.html`, run `make webserver`, which builds
+the modules and serves the repository on http://127.0.0.1:8080/ only, and
+open `index.html` there. Any other static web server works too, as long as it
+sends `.wasm` as `application/wasm`.
 
 Everything is compiled with `-std=c++17 -O3 -ffast-math -fno-exceptions -fno-rtti`,
 so code must:

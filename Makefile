@@ -45,6 +45,11 @@ check-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.w
 	node check_encoder.mjs
 	node check_decoder.mjs
 
+.PHONY: webserver
+
+webserver: wasm
+	python3 -m http.server 8080 --bind 127.0.0.1
+
 freezer: freezer.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
 
