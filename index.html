@@ -13,7 +13,7 @@ p { margin: 0.75em 0; }
 .failed { color: red; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
 canvas[hidden] { display: none; }
-#channel { margin: 0.5em auto; }
+#channel-power, #channel-phase { margin: 0.5em auto; }
 fieldset { border: 1px solid gray; margin: 0.75em 0; }
 fieldset label { white-space: nowrap; margin-right: 0.5em; }
 #scope { width: 60%; margin: 0.5em auto; }
@@ -75,8 +75,11 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <fieldset>
 <legend><label><input type="checkbox" id="channel-on"> channel estimation</label></legend>
 <label><input type="checkbox" id="channel-phosphor" checked> phosphor</label>
-<span>300 to 2700 Hz, 0 to -100 dB of full scale</span>
-<canvas id="channel" hidden></canvas>
+<span>from 300 to 2700 Hz</span>
+<p>channel power, from 0 to -100 dB of full scale</p>
+<canvas id="channel-power" hidden></canvas>
+<p>channel phase, from -180 to 180 degrees</p>
+<canvas id="channel-phase" hidden></canvas>
 </fieldset>
 <div id="log"></div>
 <script>
@@ -155,7 +158,7 @@ function analyzer_controls() {
 	const channel = element("channel-on").checked;
 	element("spectrum").hidden = element("spectrogram").hidden = !spectrum;
 	element("scope").hidden = !scope;
-	element("channel").hidden = !channel;
+	element("channel-power").hidden = element("channel-phase").hidden = !channel;
 	element("channel-phosphor").disabled = !channel;
 	for (const id of ["spectrum-phosphor", "rainbow"])
 		element(id).disabled = !spectrum;
@@ -176,7 +179,8 @@ function draw() {
 				scope: image(shown.scope(), shown.scope_height()),
 				spectrum: image(shown.spectrum(), shown.spectrum_height()),
 				spectrogram: image(shown.spectrogram(), shown.spectrogram_height()),
-				channel: image(shown.channel(), shown.spectrum_height(), shown.channel_width())
+				"channel-power": image(shown.channel_power(), shown.spectrum_height(), shown.channel_width()),
+				"channel-phase": image(shown.channel_phase(), shown.spectrum_height(), shown.channel_width())
 			});
 		}
 		const shown_images = images.get(shown);
@@ -188,7 +192,7 @@ function draw() {
 				canvas.width = image.width;
 				canvas.height = image.height;
 				/* as many Hz per pixel as the spectrum, the tones are its middle bins */
-				if (id == "channel")
+				if (id == "channel-power" || id == "channel-phase")
 					canvas.style.width = 100 * image.width / shown.analyzer_width() + "%";
 			}
 			canvas.getContext("2d").putImageData(image, 0, 0);

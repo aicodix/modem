@@ -13,6 +13,7 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 template <typename value, typename cmplx, int rate>
 struct Analyzer
 {
+	typedef DSP::Const<value> Const;
 	// as long as the symbols of the decoder, so the bins are as wide as the tones
 	static const int symbol_len = (rate / 300) * 40;
 	static const int hop = symbol_len / 2;
@@ -32,10 +33,12 @@ struct Analyzer
 	int scope[width * scope_height];
 	int spectrum[width * spectrum_height];
 	int spectrogram[width * spectrogram_height];
-	// the channel estimate of the decoder, only for the tones, in dB of a full scale sine
+	// the channel estimate of the decoder, only for the tones,
+	// its power in dB of a full scale sine and its phase from -180 to 180 degrees
 	static const int channel_width = Common::tone_count;
 	static constexpr value channel_top = 0, channel_range = 100;
-	int channel[channel_width * spectrum_height];
+	int channel_power[channel_width * spectrum_height];
+	int channel_phase[channel_width * spectrum_height];
 	int pos;
 	bool fresh, spectrum_on, scope_on, channel_on, show_rainbow, spectrum_phosphor, channel_phosphor;
 	value intensity, decay;
@@ -53,7 +56,7 @@ struct Analyzer
 		for (int i = 0; i < width * spectrogram_height; ++i)
 			spectrogram[i] = 0;
 		for (int i = 0; i < channel_width * spectrum_height; ++i)
-			channel[i] = 0;
+			channel_power[i] = channel_phase[i] = 0;
 	}
 	static int rgba(value r, value g, value b, value a)
 	{
@@ -102,9 +105,9 @@ struct Analyzer
 		for (int y = std::min(mid, y1); y <= std::max(mid, y1); ++y)
 			image[W * y + x0 + 1] = color;
 	}
-	// draws a line through the W dB values, the old lines fade with phosphor
+	// the old lines and dots fade with phosphor, or are gone without it
 	template <int W>
-	static void plot(int *image, const value *dB, value dB_max, value range, bool phosphor)
+	static void fade(int *image, bool phosphor)
 	{
 		if (phosphor) {
 			for (int i = 0; i < W * spectrum_height; ++i)
@@ -113,6 +116,12 @@ struct Analyzer
 			for (int i = 0; i < W * spectrum_height; ++i)
 				image[i] = 0xffffff;
 		}
+	}
+	// draws a line through the W dB values
+	template <int W>
+	static void plot(int *image, const value *dB, value dB_max, value range, bool phosphor)
+	{
+		fade<W>(image, phosphor);
 		for (int b = 0, y0 = 0; b < W; ++b) {
 			int y1 = nearbyint((spectrum_height - 1) * range * (dB_max - dB[b]));
 			y1 = std::min(std::max(y1, 0), spectrum_height - 1);
@@ -191,7 +200,14 @@ struct Analyzer
 		const value full_scale = value(symbol_len * symbol_len) / 4;
 		for (int i = 0; i < channel_width; ++i)
 			est[i] = DSP::decibel(norm(chan[i]) / full_scale);
-		plot<channel_width>(channel, est, channel_top, 1 / channel_range, channel_phosphor);
+		plot<channel_width>(channel_power, est, channel_top, 1 / channel_range, channel_phosphor);
+		// one dot per tone, as a line would jump where the phase wraps around
+		fade<channel_width>(channel_phase, channel_phosphor);
+		for (int i = 0; i < channel_width; ++i) {
+			int y = nearbyint((spectrum_height - 1) * (value(0.5) - arg(chan[i]) / Const::TwoPi()));
+			y = std::min(std::max(y, 0), spectrum_height - 1);
+			channel_phase[channel_width * y + i] = -1;
+		}
 	}
 	// takes one sample of the baseband, does nothing while turned off
 	void operator()(cmplx sample)

@@ -168,9 +168,15 @@ int *spectrogram()
 
 /* the decoder's channel estimate after each symbol, channel_width() wide and spectrum_height() high */
 __attribute__((visibility("default")))
-int *channel()
+int *channel_power()
 {
-	return analyzer.channel;
+	return analyzer.channel_power;
+}
+
+__attribute__((visibility("default")))
+int *channel_phase()
+{
+	return analyzer.channel_phase;
 }
 
 __attribute__((visibility("default")))
