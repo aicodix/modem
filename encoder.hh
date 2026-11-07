@@ -123,7 +123,8 @@ struct Encoder : public Common
 			}
 		}
 		clipping_and_filtering(scale);
-		if (symbol_number != -1) {
+		// the copies of the sync symbol follow each other without guard intervals
+		if (symbol_number >= 0 || symbol_number == -sync_copies) {
 			for (int i = 0; i < guard_len; ++i)
 				guard[i] = DSP::lerp(guard[i], tdom[i+symbol_len-guard_len], weight[i]);
 			emit(guard, guard_len);
@@ -140,16 +141,7 @@ struct Encoder : public Common
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = 0;
 	}
-	void leading_noise(int num = 1)
-	{
-		CODE::MLS noise(mls2_poly);
-		for (int j = 0; j < num; ++j) {
-			for (int i = 0; i < tone_count; ++i)
-				tone[i] = nrz(noise());
-			symbol(-3);
-		}
-	}
-	void schmidl_cox()
+	void sync_symbol()
 	{
 		CODE::MLS seq0(mls0_poly, mls0_seed);
 		for (int i = 0; i < tone_count; ++i)
@@ -197,7 +189,7 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
-	Encoder() : seq1(mls1_poly), audio_len(0), symbol_index(-3)
+	Encoder() : seq1(mls1_poly), audio_len(0), symbol_index(-sync_copies-1)
 	{
 		guard_interval_weights();
 	}
@@ -207,20 +199,19 @@ struct Encoder : public Common
 		bool analog_mode = oper_mode & 128;
 		if (!analog_mode && !setup(oper_mode))
 			return false;
-		leading_noise();
 		return true;
 	}
 	void prepare(int64_t call_sign)
 	{
 		meta_data((call_sign << 8) | oper_mode);
 		seq1.reset();
-		symbol_index = -2;
+		symbol_index = -sync_copies;
 		tone_index = 0;
 		meta_index = 0;
 	}
 	bool begin(const uint8_t *payload, int length, int64_t call_sign)
 	{
-		symbol_index = -3;
+		symbol_index = -sync_copies - 1;
 		if (length < 0)
 			return false;
 		for (int i = 0; i < data_bytes; ++i)
@@ -242,7 +233,7 @@ struct Encoder : public Common
 	}
 	bool begin(const cmplx *values, int count, int64_t call_sign)
 	{
-		symbol_index = -3;
+		symbol_index = -sync_copies - 1;
 		if (count < 1 || count > analog_max)
 			return false;
 		if (!setup(128 | (count - 1) / data_tones))
@@ -257,10 +248,10 @@ struct Encoder : public Common
 	int next()
 	{
 		audio_len = 0;
-		if (symbol_index < -2 || symbol_index > symbol_count)
+		if (symbol_index < -sync_copies || symbol_index > symbol_count)
 			return 0;
-		if (symbol_index == -2)
-			schmidl_cox();
+		if (symbol_index == -sync_copies)
+			sync_symbol();
 		if (symbol_index < 0) {
 			symbol(symbol_index++);
 			return audio_len;

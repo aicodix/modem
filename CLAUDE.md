@@ -24,7 +24,14 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 - `psk.hh`, `qam.hh`: constellation mapping, hard and soft demapping, templated
   on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
 - `quantize.hh`: turns soft values into the code type of the LLRs.
-- `schmidl_cox.hh`: synchronization (timing, CFO, SFO).
+- `sync_correlator.hh`: synchronization. A frame starts with `sync_copies`
+  copies of one known symbol after a single guard interval. Every symbol
+  length, the correlator correlates a window with it in the frequency domain:
+  its peak gives the timing. Then it follows the copies symbol by symbol until
+  the window after the last copy no longer matches: that is the metadata
+  symbol. `Decoder::preamble()` takes the CFO from the turn of the phase
+  between the last two copies and the SFO and the first channel estimate from
+  their tones, as before.
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as
@@ -127,11 +134,11 @@ so code must:
 - The signal is always a real (one channel) audio signal centered at 1500 Hz.
   The decoder mixes it down by 1500 Hz and lowpass filters it, flat to ±1050 Hz
   and at least 65 dB down from ±1500 Hz, which removes DC and out-of-band noise
-  before synchronization. This limits the CFO to about ±250 Hz.
-- Near threshold, the coarse timing of the Schmidl & Cox correlator is often
-  off by more than a guard interval, which the cross-correlation after it
-  corrects for up to two guard intervals. BPSK 1/2 short then decodes all frames
-  from about 3 dB in-band SNR, also with multipath, CFO and SFO, and fails at
+  before synchronization.
+- The correlation is coherent and assumes the small CFO of FM: up to about 3 Hz
+  decodes normally, half the tone spacing of 7.5 Hz is the limit. At least two
+  copies must survive the key up time of the radio. BPSK 1/2 short decodes all
+  frames from about 3 dB in-band SNR, also with multipath and SFO, and fails at
   about the same point as its code does. To compare decoder changes, use many
   noise seeds per point near the threshold of the affected modes, and report
   decoded frames out of trials.

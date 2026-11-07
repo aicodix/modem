@@ -46,6 +46,8 @@ struct Common
 	static const int block_length = 5;
 	static const int block_skew = 3;
 	static const int first_seed = 4;
+	// copies of the sync symbol, two must survive the key up time of the radio
+	static const int sync_copies = 4;
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::HadamardEncoder<7> hadamard_encoder;

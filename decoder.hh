@@ -7,7 +7,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #pragma once
 
 #include "common.hh"
-#include "schmidl_cox.hh"
+#include "sync_correlator.hh"
 #include "bip_buffer.hh"
 #include "theil_sen.hh"
 #include "filter.hh"
@@ -31,7 +31,6 @@ struct Decoder : Common
 	static const int filter_len = rate / 100 | 1;
 	static const int extended_len = symbol_len + guard_len;
 	static const int buffer_len = 5 * extended_len;
-	static const int search_pos = extended_len;
 	static const int tone_off = - tone_count / 2;
 	// what happened during a call of feed(), as reported by its return value
 	static const int found_sync = 1 << 0;
@@ -52,7 +51,7 @@ struct Decoder : Common
 	DSP::FIR<cmplx, value, filter_len> lowpass;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
-	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
+	SyncCorrelator<value, cmplx, symbol_len, guard_len, buffer_len, tone_count, tone_off> correlator;
 	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	CODE::PolarEncoder<code_type> polar_encoder;
@@ -102,15 +101,12 @@ struct Decoder : Common
 		}
 		return 0;
 	}
-	const cmplx *mls0_seq()
+	const value *sync_seq()
 	{
 		CODE::MLS seq0(mls0_poly, mls0_seed);
-		for (int i = 0; i < symbol_len; ++i)
-			fdom[i] = 0;
-		value cur = 0, prv = 0;
-		for (int i = 0; i < tone_count; ++i, prv = cur)
-			fdom[bin(i+tone_off)] = prv * (cur = nrz(seq0()));
-		return fdom;
+		for (int i = 0; i < tone_count; ++i)
+			phase[i] = nrz(seq0());
+		return phase;
 	}
 	cmplx map_bits(code_type *b, int bits)
 	{
@@ -448,8 +444,13 @@ struct Decoder : Common
 	void preamble(const cmplx *buf)
 	{
 		symbol_pos = correlator.symbol_pos;
-		cfo_rad = correlator.cfo_rad;
 		events |= found_sync;
+
+		// FM gives almost no carrier offset: what is left turns the phase from one copy to the next, a symbol length apart
+		cmplx turn = 0;
+		for (int i = 0; i < symbol_len; ++i)
+			turn += buf[i+symbol_pos+symbol_len] * conj(buf[i+symbol_pos]);
+		cfo_rad = arg(turn) / value(symbol_len);
 
 		osc.omega(-cfo_rad);
 		for (int i = 0; i < symbol_len; ++i)
@@ -493,7 +494,7 @@ struct Decoder : Common
 		bit_index = 0;
 		process(buf);
 	}
-	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0)
+	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(sync_seq()), seq1(mls1_poly), sample_count(0), countdown(0)
 	{
 		mix.omega(-1500, rate);
 	}
@@ -501,13 +502,12 @@ struct Decoder : Common
 	{
 		events = 0;
 		const cmplx *buf = input_hist(lowpass(sample * mix()));
-		bool found = correlator(buf);
 		if (countdown) {
 			if (!--countdown)
 				process(buf);
 		} else {
 			++sample_count;
-			if (found)
+			if (correlator(buf))
 				preamble(buf);
 		}
 		return events;

@@ -131,9 +131,9 @@ function oper_mode() {
 		return 128;
 	return (value("modulation") << 4) | (value("code-rate") << 1) | value("frame-size");
 }
-/* the same as print_setup() in native.hh, symbols after the sync and preamble symbols */
+/* the same as frame_duration() in native.hh, with the four copies of the sync symbol of sync_copies in common.hh */
 function duration(symbols) {
-	return 41 / 300 * (3 + symbols);
+	return (2 + 40 * 4 + 41 * (symbols + 1)) / 300;
 }
 function message() {
 	return new TextEncoder().encode(document.getElementById("message").value);

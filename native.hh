@@ -12,10 +12,16 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 #include "pcm.hh"
 #include "common.hh"
 
+// a guard interval, the copies of the sync symbol, the metadata and payload symbols with their guard intervals and the last guard interval
+static float frame_duration(const Common &common)
+{
+	return (2 + 40 * Common::sync_copies + 41 * (common.symbol_count + 1)) / 300.f;
+}
+
 static void print_setup(const Common &common, int mode)
 {
 	if (mode & 128) {
-		float duration = 41. / 300. * (3 + common.symbol_count);
+		float duration = frame_duration(common);
 		std::cerr << "analog mode" << std::endl;
 		std::cerr << "symbols: " << common.symbol_count << std::endl;
 		std::cerr << "duration: " << duration << "s" << std::endl;
@@ -32,7 +38,7 @@ static void print_setup(const Common &common, int mode)
 		return;
 	}
 	std::cerr << "code rate: " << code_rates[code_rate] << std::endl;
-	float duration = 41. / 300. * (3 + common.symbol_count);
+	float duration = frame_duration(common);
 	std::cerr << "duration: " << duration << "s" << std::endl;
 	std::cerr << "payload: " << common.data_bytes << "B" << std::endl;
 	std::cerr << "bitrate: " << common.data_bits / duration / 1000. << "kb/s" << std::endl;
