@@ -68,8 +68,9 @@ make test
 
 `make test` encodes random data to `audio.wav` and decodes it. There is no test
 suite; check a change by encoding, decoding and comparing, for example with the
-simulation pipeline in the README ("Simulating"), which adds multipath, CFO,
-SFO and AWGN with the disorders tools and ends with `diff -s`.
+simulation pipeline in the README ("Simulating"), which adds multipath, SFO
+and AWGN with the disorders tools and ends with `diff -s`. FM leaves no CFO of
+its own, the SFO shifts the center by 147 ppm of 1500 Hz.
 The decoder reports the operation mode and Es/N0 statistics on stderr. After a
 frame decodes, it re-encodes the message and also reports the number of code
 bits whose soft value had the wrong sign (erased bits count too) and the real
