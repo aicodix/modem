@@ -166,6 +166,25 @@ channel, also near threshold:
   correlator, half a tone, which FM, AM and audio equipment don't need. A
   room's reverberation lasts far longer than the guard interval, which only
   covers the early reflections.
+- Most of the CFO is SFO in disguise. FM and AM demodulation don't pass an
+  offset of the RF carrier to the audio, unlike SSB. What remains are the
+  sound card clocks, whose SFO scales all frequencies, 147 ppm looks like a
+  CFO of 0.22 Hz at 1500 Hz, and acoustic Doppler. Where sound travels
+  through the air, as from a speaker to the microphone of a walkie-talkie,
+  moving either changes the length of the path: with sound at 343 m/s, 10 cm/s
+  is already about 290 ppm, more than typical sound card crystals, and a
+  casual 0.5 m/s about 1500 ppm, 2 Hz at 1500 Hz. It changes over time, a
+  time-varying SFO, which is why people have to hold the device still.
+  - The fractional CFO from the sync is still needed. The seed tones track
+    slow phase drift from symbol to symbol, but an offset of a fraction of a
+    tone causes interference between the tones: 0.44 Hz, 6 percent of a tone,
+    puts it at about -19 dB, which would cap the dense QAM modes. The
+    estimate is one correlation of the two sync symbols per frame.
+  - The decoder doesn't resample. Timing drift from SFO is absorbed by the
+    phase slope of every symbol only while it stays within the clean part of
+    the guard interval, about a quarter of it on each side. At 290 ppm, a
+    3.4 s frame drifts about 1 ms, beyond that, as a rough estimate. Long
+    frames are where tracking and correcting the SFO would pay off.
 - Adjacent tones are divided, not multiplied, so a strong tone or carrier
   can't dominate, and ratios that are far off, as next to a notch, are erased.
 - The decoder doesn't trust the channel estimate of the sync for the whole
