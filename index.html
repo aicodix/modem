@@ -60,6 +60,12 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <button id="listen">listen</button>
 <label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
 </p>
+<p>
+<label>sync detection <select id="sync-detection">
+<option value="0" selected>time</option>
+<option value="1">frequency</option>
+</select></label>
+</p>
 <fieldset>
 <legend><label><input type="checkbox" id="scope-on"> scope</label></legend>
 <label>gain <input type="range" id="gain" min="-20" max="60" value="0"> <span id="gain-value"></span></label>
@@ -158,6 +164,7 @@ async function load_decoder(rate) {
 }
 function analyzer_options(dec) {
 	const element = id => document.getElementById(id);
+	dec.frequency_sync(Number(element("sync-detection").value));
 	dec.enable_spectrum(element("spectrum-on").checked ? 1 : 0);
 	dec.enable_scope(element("scope-on").checked ? 1 : 0);
 	dec.enable_channel(element("channel-on").checked ? 1 : 0);
@@ -556,7 +563,7 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["spectrum-on", "spectrum-phosphor", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
+	for (const id of ["sync-detection", "spectrum-on", "spectrum-phosphor", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	window.requestAnimationFrame(draw);

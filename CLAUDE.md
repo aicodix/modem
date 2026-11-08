@@ -25,6 +25,18 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
 - `quantize.hh`: turns soft values into the code type of the LLRs.
 - `schmidl_cox.hh`: synchronization (timing, CFO, SFO).
+- `frequency_sync.hh`: sync detection in the frequency domain, for FM or AM,
+  selected by `Decoder::frequency_sync`, `decode -f` and the page. It takes
+  an FFT every `symbol_len` samples, so one window always falls between the
+  two identical sync symbols, and sums the ratio of adjacent tones times
+  their known sign, against the number of tone pairs. As in Schmidl & Cox,
+  dividing instead of multiplying keeps strong tones, as from a carrier or
+  speech, from dominating, and weak or far apart pairs get erased. Its phase
+  gives the timing modulo a symbol. The ratio hardly notices a window that
+  reaches a few guard intervals beyond the sync symbols, so the correlation
+  between consecutive symbols picks the start among the candidates within
+  half a symbol of that window, and gives the CFO. It only handles a CFO
+  within half a tone (3.75 Hz). `preamble()` then estimates SFO and residual CFO as for Schmidl & Cox.
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as

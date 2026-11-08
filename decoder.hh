@@ -8,6 +8,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 
 #include "common.hh"
 #include "schmidl_cox.hh"
+#include "frequency_sync.hh"
 #include "bip_buffer.hh"
 #include "theil_sen.hh"
 #include "filter.hh"
@@ -32,6 +33,8 @@ struct Decoder : Common
 	static const int extended_len = symbol_len + guard_len;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
+	// the frequency correlator looks for the sync up to two and a half symbols back
+	static const int freq_pos = 5 * symbol_len / 2 + guard_len;
 	static const int tone_off = - tone_count / 2;
 	// what happened during a call of feed(), as reported by its return value
 	static const int found_sync = 1 << 0;
@@ -53,6 +56,7 @@ struct Decoder : Common
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
+	FrequencySync<value, cmplx, freq_pos, symbol_len, guard_len> freq_correlator;
 	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	CODE::PolarEncoder<code_type> polar_encoder;
@@ -84,6 +88,8 @@ struct Decoder : Common
 	int sample_count, countdown;
 	int symbol_index, bit_index, snr_count;
 	bool analog_mode;
+	// sync detection in the frequency instead of the time domain, for FM or AM without CFO
+	bool frequency_sync;
 
 	static int bin(int carrier)
 	{
@@ -447,8 +453,8 @@ struct Decoder : Common
 	}
 	void preamble(const cmplx *buf)
 	{
-		symbol_pos = correlator.symbol_pos;
-		cfo_rad = correlator.cfo_rad;
+		symbol_pos = frequency_sync ? freq_correlator.symbol_pos : correlator.symbol_pos;
+		cfo_rad = frequency_sync ? freq_correlator.cfo_rad : correlator.cfo_rad;
 		events |= found_sync;
 
 		osc.omega(-cfo_rad);
@@ -493,7 +499,7 @@ struct Decoder : Common
 		bit_index = 0;
 		process(buf);
 	}
-	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0)
+	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), freq_correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), frequency_sync(false)
 	{
 		mix.omega(-1500, rate);
 	}
@@ -501,7 +507,7 @@ struct Decoder : Common
 	{
 		events = 0;
 		const cmplx *buf = input_hist(lowpass(sample * mix()));
-		bool found = correlator(buf);
+		bool found = frequency_sync ? freq_correlator(buf) : correlator(buf);
 		if (countdown) {
 			if (!--countdown)
 				process(buf);

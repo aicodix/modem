@@ -75,9 +75,10 @@ void write_output(Decoder<value, cmplx, rate> *decoder, const char *output_name,
 }
 
 template <typename value, typename cmplx, int rate>
-void decode(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count)
+void decode(DSP::ReadPCM<value> *pcm, const char *const *output_names, int output_count, bool frequency_sync)
 {
 	auto *decoder = new Decoder<value, cmplx, rate>();
+	decoder->frequency_sync = frequency_sync;
 	int output_index = 0;
 	bool end = false;
 	while (output_index < output_count) {
@@ -102,8 +103,13 @@ void decode(DSP::ReadPCM<value> *pcm, const char *const *output_names, int outpu
 
 int main(int argc, char **argv)
 {
+	bool frequency_sync = argc > 1 && argv[1][0] == '-' && argv[1][1] == 'f' && argv[1][2] == 0;
+	if (frequency_sync) {
+		--argc;
+		++argv;
+	}
 	if (argc < 3) {
-		std::cerr << "usage: " << argv[0] << " INPUT OUTPUT.." << std::endl;
+		std::cerr << "usage: " << argv[0] << " [-f] INPUT OUTPUT.." << std::endl;
 		return 1;
 	}
 
@@ -125,10 +131,10 @@ int main(int argc, char **argv)
 	int output_count = argc - 2;
 	switch (input_file.rate()) {
 	case 44100:
-		decode<value, cmplx, 44100>(&input_file, argv+2, output_count);
+		decode<value, cmplx, 44100>(&input_file, argv+2, output_count, frequency_sync);
 		break;
 	case 48000:
-		decode<value, cmplx, 48000>(&input_file, argv+2, output_count);
+		decode<value, cmplx, 48000>(&input_file, argv+2, output_count, frequency_sync);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;
