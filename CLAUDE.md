@@ -148,7 +148,24 @@ so code must:
   from about 3 dB in-band SNR, also with multipath, CFO and SFO, and fails at
   about the same point as its code does. To compare decoder changes, use many
   noise seeds per point near the threshold of the affected modes, and report
-  decoded frames out of trials.
+  decoded frames out of trials. Run old and new on the same seeds and count
+  the trials only one of them decodes: two totals that differ by a few
+  frames are usually noise.
+- The guard interval of the symbol after the two sync symbols starts as their
+  cyclic continuation, as the encoder's guard interval weights are zero for
+  its first quarter. A window that reaches past the second sync symbol can
+  therefore look clean, and the frequency correlator, whose ratio of adjacent
+  tones hardly notices a few guard intervals of other symbols, may pick such
+  a window. Don't assume the best window lies within the sync symbols.
+- When testing anything that works on a grid of hops or blocks, such as the
+  frequency correlator, sweep the offset of the signal over a whole hop, for
+  example by prepending 0 to `symbol_len` zero samples to a clean WAV. Native
+  runs of the same file always see the same phase; the Node checks feed
+  their files back to back and see others, which is how a failure at a few
+  phases showed up.
+- Test false syncs with structured signals, such as tones, chirps or speech,
+  not only with white noise, which a detector weighted by power never
+  mistakes for a sync but a strong tone can.
 - Don't take the QAM1024 and QAM4096 modes too seriously. They are only there
   for fun and might be replaced with something else in the future, so don't
   tune or design anything around them.
