@@ -23,18 +23,15 @@ class FrequencySync {
 	typedef DSP::Const<value> Const;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	cmplx tmp0[symbol_len];
-	// the conjugate of the known ratio of adjacent tones and their bins, only where it isn't zero
+	// the conjugate of the known ratio of adjacent tones, only where it isn't zero,
+	// with the bins of the tone and the one before it
 	cmplx kern[symbol_len];
-	int bins[symbol_len];
+	int curr_bin[symbol_len], prev_bin[symbol_len];
 	int pairs = 0;
 	value threshold;
 	value metric_max = 0;
 	cmplx sum_max = 0;
 	int hop = 0;
-
-	static int bin(int carrier) {
-		return (carrier + symbol_len) % symbol_len;
-	}
 
 	// keeps a single tone next to a faded one from dominating the sum
 	static cmplx demod_or_erase(cmplx curr, cmplx prev) {
@@ -61,10 +58,12 @@ public:
 
 	// takes the known ratio of adjacent tones, as SchmidlCox, which could also be complex, as with a CAZAC sequence
 	FrequencySync(const cmplx *sequence, value threshold = value(0.2)) : threshold(threshold) {
+		// the leftmost tone has none before it, so the ratio is zero there
 		for (int i = 0; i < symbol_len; ++i) {
 			if (norm(sequence[i]) > value(0)) {
 				kern[pairs] = conj(sequence[i]);
-				bins[pairs++] = i;
+				curr_bin[pairs] = i;
+				prev_bin[pairs++] = (i + symbol_len - 1) % symbol_len;
 			}
 		}
 	}
@@ -77,7 +76,7 @@ public:
 		fwd(tmp0, samples + search_pos);
 		cmplx sum = 0;
 		for (int i = 0; i < pairs; ++i)
-			sum += kern[i] * demod_or_erase(tmp0[bins[i]], tmp0[bin(bins[i] - 1)]);
+			sum += kern[i] * demod_or_erase(tmp0[curr_bin[i]], tmp0[prev_bin[i]]);
 		metric = abs(sum) / value(pairs);
 
 		// keep the best window until the next one is worse
