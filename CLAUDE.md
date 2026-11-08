@@ -123,6 +123,55 @@ so code must:
 - Sizes are fixed at compile time with fixed-size member arrays. Avoid heap
   allocation in the signal path.
 
+## Design decisions
+
+The signal is made for audio channels such as room acoustics, audio equipment
+and FM or AM radio, not for the channels textbook OFDM is tuned to. Measured
+with the disorders tools: a Watterson channel with 2 ms delay and 1 Hz spread
+has a notch every 500 Hz, about 20 dB deep, its phase turns about five times
+across the band, and the tones next to the notches change a lot from one
+symbol to the next as the notches move. The LTE channel models EPA, EVA and
+ETU, by contrast, are smooth over the bandwidth of LTE's sync signal and
+barely change within a symbol. Results that rely on such channels don't carry
+over. Before proposing to change any of the following, test it on such a
+channel, also near threshold:
+
+- The sync symbol is BPSK from an MLS, not a CAZAC sequence such as
+  Zadoff-Chu. With 320 tones inside a larger FFT, the best Zadoff-Chu root
+  has only about 2 dB less PAPR than the MLS, many roots have more, and the
+  real audio signal adds 3 dB to all of them. The ratio of adjacent
+  Zadoff-Chu tones turns by the same phase from tone to tone, so a shift by
+  whole tones only turns it as a whole, and the integer CFO search of Schmidl
+  & Cox can't tell the shifts apart for any root. The sync symbols get no SLM:
+  the receiver has to know them exactly.
+- There are two identical sync symbols back to back. Schmidl & Cox correlates
+  them in time, and they let the frequency correlator hop once per symbol, as
+  one window always falls cleanly between them. A third symbol isn't needed
+  for detection.
+- Sync detection uses the ratio of adjacent tones, a differential across
+  frequency, not across time and not a correlation with the known tones.
+  - On the Watterson channel the ratio stays flat apart from the tones next
+    to a notch. A ratio across time fails exactly at the notches, as they
+    move between symbols.
+  - Correlating with the known tones, with an inverse FFT to search all
+    delays, detects about 3 to 4 dB lower, as a ratio multiplies noise by
+    noise. But the preamble already fails before the differential sync does,
+    so this gains no decoded frames.
+  - The ratio treats every channel alike. Its noise penalty is won back by
+    many tone pairs, which longer symbols provide.
+- Symbols are long: 7.5 Hz tones, a 133 ms symbol and a 3.3 ms guard
+  interval. Neighbouring tones are close enough that even a 2 ms echo only
+  turns the phase by about 5 degrees from one tone to the next, and there are
+  320 tones to average. The price is the CFO range of the frequency
+  correlator, half a tone, which FM, AM and audio equipment don't need. A
+  room's reverberation lasts far longer than the guard interval, which only
+  covers the early reflections.
+- Adjacent tones are divided, not multiplied, so a strong tone or carrier
+  can't dominate, and ratios that are far off, as next to a notch, are erased.
+- The decoder doesn't trust the channel estimate of the sync for the whole
+  frame. It tracks the channel with the seed tones of every symbol and
+  weights the soft bits of each tone by its own channel power.
+
 ## Conventions worth knowing
 
 - Encoder and decoder must stay in step. A change to anything on the air, such
