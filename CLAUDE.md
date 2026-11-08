@@ -71,7 +71,9 @@ make
 make test
 ```
 
-`make test` encodes random data to `audio.wav` and decodes it. There is no test
+`make test` encodes random data to `audio.wav` and decodes it. `make play-modes`
+plays a frame in every digital mode with sox `play`, each carrying the name of its
+mode, for testing the decoder over the air. There is no test
 suite; check a change by encoding, decoding and comparing, for example with the
 simulation pipeline in the README ("Simulating"), which adds multipath, CFO,
 SFO and AWGN with the disorders tools and ends with `diff -s`.
