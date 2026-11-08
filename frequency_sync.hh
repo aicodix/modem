@@ -9,20 +9,23 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 #include "fft.hh"
 
 // Takes an FFT every symbol_len samples. As the two sync symbols are back to back,
-// one of these windows always falls between them and only sees a cyclic shift of
-// the sync symbol: the ratio of adjacent tones is then the known one, turned by the
-// same phase, which comes from the shift. As in SchmidlCox, adjacent tones are divided,
-// not multiplied, so a strong tone counts no more than any other, and pairs that
-// are weak or far apart get erased. Their sum, against the number of pairs, peaks
-// there. It knows of no integer CFO: with FM or AM there is little CFO besides that
-// from the SFO, a small fraction of a tone.
+// one of these windows always falls between them and only sees a cyclic shift of the
+// sync symbol: the ratio of adjacent tones is then the known one, turned by the same
+// phase, which comes from the shift. As in SchmidlCox, adjacent tones are divided,
+// not multiplied, so a strong tone counts no more than any other. Only the tones of
+// the kernel take part, so unlike SchmidlCox, which divides all bins of the symbol,
+// there are no empty bins to erase by their power, only pairs whose ratio is far off.
+// Their sum, against the number of pairs, peaks there. It knows of no integer CFO:
+// with FM or AM there is little CFO besides that from the SFO, a small fraction of a
+// tone.
 template<typename value, typename cmplx, int search_pos, int symbol_len, int guard_len>
 class FrequencySync {
 	typedef DSP::Const<value> Const;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	cmplx tmp0[symbol_len];
-	// the conjugate of the known ratio of adjacent tones, zero elsewhere
+	// the conjugate of the known ratio of adjacent tones and their bins, only where it isn't zero
 	cmplx kern[symbol_len];
+	int bins[symbol_len];
 	int pairs = 0;
 	value threshold;
 	value metric_max = 0;
@@ -33,8 +36,9 @@ class FrequencySync {
 		return (carrier + symbol_len) % symbol_len;
 	}
 
-	static cmplx demod_or_erase(cmplx curr, cmplx prev, value pwr) {
-		if (norm(curr) > pwr && norm(prev) > pwr) {
+	// keeps a single tone next to a faded one from dominating the sum
+	static cmplx demod_or_erase(cmplx curr, cmplx prev) {
+		if (norm(prev) > value(0)) {
 			cmplx cons = curr / prev;
 			if (norm(cons) < value(4))
 				return cons;
@@ -57,8 +61,12 @@ public:
 
 	// takes the known ratio of adjacent tones, as SchmidlCox, which could also be complex, as with a CAZAC sequence
 	FrequencySync(const cmplx *sequence, value threshold = value(0.2)) : threshold(threshold) {
-		for (int i = 0; i < symbol_len; ++i)
-			pairs += norm(kern[i] = conj(sequence[i])) > value(0);
+		for (int i = 0; i < symbol_len; ++i) {
+			if (norm(sequence[i]) > value(0)) {
+				kern[pairs] = conj(sequence[i]);
+				bins[pairs++] = i;
+			}
+		}
 	}
 
 	bool operator()(const cmplx *samples) {
@@ -67,14 +75,9 @@ public:
 		hop = 0;
 
 		fwd(tmp0, samples + search_pos);
-		value min_pwr = 0;
-		for (int i = 0; i < symbol_len; ++i)
-			min_pwr += norm(tmp0[i]);
-		min_pwr /= symbol_len;
 		cmplx sum = 0;
-		for (int i = 0; i < symbol_len; ++i)
-			if (norm(kern[i]) > value(0))
-				sum += kern[i] * demod_or_erase(tmp0[i], tmp0[bin(i - 1)], min_pwr);
+		for (int i = 0; i < pairs; ++i)
+			sum += kern[i] * demod_or_erase(tmp0[bins[i]], tmp0[bin(bins[i] - 1)]);
 		metric = abs(sum) / value(pairs);
 
 		// keep the best window until the next one is worse
