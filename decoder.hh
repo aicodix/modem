@@ -78,8 +78,11 @@ struct Decoder : Common
 	// real Es/N0 in dB of each tone, averaged over the payload symbols of the frame
 	value real_tone_snr[tone_count];
 	value tone_sp[tone_count], tone_np[tone_count];
-	// precision of each tone of the latest digital symbol, the estimated Es/N0 weighted by its channel power, zero when erased
+	// precision of each tone of the latest digital symbol, its estimated Es/N0, zero when erased
 	value tone_precision[tone_count];
+	// noise of each tone before equalization, from the preamble and then the seed tones
+	value tone_noise[tone_count], local_noise[tone_count], sorted_noise[tone_count];
+	value error_power[tone_count];
 	int64_t call_sign;
 	int meta_mode, erased_index, bit_flips;
 	int events;
@@ -342,7 +345,7 @@ struct Decoder : Common
 				if (i % block_length != seed_off)
 					values[bit_index++] = demod[i];
 		} else {
-			value sp = 0, np = 0, mg = 0;
+			value sp = 0, np = 0;
 			for (int i = 0, l = bit_index; !erased && i < tone_count; ++i) {
 				cmplx hard(1, 0);
 				if (i % block_length != seed_off) {
@@ -354,27 +357,58 @@ struct Decoder : Common
 				cmplx error = demod[i] - hard;
 				sp += norm(hard);
 				np += norm(error);
-				// the precision of each tone follows its channel power
+				// the error before equalization, flat for white noise
 				gain[i] = norm(chan[i]);
-				mg += gain[i];
+				error_power[i] = norm(error) * gain[i];
 			}
-			// erased symbols get zero LLRs
-			value precision = 0;
-			if (!erased) {
-				snr[snr_count++] = precision = sp / np;
-				// relative to the average channel power of this symbol
-				precision *= value(tone_count) / std::max(mg, value(1e-30));
+			if (erased) {
+				// erased symbols get zero LLRs
+				for (int i = 0; i < tone_count; ++i)
+					tone_precision[i] = 0;
+			} else {
+				snr[snr_count++] = sp / np;
+				// the noise of each tone from known symbols, all tones of the preamble, then the seed tones
+				if (!j) {
+					for (int i = 0; i < tone_count; ++i)
+						tone_noise[i] = error_power[i];
+				} else {
+					for (int i = seed_off; i < tone_count; i += block_length)
+						tone_noise[i] = DSP::lerp(tone_noise[i], error_power[i], value(0.5));
+				}
+				for (int i = 0; i < tone_count; ++i) {
+					value sum = 0;
+					int count = 0;
+					for (int k = std::max(i - 8, 0); k <= std::min(i + 8, tone_count - 1); ++k, ++count)
+						sum += tone_noise[k];
+					sorted_noise[i] = local_noise[i] = sum / value(count);
+				}
+				// tones with more than twice the median noise, as from interference, get less precision
+				value median = DSP::quick_select(sorted_noise, tone_count / 2, tone_count);
+				value limit = 2 * median;
+				// the white noise of this symbol, without those tones
+				value sum = 0;
+				int count = 0;
+				for (int i = 0; i < tone_count; ++i) {
+					if (local_noise[i] <= limit) {
+						sum += error_power[i];
+						++count;
+					}
+				}
+				value es = sp / value(tone_count);
+				value noise = std::max(sum / value(count), value(1e-30) * es);
+				for (int i = 0; i < tone_count; ++i) {
+					tone_precision[i] = es * gain[i] / noise;
+					if (local_noise[i] > limit)
+						tone_precision[i] *= median / local_noise[i];
+				}
 			}
-			for (int i = 0; i < tone_count; ++i)
-				tone_precision[i] = precision * gain[i];
-			// more resolution after rounding, quantize() caps the slope
-			precision *= value(300);
 			for (int i = 0, n = (j - 1) * data_tones; i < tone_count; ++i) {
 				if (i % block_length != seed_off) {
 					if (j)
 						values[n++] = demod[i];
 					int bits = bits_at(bit_index);
-					demap_soft(perm+bit_index, demod[i], precision * gain[i], bits);
+					// more resolution after rounding, quantize() caps the slope
+					demap_soft(perm+bit_index, demod[i], value(300) * tone_precision[i], bits);
 					bit_index += bits;
 				}
 			}

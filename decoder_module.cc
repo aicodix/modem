@@ -204,7 +204,7 @@ int *channel_snr()
 	return analyzer.channel_snr;
 }
 
-/* the weighted precision of each tone after each digital symbol, channel_width() wide and spectrum_height() high */
+/* the precision of each tone after each digital symbol, channel_width() wide and spectrum_height() high */
 __attribute__((visibility("default")))
 int *channel_precision()
 {

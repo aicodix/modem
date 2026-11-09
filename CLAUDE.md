@@ -52,8 +52,8 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   degrees, one dot per tone. After each decoded frame it plots the real Es/N0
   of each tone, `real_tone_snr` of the decoder, from 0 to 50 dB, and after
   each digital symbol the precision of each tone the soft demapper uses,
-  `tone_precision` of the decoder, the estimated Es/N0 weighted by its channel
-  power, on the same scale, blank for erased or analog symbols. Its
+  `tone_precision` of the decoder, its estimated Es/N0, on the same scale,
+  blank for erased or analog symbols. Its
   constellation shows the equalized tones of the latest symbol on a fixed
   scale: the BPSK tones of the preamble symbol, then only the payload tones
   that carry all bits of the mode, without seed tones, the tones with fewer
@@ -192,7 +192,14 @@ channel, also near threshold:
   can't dominate, and ratios that are far off, as next to a notch, are erased.
 - The decoder doesn't trust the channel estimate of the sync for the whole
   frame. It tracks the channel with the seed tones of every symbol and
-  weights the soft bits of each tone by its own channel power.
+  weights the soft bits of each tone by its own channel power and noise.
+- The noise of each tone is measured on known symbols only: the preamble,
+  then the seed tones, which take turns over all tones. Hard decisions on the
+  payload get the noise of faded tones wrong, as their errors wrap around at
+  the decision boundaries, which cost frames near threshold on multipath.
+  Few symbols give a noisy estimate per tone, so it only counts where it is
+  more than twice the median, as with interference in part of the band,
+  and white noise keeps the weights of the channel power alone.
 
 ## Conventions worth knowing
 
@@ -205,12 +212,14 @@ channel, also near threshold:
   headroom against saturation. `quantize()` caps the slope `DIST * precision`
   at 4096, so every constellation gets the same headroom, and `decode.cc`
   scales the precision by 300 for resolution.
-- Each tone's precision is weighted by its channel power, relative to the
-  average of its symbol. The logged Es/N0 stays unweighted.
-- The precision comes from hard decisions and overestimates Es/N0 by several dB
-  for dense QAM near threshold. Within a frame that is a common scale and does
-  not hurt decoding, but the logged Es/N0 is not exact there. The real Es/N0
-  after decoding is.
+- Each tone's precision is its channel power over the white noise of its
+  symbol before equalization, the mean of the errors of the tones without
+  interference times their channel power, and less where its own noise is
+  more than twice the median. The logged Es/N0 stays unweighted.
+- The level of the precision and the logged Es/N0 come from hard decisions
+  and overestimate Es/N0 by several dB for dense QAM near threshold. Within a
+  frame that is a common scale and does not hurt decoding, but they are not
+  exact there. The real Es/N0 after decoding is.
 - The signal is always a real (one channel) audio signal centered at 1500 Hz.
   The decoder mixes it down by 1500 Hz and lowpass filters it, flat to ±1050 Hz
   and at least 65 dB down from ±1500 Hz, which removes DC and out-of-band noise

@@ -44,7 +44,7 @@ struct Analyzer
 	// the real Es/N0 of each tone after a decoded frame, from 0 to 50 dB
 	static constexpr value snr_top = 50, snr_range = 50;
 	int channel_snr[channel_width * spectrum_height];
-	// the weighted precision of each tone after each digital symbol, on the same scale as the real Es/N0
+	// the precision of each tone after each digital symbol, on the same scale as the real Es/N0
 	int channel_precision[channel_width * spectrum_height];
 	int pos;
 	// the equalized tones of the latest symbol, on a fixed scale
@@ -212,7 +212,7 @@ struct Analyzer
 		if (channel_on)
 			plot<channel_width>(channel_snr, snr, snr_top, 1 / snr_range, false);
 	}
-	// takes the weighted precision of each tone from the decoder after symbol j, nothing for erased or analog symbols
+	// takes the precision of each tone from the decoder after symbol j, nothing for erased or analog symbols
 	template <typename DECODER>
 	void tone_precision(DECODER &dec, int j)
 	{
