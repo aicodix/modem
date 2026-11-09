@@ -80,7 +80,7 @@ struct Decoder : Common
 	value tone_sp[tone_count], tone_np[tone_count];
 	// precision of each tone of the latest digital symbol, its estimated Es/N0, zero when erased
 	value tone_precision[tone_count];
-	// noise of each tone before equalization, from the preamble and then the seed tones
+	// noise of each tone before equalization, from the sync symbols and the preamble, then the seed tones
 	value tone_noise[tone_count], local_noise[tone_count], sorted_noise[tone_count];
 	value error_power[tone_count];
 	int64_t call_sign;
@@ -367,10 +367,10 @@ struct Decoder : Common
 					tone_precision[i] = 0;
 			} else {
 				snr[snr_count++] = sp / np;
-				// the noise of each tone from known symbols, all tones of the preamble, then the seed tones
+				// the noise of each tone from known symbols, the sync symbols and all tones of the preamble, then the seed tones
 				if (!j) {
 					for (int i = 0; i < tone_count; ++i)
-						tone_noise[i] = error_power[i];
+						tone_noise[i] = DSP::lerp(tone_noise[i], error_power[i], value(0.5));
 				} else {
 					for (int i = seed_off; i < tone_count; i += block_length)
 						tone_noise[i] = DSP::lerp(tone_noise[i], error_power[i], value(0.5));
@@ -517,6 +517,10 @@ struct Decoder : Common
 		residual_rad = tse.yint();
 		for (int i = 0; i < tone_count; ++i)
 			tone[i] *= DSP::polar<value>(1, tse(i+tone_off));
+		// the noise of each tone from the difference of the two sync symbols, which carries it twice,
+		// times one and a half, as the error of the preamble also carries the noise of their average
+		for (int i = 0; i < tone_count; ++i)
+			tone_noise[i] = value(0.75) * norm(chan[i] - tone[i]);
 		for (int i = 0; i < tone_count; ++i)
 			chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 		CODE::MLS seq0(mls0_poly, mls0_seed);

@@ -193,10 +193,11 @@ channel, also near threshold:
 - The decoder doesn't trust the channel estimate of the sync for the whole
   frame. It tracks the channel with the seed tones of every symbol and
   weights the soft bits of each tone by its own channel power and noise.
-- The noise of each tone is measured on known symbols only: the preamble,
-  then the seed tones, which take turns over all tones. Hard decisions on the
-  payload get the noise of faded tones wrong, as their errors wrap around at
-  the decision boundaries, which cost frames near threshold on multipath.
+- The noise of each tone is measured on known symbols only: the difference
+  of the two sync symbols and the preamble, then the seed tones, which take
+  turns over all tones. Hard decisions on the payload get the noise of faded
+  tones wrong, as their errors wrap around at the decision boundaries, which
+  cost frames near threshold on multipath.
   Few symbols give a noisy estimate per tone, so it only counts where it is
   more than twice the median, as with interference in part of the band,
   and white noise keeps the weights of the channel power alone.
