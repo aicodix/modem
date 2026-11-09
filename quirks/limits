@@ -1,0 +1,15 @@
+/*
+Quirks
+
+Copyright 2026 Ahmet Inan <inan@aicodix.de>
+*/
+
+#pragma once
+
+namespace std {
+
+// only declared, for movext.hh, so a use in the module fails at compile time
+template <typename T>
+struct numeric_limits;
+
+}

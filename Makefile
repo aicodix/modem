@@ -13,7 +13,7 @@ CXX = clang++ -stdlib=libc++ -march=native
 WASMCXX = clang++
 WASMFLAGS = -std=c++17 -W -Wall -O3 -ffast-math -fno-exceptions -fno-rtti -ffreestanding -fvisibility=hidden --target=wasm32 -msimd128 -Iquirks -I../dsp -I../code
 WASMLDFLAGS = -nostdlib -Wl,--export-dynamic,--no-entry,--export=__wasm_call_ctors
-QUIRKS = quirks/algorithm quirks/cassert quirks/cmath quirks/cstdint quirks/cstdlib quirks/cstring quirks/functional quirks/type_traits
+QUIRKS = quirks/algorithm quirks/cassert quirks/cmath quirks/cstdint quirks/cstdlib quirks/cstring quirks/functional quirks/limits quirks/type_traits
 
 .PHONY: all
 

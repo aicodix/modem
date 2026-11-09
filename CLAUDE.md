@@ -45,9 +45,9 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   the tones, and draws the middle 400 bins, from 0 to 3000 Hz. None of its
   views has gain control: the page sets the scope gain and the top and bottom
   of spectrum and spectrogram in dB of a full scale sine. The spectrum shows
-  three curves: the current one and a dimmed min and max hold of each bin,
-  which jump to new extremes and pull back to the current value by a
-  sixteenth of the difference per update. It also plots the
+  three curves: the current one and the dimmed min and max of each bin over
+  the last 32 updates, about two seconds, with the moving extrema of
+  `movext.hh` from `dsp`. It also plots the
   power and phase of the decoder's channel estimate of the 320 tones after
   each symbol after synchronization, when the decoder reports the `new_symbol`
   event, which the module keeps from the page. Both have fixed scales: the

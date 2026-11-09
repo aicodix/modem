@@ -6,9 +6,12 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 
 #pragma once
 
+#include <functional>
+#include <limits>
 #include "common.hh"
 #include "window.hh"
 #include "coeffs.hh"
+#include "movext.hh"
 
 template <typename value, typename cmplx, int rate>
 struct Analyzer
@@ -30,9 +33,15 @@ struct Analyzer
 	cmplx hist[symbol_len], tmp[symbol_len], fdom[symbol_len];
 	value phosphor[width * scope_height];
 	value dB[bins];
-	// the hold of each bin, jumps to new extremes and slowly pulls back to the current value,
-	// a fraction of the difference per update, at 15 updates per second about a second
-	static constexpr value hold_pull = value(1) / 16;
+	// the min and max of each bin over the last hold_len updates, at 15 updates per second about two seconds,
+	// starting from values beyond any decibel the spectrum can have
+	static const int hold_len = 32;
+	struct Hold {
+		DSP::MovExt<value, std::equal_to<value>, std::less<value>, hold_len> low;
+		DSP::MovExt<value, std::equal_to<value>, std::greater<value>, hold_len> high;
+		Hold() : low(1000), high(-1000) {}
+	};
+	Hold hold[bins];
 	value dB_low[bins], dB_high[bins];
 	bool hold_valid;
 	// fixed scales without gain control: the scope gain, and the spectrum in dB of a full scale sine
@@ -182,9 +191,9 @@ struct Analyzer
 			dB[i] = DSP::decibel(std::max(4 * norm(fdom[(i - bins / 2 + symbol_len) % symbol_len]), value(1e-30)));
 		for (int i = 0; i < bins; ++i) {
 			if (!hold_valid)
-				dB_low[i] = dB_high[i] = dB[i];
-			dB_low[i] = std::min(dB[i], dB_low[i] + hold_pull * (dB[i] - dB_low[i]));
-			dB_high[i] = std::max(dB[i], dB_high[i] + hold_pull * (dB[i] - dB_high[i]));
+				hold[i] = Hold();
+			dB_low[i] = hold[i].low(dB[i]);
+			dB_high[i] = hold[i].high(dB[i]);
 		}
 		hold_valid = true;
 		value dB_max = spectrum_max;

@@ -11,5 +11,14 @@ namespace std {
 template <typename T>
 struct plus { constexpr T operator () (const T &a, const T &b) const { return a + b; } };
 
+template <typename T>
+struct equal_to { constexpr bool operator () (const T &a, const T &b) const { return a == b; } };
+
+template <typename T>
+struct less { constexpr bool operator () (const T &a, const T &b) const { return a < b; } };
+
+template <typename T>
+struct greater { constexpr bool operator () (const T &a, const T &b) const { return a > b; } };
+
 }
 
