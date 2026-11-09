@@ -194,8 +194,8 @@ channel, also near threshold:
   frame. It tracks the channel with the seed tones of every symbol and
   weights the soft bits of each tone by its own channel power and noise.
 - The noise of each tone is measured on known symbols only: the difference
-  of the two sync symbols and the preamble, then the seed tones, which take
-  turns over all tones. Hard decisions on the payload get the noise of faded
+  of the two sync symbols, then the seed tones, which take turns over all
+  tones. Hard decisions on the payload get the noise of faded
   tones wrong, as their errors wrap around at the decision boundaries, which
   cost frames near threshold on multipath.
   Few symbols give a noisy estimate per tone, so it only counts where it is
@@ -214,9 +214,12 @@ channel, also near threshold:
   at 4096, so every constellation gets the same headroom, and `decode.cc`
   scales the precision by 300 for resolution.
 - Each tone's precision is its channel power over the white noise of its
-  symbol before equalization, the mean of the errors of the tones without
-  interference times their channel power, and less where its own noise is
-  more than twice the median. The logged Es/N0 stays unweighted.
+  symbol before equalization, the mean over all tones of their errors times
+  their channel power, and less where its own noise is more than twice the
+  median. Interference raises that mean and lowers all precisions alike, by
+  about 3 dB for noise across a sixth of the band, which the decoder ignores
+  as a common scale, so the page shows the shape of the real Es/N0 but not
+  always its level. The logged Es/N0 stays unweighted.
 - The level of the precision and the logged Es/N0 come from hard decisions
   and overestimate Es/N0 by several dB for dense QAM near threshold. Within a
   frame that is a common scale and does not hurt decoding, but they are not
