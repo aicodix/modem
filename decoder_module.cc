@@ -74,8 +74,10 @@ int feed(int offset, int count)
 		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
 		/* only for the analyzer, the page doesn't need to stop for it */
 		if (events & decoder_type::new_symbol) {
+			int j = events & decoder_type::found_sync ? 0 : symbol;
 			analyzer.channel_estimate(decoder.chan);
-			analyzer.constellation_symbol(decoder, events & decoder_type::found_sync ? 0 : symbol, start);
+			analyzer.tone_precision(decoder, j);
+			analyzer.constellation_symbol(decoder, j, start);
 		}
 		if (events & decoder_type::real_snr)
 			analyzer.tone_snr(decoder.real_tone_snr);
@@ -200,6 +202,13 @@ __attribute__((visibility("default")))
 int *channel_snr()
 {
 	return analyzer.channel_snr;
+}
+
+/* the weighted precision of each tone after each digital symbol, channel_width() wide and spectrum_height() high */
+__attribute__((visibility("default")))
+int *channel_precision()
+{
+	return analyzer.channel_precision;
 }
 
 __attribute__((visibility("default")))

@@ -50,7 +50,10 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   event, which the module keeps from the page. Both have fixed scales: the
   power from 0 to -100 dB of a full scale sine, the phase from -180 to 180
   degrees, one dot per tone. After each decoded frame it plots the real Es/N0
-  of each tone, `real_tone_snr` of the decoder, from 0 to 50 dB. Its
+  of each tone, `real_tone_snr` of the decoder, from 0 to 50 dB, and after
+  each digital symbol the precision of each tone the soft demapper uses,
+  `tone_precision` of the decoder, the estimated Es/N0 weighted by its channel
+  power, on the same scale, blank for erased or analog symbols. Its
   constellation shows the equalized tones of the latest symbol on a fixed
   scale: the BPSK tones of the preamble symbol, then only the payload tones
   that carry all bits of the mode, without seed tones, the tones with fewer

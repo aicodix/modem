@@ -44,6 +44,8 @@ struct Analyzer
 	// the real Es/N0 of each tone after a decoded frame, from 0 to 50 dB
 	static constexpr value snr_top = 50, snr_range = 50;
 	int channel_snr[channel_width * spectrum_height];
+	// the weighted precision of each tone after each digital symbol, on the same scale as the real Es/N0
+	int channel_precision[channel_width * spectrum_height];
 	int pos;
 	// the equalized tones of the latest symbol, on a fixed scale
 	// few but large pixels
@@ -66,7 +68,7 @@ struct Analyzer
 		for (int i = 0; i < width * spectrogram_height; ++i)
 			spectrogram[i] = 0;
 		for (int i = 0; i < channel_width * spectrum_height; ++i)
-			channel_power[i] = channel_phase[i] = channel_snr[i] = 0;
+			channel_power[i] = channel_phase[i] = channel_snr[i] = channel_precision[i] = 0;
 		for (int i = 0; i < constellation_size * constellation_size; ++i)
 			constellation[i] = 0;
 	}
@@ -209,6 +211,21 @@ struct Analyzer
 	{
 		if (channel_on)
 			plot<channel_width>(channel_snr, snr, snr_top, 1 / snr_range, false);
+	}
+	// takes the weighted precision of each tone from the decoder after symbol j, nothing for erased or analog symbols
+	template <typename DECODER>
+	void tone_precision(DECODER &dec, int j)
+	{
+		if (!channel_on)
+			return;
+		if (dec.lost[j] || dec.analog_mode) {
+			fade<channel_width>(channel_precision, false);
+			return;
+		}
+		value est[channel_width];
+		for (int i = 0; i < channel_width; ++i)
+			est[i] = DSP::decibel(std::max(dec.tone_precision[i], value(1e-30)));
+		plot<channel_width>(channel_precision, est, snr_top, 1 / snr_range, false);
 	}
 	void point(cmplx c)
 	{

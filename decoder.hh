@@ -78,6 +78,8 @@ struct Decoder : Common
 	// real Es/N0 in dB of each tone, averaged over the payload symbols of the frame
 	value real_tone_snr[tone_count];
 	value tone_sp[tone_count], tone_np[tone_count];
+	// precision of each tone of the latest digital symbol, the estimated Es/N0 weighted by its channel power, zero when erased
+	value tone_precision[tone_count];
 	int64_t call_sign;
 	int meta_mode, erased_index, bit_flips;
 	int events;
@@ -363,6 +365,8 @@ struct Decoder : Common
 				// relative to the average channel power of this symbol
 				precision *= value(tone_count) / std::max(mg, value(1e-30));
 			}
+			for (int i = 0; i < tone_count; ++i)
+				tone_precision[i] = precision * gain[i];
 			// more resolution after rounding, quantize() caps the slope
 			precision *= value(300);
 			for (int i = 0, n = (j - 1) * data_tones; i < tone_count; ++i) {
