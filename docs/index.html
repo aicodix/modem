@@ -1,0 +1,577 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OFDM Modem</title>
+<style>
+body { color: white; background-color: black; font-family: sans-serif; max-width: 40em; margin: 1em auto; padding: 0 1em; }
+textarea, input, select, button { font-size: 1em; }
+textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+p { margin: 0.75em 0; }
+#status, #log { font-family: monospace; white-space: pre-wrap; }
+.failed { color: red; }
+canvas { display: block; width: 100%; margin: 0.5em 0; }
+canvas[hidden] { display: none; }
+#channel-power, #channel-phase, #channel-snr, #channel-precision { margin: 0.5em auto; }
+#constellation { width: 60%; margin: 0.5em auto; image-rendering: pixelated; }
+fieldset { border: 1px solid gray; margin: 0.75em 0; }
+fieldset label { white-space: nowrap; margin-right: 0.5em; }
+#scope { width: 60%; margin: 0.5em auto; }
+</style>
+</head>
+<body>
+<h1>OFDM Modem</h1>
+<p>
+<label>call sign <input id="call-sign" value="ANONYMOUS" size="9" maxlength="9"></label>
+<select id="modulation">
+<option value="0">BPSK</option>
+<option value="1">QPSK</option>
+<option value="2">8PSK</option>
+<option value="3" selected>QAM16</option>
+<option value="4">QAM64</option>
+<option value="5">QAM256</option>
+<option value="6">QAM1024</option>
+<option value="7">QAM4096</option>
+<option value="8">analog</option>
+</select>
+<select id="code-rate">
+<option value="0" selected>1/2</option>
+<option value="1">2/3</option>
+<option value="2">3/4</option>
+<option value="3">5/6</option>
+</select>
+<select id="frame-size">
+<option value="0" selected>short</option>
+<option value="1">normal</option>
+</select>
+<span id="mode-info"></span>
+</p>
+<p id="message-input"><textarea id="message" rows="8">Hello World!</textarea></p>
+<p id="analog-input" hidden><label>complex values from a stereo WAV <input type="file" id="analog-file" accept=".wav,audio/wav"></label></p>
+<p>
+<button id="play">play</button>
+<button id="save">save WAV</button>
+<span id="usage"></span>
+</p>
+<p id="status">loading ..</p>
+<h2>Receive</h2>
+<p>
+<button id="listen">listen</button>
+<label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
+</p>
+<p>
+<label>sync detection <select id="sync-detection">
+<option value="0" selected>time</option>
+<option value="1">frequency</option>
+</select></label>
+</p>
+<fieldset>
+<legend><label><input type="checkbox" id="scope-on"> scope</label></legend>
+<label>gain <input type="range" id="gain" min="-20" max="60" value="0"> <span id="gain-value"></span></label>
+<label>intensity <input type="range" id="intensity" min="0" max="100" value="50"></label>
+<label>decay <input type="range" id="decay" min="0" max="100" value="50"></label>
+<canvas id="scope" hidden></canvas>
+</fieldset>
+<fieldset>
+<legend><label><input type="checkbox" id="spectrum-on"> spectrum</label></legend>
+<label><input type="checkbox" id="rainbow" checked> rainbow</label>
+<span id="span"></span>
+<label>level <input type="range" id="spectrum-top" min="-60" max="0" value="0"> <span id="spectrum-top-value"></span></label>
+<canvas id="spectrum" hidden></canvas>
+<canvas id="spectrogram" hidden></canvas>
+</fieldset>
+<fieldset>
+<legend><label><input type="checkbox" id="channel-on"> channel estimation</label></legend>
+<span>from 300 to 2700 Hz</span>
+<p>channel power, from 0 to -100 dB of full scale</p>
+<canvas id="channel-power" hidden></canvas>
+<p>channel phase, from -180 to 180 degrees</p>
+<canvas id="channel-phase" hidden></canvas>
+<p>channel precision, the estimated Es/N0 of each tone after each symbol, from 0 to 50 dB</p>
+<canvas id="channel-precision" hidden></canvas>
+<p>channel SNR, the real Es/N0 of each tone after a decoded frame, from 0 to 50 dB</p>
+<canvas id="channel-snr" hidden></canvas>
+</fieldset>
+<fieldset>
+<legend><label><input type="checkbox" id="constellation-on"> constellation</label></legend>
+<span>of the latest symbol, from -2 to 2</span>
+<canvas id="constellation" hidden></canvas>
+</fieldset>
+<div id="log"></div>
+<script>
+const encoders = {}, decoders = {};
+const images = new Map();
+/* the spectrum and spectrogram always show this many dB below the top set by the slider */
+const spectrum_dB = 100;
+let context, wasm, decoder, listening, analog_values, shown, tap_module;
+const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
+const code_rates = ["1/2", "2/3", "3/4", "5/6"];
+/* events reported by the decoder module, see Decoder in decoder.hh */
+const found_sync = 1 << 0, damaged_seed = 1 << 1, preamble_error = 1 << 2, unsupported_call = 1 << 3;
+const read_meta = 1 << 4, known_mode = 1 << 5, erased_symbol = 1 << 6, frame_end = 1 << 7;
+const payload_error = 1 << 8, decoded_frame = 1 << 11;
+
+function status(str, failed) {
+	const element = document.getElementById("status");
+	element.textContent = str;
+	element.className = failed ? "failed" : "";
+}
+function base40(str) {
+	let acc = 0n;
+	for (const c of str.toUpperCase()) {
+		acc *= 40n;
+		if (c == "/")
+			acc += 3n;
+		else if (c >= "0" && c <= "9")
+			acc += BigInt(c.charCodeAt(0) - 48 + 4);
+		else if (c >= "A" && c <= "Z")
+			acc += BigInt(c.charCodeAt(0) - 65 + 14);
+		else if (c != " ")
+			return -1n;
+	}
+	return acc;
+}
+function oper_mode() {
+	const value = id => Number(document.getElementById(id).value);
+	if (value("modulation") == 8)
+		return 128;
+	return (value("modulation") << 4) | (value("code-rate") << 1) | value("frame-size");
+}
+/* the same as print_setup() in native.hh, symbols after the sync and preamble symbols */
+function duration(symbols) {
+	return 41 / 300 * (3 + symbols);
+}
+function message() {
+	return new TextEncoder().encode(document.getElementById("message").value);
+}
+function log(str, failed) {
+	const div = document.createElement("div");
+	div.textContent = str;
+	if (failed)
+		div.className = "failed";
+	const element = document.getElementById("log");
+	element.insertBefore(div, element.firstChild);
+	return div;
+}
+async function load_decoder(rate) {
+	if (!decoders[rate]) {
+		const obj = await WebAssembly.instantiateStreaming(fetch("temp/decoder_" + rate + ".wasm"));
+		obj.instance.exports.__wasm_call_ctors();
+		decoders[rate] = obj.instance.exports;
+		analyzer_options(decoders[rate]);
+	}
+	return decoders[rate];
+}
+function analyzer_options(dec) {
+	const element = id => document.getElementById(id);
+	dec.frequency_sync(Number(element("sync-detection").value));
+	dec.enable_spectrum(element("spectrum-on").checked ? 1 : 0);
+	dec.enable_scope(element("scope-on").checked ? 1 : 0);
+	dec.enable_channel(element("channel-on").checked ? 1 : 0);
+	dec.enable_constellation(element("constellation-on").checked ? 1 : 0);
+	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
+	dec.scope_gain(Number(element("gain").value));
+	const top = Number(element("spectrum-top").value);
+	dec.spectrum_range(top, top - spectrum_dB);
+	dec.scope_intensity(Number(element("intensity").value));
+	dec.phosphor_decay(Number(element("decay").value));
+}
+/* the views are optional, so they don't take time while turned off */
+function analyzer_controls() {
+	const element = id => document.getElementById(id);
+	const spectrum = element("spectrum-on").checked, scope = element("scope-on").checked;
+	const channel = element("channel-on").checked;
+	element("spectrum").hidden = element("spectrogram").hidden = !spectrum;
+	element("scope").hidden = !scope;
+	for (const id of ["channel-power", "channel-phase", "channel-precision", "channel-snr"])
+		element(id).hidden = !channel;
+	element("constellation").hidden = !element("constellation-on").checked;
+	element("gain-value").textContent = element("gain").value + " dB";
+	const top = Number(element("spectrum-top").value);
+	element("spectrum-top-value").textContent = "from " + top + " to " + (top - spectrum_dB) + " dB";
+	for (const id of ["rainbow", "spectrum-top"])
+		element(id).disabled = !spectrum;
+	for (const id of ["gain", "intensity", "decay"])
+		element(id).disabled = !scope;
+	/* each bin is as wide as a tone, 300 / 40 Hz */
+	const half = (decoder ? decoder.analyzer_width() : 400) * 300 / 40 / 2;
+	element("span").textContent = spectrum ? "from " + (1500 - half) + " to " + (1500 + half) + " Hz" : "";
+	Object.values(decoders).forEach(analyzer_options);
+}
+/* shows the analyzer of the decoder that got samples last */
+function draw() {
+	if (shown) {
+		if (!images.has(shown)) {
+			const width = shown.analyzer_width();
+			const image = (pixels, height, w = width) => new ImageData(new Uint8ClampedArray(shown.memory.buffer, pixels, 4 * w * height), w, height);
+			images.set(shown, {
+				scope: image(shown.scope(), shown.scope_height()),
+				spectrum: image(shown.spectrum(), shown.spectrum_height()),
+				spectrogram: image(shown.spectrogram(), shown.spectrogram_height()),
+				"channel-power": image(shown.channel_power(), shown.spectrum_height(), shown.channel_width()),
+				"channel-phase": image(shown.channel_phase(), shown.spectrum_height(), shown.channel_width()),
+				"channel-precision": image(shown.channel_precision(), shown.spectrum_height(), shown.channel_width()),
+				"channel-snr": image(shown.channel_snr(), shown.spectrum_height(), shown.channel_width()),
+				constellation: image(shown.constellation(), shown.constellation_size(), shown.constellation_size())
+			});
+		}
+		const shown_images = images.get(shown);
+		for (const id in shown_images) {
+			const image = shown_images[id], canvas = document.getElementById(id);
+			if (canvas.hidden)
+				continue;
+			if (canvas.width != image.width || canvas.height != image.height) {
+				canvas.width = image.width;
+				canvas.height = image.height;
+				/* as many Hz per pixel as the spectrum, the tones are its middle bins */
+				if (id.startsWith("channel-"))
+					canvas.style.width = 100 * image.width / shown.analyzer_width() + "%";
+			}
+			canvas.getContext("2d").putImageData(image, 0, 0);
+		}
+		/* each bin is as wide as a tone, 300 / 40 Hz */
+	}
+	window.requestAnimationFrame(draw);
+}
+function report(dec) {
+	const events = dec.events();
+	const stats = new Float32Array(dec.memory.buffer, dec.stats.value, 9);
+	const db = i => stats[i].toFixed(1);
+	if (events & found_sync)
+		log("sync, cfo " + stats[0].toFixed(1) + " Hz, sfo " + stats[1].toFixed(1) + " ppm");
+	if (events & damaged_seed)
+		log("seed value damaged", true);
+	if (events & preamble_error)
+		log("preamble decoding error", true);
+	if (events & unsupported_call)
+		log("call sign unsupported", true);
+	if (events & read_meta) {
+		const call = new TextDecoder().decode(new Uint8Array(dec.memory.buffer, dec.call_sign.value, 9)).trim();
+		const mode = dec.meta_mode();
+		const name = mode & 128 ? "analog" : modulations[(mode >> 4) & 7] + " " + (code_rates[(mode >> 1) & 7] || "?") + " " + (mode & 1 ? "normal" : "short");
+		log("from " + call + ", " + name + (events & known_mode ? "" : " unsupported"), !(events & known_mode));
+	}
+	if (events & erased_symbol)
+		log("seed value damaged, erasing symbol " + dec.erased_symbol(), true);
+	if (events & payload_error)
+		log("payload decoding error, Es/N0 " + db(3) + " .. " + db(4) + " .. " + db(5) + " dB", true);
+	if (events & decoded_frame) {
+		const length = dec.payload_length();
+		if (length < 0) {
+			const count = dec.values_length();
+			const values = new Float32Array(dec.memory.buffer, dec.values.value, 2 * count);
+			const div = log("analog frame, " + count + " complex values, Es/N0 " + db(3) + " .. " + db(4) + " .. " + db(5) + " dB ");
+			const link = document.createElement("a");
+			link.href = URL.createObjectURL(wav_file(values, dec.analog_rate(), 2));
+			link.download = "analog.wav";
+			link.textContent = "download";
+			div.appendChild(link);
+			return;
+		}
+		let bytes = new Uint8Array(dec.memory.buffer, dec.payload.value, length);
+		let end = length;
+		while (end > 0 && !bytes[end - 1])
+			--end;
+		const text = new TextDecoder().decode(bytes.subarray(0, end));
+		log("decoded, Es/N0 " + db(6) + " .. " + db(7) + " .. " + db(8) + " dB, " + dec.bit_flips() + " of " + dec.code_bits() + " bits flipped:\n" + text);
+	}
+}
+function receive(dec, samples) {
+	shown = dec;
+	const size = 1024;
+	const block = new Float32Array(dec.memory.buffer, dec.samples.value, size);
+	for (let pos = 0; pos < samples.length; pos += size) {
+		const count = Math.min(size, samples.length - pos);
+		block.set(samples.subarray(pos, pos + count));
+		for (let offset = 0; offset < count;) {
+			offset += dec.feed(offset, count - offset);
+			if (dec.events())
+				report(dec);
+		}
+	}
+}
+function flush(dec) {
+	const silence = new Float32Array(1024);
+	while (dec.busy())
+		receive(dec, silence);
+}
+async function listen() {
+	if (listening) {
+		/* disconnect the tap too, or it keeps feeding the decoder with silence */
+		listening.stream.getTracks().forEach(track => track.stop());
+		listening.source.disconnect();
+		listening.tap.port.onmessage = null;
+		listening = null;
+		document.getElementById("listen").textContent = "listen";
+		status("stopped listening");
+		return;
+	}
+	try {
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
+		const code = `class Tap extends AudioWorkletProcessor {
+			constructor() { super(); this.buffer = new Float32Array(2048); this.pos = 0; }
+			process(inputs) {
+				const input = inputs[0][0];
+				if (input) {
+					for (let i = 0; i < input.length; ++i) {
+						this.buffer[this.pos++] = input[i];
+						if (this.pos == this.buffer.length) {
+							this.port.postMessage(this.buffer, [this.buffer.buffer]);
+							this.buffer = new Float32Array(2048);
+							this.pos = 0;
+						}
+					}
+				}
+				return true;
+			}
+		}
+		registerProcessor("tap", Tap);`;
+		/* the processor can only be registered once */
+		if (!tap_module) {
+			const url = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
+			tap_module = context.audioWorklet.addModule(url).finally(() => URL.revokeObjectURL(url));
+			tap_module.catch(() => tap_module = null);
+		}
+		await tap_module;
+		const tap = new AudioWorkletNode(context, "tap", { numberOfInputs: 1, numberOfOutputs: 0 });
+		tap.port.onmessage = event => receive(decoder, event.data);
+		const source = context.createMediaStreamSource(stream);
+		source.connect(tap);
+		await context.resume();
+		listening = { stream, source, tap };
+		document.getElementById("listen").textContent = "stop";
+		status("listening at " + context.sampleRate + " Hz");
+	} catch (error) {
+		status("couldn't listen: " + error.message, true);
+	}
+}
+function parse_wav(buffer) {
+	const view = new DataView(buffer);
+	if (buffer.byteLength < 12 || view.getUint32(0, false) != 0x52494646 || view.getUint32(8, false) != 0x57415645)
+		throw new Error("not a WAV file");
+	let pos = 12, format, channels, rate, bits, data, length;
+	while (pos + 8 <= buffer.byteLength) {
+		const id = view.getUint32(pos, false), size = view.getUint32(pos + 4, true);
+		if (id == 0x666d7420) {
+			format = view.getUint16(pos + 8, true);
+			channels = view.getUint16(pos + 10, true);
+			rate = view.getUint32(pos + 12, true);
+			bits = view.getUint16(pos + 22, true);
+		} else if (id == 0x64617461) {
+			data = pos + 8;
+			length = Math.min(size, buffer.byteLength - data);
+			break;
+		}
+		pos += 8 + size + (size & 1);
+	}
+	if (data === undefined || !channels)
+		throw new Error("no samples in WAV file");
+	let samples;
+	if (format == 3 && bits == 32) {
+		samples = new Float32Array(Math.floor(length / 4 / channels) * channels);
+		for (let i = 0; i < samples.length; ++i)
+			samples[i] = view.getFloat32(data + 4 * i, true);
+	} else if (format == 1 && bits == 16) {
+		samples = new Float32Array(Math.floor(length / 2 / channels) * channels);
+		for (let i = 0; i < samples.length; ++i)
+			samples[i] = view.getInt16(data + 2 * i, true) / 32768;
+	} else {
+		throw new Error("need 16 bit integer or 32 bit float samples");
+	}
+	return { channels, rate, samples };
+}
+async function load_analog(event) {
+	const file = event.target.files[0];
+	analog_values = null;
+	if (file) {
+		try {
+			const { channels, samples } = parse_wav(await file.arrayBuffer());
+			if (channels != 2)
+				throw new Error("need a two channel WAV file with the real and imaginary parts");
+			if (!samples.length)
+				throw new Error("no complex values in WAV file");
+			analog_values = samples;
+			status("loaded " + samples.length / 2 + " complex values from " + file.name);
+		} catch (error) {
+			status("couldn't load " + file.name + ": " + error.message, true);
+		}
+	}
+	update();
+}
+async function decode_file(event) {
+	const file = event.target.files[0];
+	if (!file)
+		return;
+	try {
+		const { channels, rate, samples } = parse_wav(await file.arrayBuffer());
+		if (channels != 1)
+			throw new Error("need a one channel WAV file");
+		if (rate != 44100 && rate != 48000)
+			throw new Error("unsupported sample rate " + rate + " Hz");
+		const dec = await load_decoder(rate);
+		status("decoding " + file.name + " at " + rate + " Hz");
+		receive(dec, samples);
+		flush(dec);
+		status("decoded " + file.name);
+	} catch (error) {
+		status("couldn't decode " + file.name + ": " + error.message, true);
+	}
+	event.target.value = "";
+}
+async function load(rate) {
+	if (!encoders[rate]) {
+		const obj = await WebAssembly.instantiateStreaming(fetch("temp/encoder_" + rate + ".wasm"));
+		obj.instance.exports.__wasm_call_ctors();
+		encoders[rate] = obj.instance.exports;
+	}
+	return encoders[rate];
+}
+function update() {
+	const analog = oper_mode() == 128;
+	document.getElementById("message-input").hidden = analog;
+	document.getElementById("analog-input").hidden = !analog;
+	document.getElementById("code-rate").disabled = analog;
+	document.getElementById("frame-size").disabled = analog;
+	if (!wasm)
+		return;
+	const usage = document.getElementById("usage"), info = document.getElementById("mode-info");
+	if (analog) {
+		const used = analog_values ? analog_values.length / 2 : 0, capacity = wasm.values_length();
+		usage.textContent = used + " of " + capacity + " complex values";
+		usage.className = !used || used > capacity ? "failed" : "";
+		/* the encoder pads the values to whole symbols */
+		info.textContent = used && used <= capacity ? duration(Math.ceil(used / 256)).toFixed(1) + "s" : "";
+		return;
+	}
+	if (wasm.start(oper_mode()) < 0) {
+		usage.textContent = info.textContent = "";
+		return;
+	}
+	const used = message().length, capacity = wasm.payload_length();
+	usage.textContent = used + " of " + capacity + " bytes";
+	usage.className = used > capacity ? "failed" : "";
+	const seconds = duration(wasm.symbol_count());
+	info.textContent = seconds.toFixed(1) + "s, " + (8 * capacity / seconds / 1000).toFixed(1) + "kb/s";
+}
+function encode(silence) {
+	const payload = message();
+	const call_sign = base40(document.getElementById("call-sign").value.trim());
+	if (call_sign <= 0n || call_sign >= 262144000000000n)
+		throw new Error("unsupported call sign");
+	const rate = context.sampleRate;
+	const chunks = [new Float32Array(Math.round(silence * rate))];
+	const take = len => chunks.push(new Float32Array(wasm.memory.buffer, wasm.audio.value, len).slice());
+	let len = wasm.start(oper_mode());
+	if (len < 0)
+		throw new Error("unsupported mode");
+	if (oper_mode() == 128) {
+		if (!analog_values)
+			throw new Error("no complex values loaded");
+		const count = analog_values.length / 2;
+		if (count > wasm.values_length())
+			throw new Error("too many complex values: " + count + " of " + wasm.values_length());
+		take(len);
+		new Float32Array(wasm.memory.buffer, wasm.values.value, analog_values.length).set(analog_values);
+		if (wasm.begin_analog(count, call_sign) < 0)
+			throw new Error("encoding failed");
+	} else {
+		if (payload.length > wasm.payload_length())
+			throw new Error("message too long: " + payload.length + " of " + wasm.payload_length() + " bytes");
+		take(len);
+		new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
+		if (wasm.begin(payload.length, call_sign) < 0)
+			throw new Error("encoding failed");
+	}
+	while ((len = wasm.next()) > 0)
+		take(len);
+	take(wasm.stop());
+	chunks.push(new Float32Array(Math.round(silence * rate)));
+	const samples = new Float32Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+	let pos = 0;
+	for (const chunk of chunks) {
+		samples.set(chunk, pos);
+		pos += chunk.length;
+	}
+	return samples;
+}
+function wav_file(samples, rate, channels = 1) {
+	const view = new DataView(new ArrayBuffer(44 + 4 * samples.length));
+	const text = (pos, str) => { for (let i = 0; i < str.length; ++i) view.setUint8(pos + i, str.charCodeAt(i)); };
+	text(0, "RIFF");
+	view.setUint32(4, 36 + 4 * samples.length, true);
+	text(8, "WAVE");
+	text(12, "fmt ");
+	view.setUint32(16, 16, true);
+	view.setUint16(20, 3, true);
+	view.setUint16(22, channels, true);
+	view.setUint32(24, rate, true);
+	view.setUint32(28, 4 * rate * channels, true);
+	view.setUint16(32, 4 * channels, true);
+	view.setUint16(34, 32, true);
+	text(36, "data");
+	view.setUint32(40, 4 * samples.length, true);
+	for (let i = 0; i < samples.length; ++i)
+		view.setFloat32(44 + 4 * i, samples[i], true);
+	return new Blob([view.buffer], { type: "audio/wav" });
+}
+function play() {
+	try {
+		const samples = encode(0.1);
+		const buffer = context.createBuffer(1, samples.length, context.sampleRate);
+		buffer.copyToChannel(samples, 0);
+		const source = context.createBufferSource();
+		source.buffer = buffer;
+		source.connect(context.destination);
+		source.onended = () => status("done");
+		context.resume();
+		source.start();
+		status("playing " + (samples.length / context.sampleRate).toFixed(1) + "s at " + context.sampleRate + " Hz");
+	} catch (error) {
+		status(error.message, true);
+	}
+}
+function save() {
+	try {
+		const samples = encode(1);
+		const link = document.createElement("a");
+		link.href = URL.createObjectURL(wav_file(samples, context.sampleRate));
+		link.download = "encoded.wav";
+		link.click();
+		URL.revokeObjectURL(link.href);
+		status("saved " + (samples.length / context.sampleRate).toFixed(1) + "s at " + context.sampleRate + " Hz");
+	} catch (error) {
+		status(error.message, true);
+	}
+}
+async function main() {
+	context = new AudioContext();
+	if (context.sampleRate != 44100 && context.sampleRate != 48000) {
+		context.close();
+		context = new AudioContext({ sampleRate: 48000 });
+	}
+	try {
+		wasm = await load(context.sampleRate);
+		decoder = await load_decoder(context.sampleRate);
+	} catch (error) {
+		status("couldn't load modules: " + error.message, true);
+		return;
+	}
+	for (const id of ["modulation", "code-rate", "frame-size", "message"])
+		document.getElementById(id).addEventListener("input", update);
+	document.getElementById("play").addEventListener("click", play);
+	document.getElementById("save").addEventListener("click", save);
+	document.getElementById("listen").addEventListener("click", listen);
+	document.getElementById("wav-file").addEventListener("change", decode_file);
+	document.getElementById("analog-file").addEventListener("change", load_analog);
+	for (const id of ["sync-detection", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
+		document.getElementById(id).addEventListener("input", analyzer_controls);
+	analyzer_controls();
+	window.requestAnimationFrame(draw);
+	update();
+	status("ready, " + context.sampleRate + " Hz");
+}
+main();
+</script>
+</body>
+</html>
