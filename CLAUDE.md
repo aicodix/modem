@@ -109,6 +109,9 @@ the decoder modules. To try `index.html`, run `make webserver`, which builds
 the modules and serves the repository on http://127.0.0.1:8080/ only, and
 open `index.html` there. Any other static web server works too, as long as it
 sends `.wasm` as `application/wasm`.
+`make pages` builds the modules and copies the page and the modules to `docs/`,
+the snapshot GitHub Pages serves, so work on `next` doesn't change the public
+page until `docs/` is rebuilt and committed.
 
 Everything is compiled with `-std=c++17 -O3 -ffast-math -fno-exceptions -fno-rtti`,
 so code must:

@@ -50,6 +50,15 @@ check-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.w
 	node check_encoder.mjs
 	node check_decoder.mjs
 
+.PHONY: pages
+
+# a snapshot of the page and its modules for GitHub Pages, served from the docs directory
+pages: index.html temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm
+	mkdir -p docs/temp
+	cp index.html docs/
+	cp temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm docs/temp/
+	touch docs/.nojekyll
+
 .PHONY: webserver
 
 webserver: wasm
