@@ -21,13 +21,13 @@ class SchmidlCox {
 	DSP::SMA4<cmplx, value, symbol_len, false> cor;
 	DSP::SMA4<value, value, 2 * symbol_len, false> pwr;
 	DSP::SMA4<value, value, match_len, false> match;
-	DSP::Delay<value, match_del> align;
+	DSP::Delay<cmplx, match_del> align;
 	DSP::SchmittTrigger<value> threshold;
 	DSP::FallingEdgeTrigger falling;
 	cmplx tmp0[symbol_len], tmp1[symbol_len];
 	cmplx kern[symbol_len];
 	value timing_max = 0;
-	value phase_max = 0;
+	cmplx phase_max = 0;
 	int index_max = 0;
 
 	static int bin(int carrier) {
@@ -60,7 +60,7 @@ public:
 		value min_R = 0.00001 * symbol_len;
 		R = std::max(R, min_R);
 		value timing = match(norm(P) / (R * R));
-		value phase = align(arg(P));
+		cmplx phase = align(P);
 
 		bool collect = threshold(timing);
 		bool process = falling(collect);
@@ -79,7 +79,7 @@ public:
 		if (!process)
 			return false;
 
-		frac_cfo = phase_max / value(symbol_len);
+		frac_cfo = arg(phase_max) / value(symbol_len);
 
 		DSP::Phasor<cmplx> osc;
 		osc.omega(frac_cfo);
