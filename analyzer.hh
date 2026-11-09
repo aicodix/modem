@@ -33,14 +33,9 @@ struct Analyzer
 	cmplx hist[symbol_len], tmp[symbol_len], fdom[symbol_len];
 	value phosphor[width * scope_height];
 	value dB[bins];
-	// the min and max of each bin over the last hold_len updates, at 15 updates per second about two seconds,
-	// starting from values beyond any decibel the spectrum can have
+	// the min and max of each bin over the last hold_len updates, at 15 updates per second about two seconds
 	static const int hold_len = 32;
-	struct Hold {
-		DSP::MovExt<value, std::equal_to<value>, std::less<value>, hold_len> low;
-		DSP::MovExt<value, std::equal_to<value>, std::greater<value>, hold_len> high;
-		Hold() : low(1000), high(-1000) {}
-	};
+	typedef DSP::MovMinMax<value, hold_len> Hold;
 	Hold hold[bins];
 	value dB_low[bins], dB_high[bins];
 	bool hold_valid;
@@ -192,8 +187,9 @@ struct Analyzer
 		for (int i = 0; i < bins; ++i) {
 			if (!hold_valid)
 				hold[i] = Hold();
-			dB_low[i] = hold[i].low(dB[i]);
-			dB_high[i] = hold[i].high(dB[i]);
+			hold[i](dB[i]);
+			dB_low[i] = hold[i].minimum();
+			dB_high[i] = hold[i].maximum();
 		}
 		hold_valid = true;
 		value dB_max = spectrum_max;
