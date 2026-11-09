@@ -65,7 +65,6 @@ struct Decoder : Common
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx knots[seed_tones];
 	value innov[seed_tones], sorted[seed_tones];
-	value gain[tone_count];
 	// equalized values of the data tones
 	cmplx values[analog_max];
 	code_type reenc[bits_max];
@@ -357,8 +356,7 @@ struct Decoder : Common
 				sp += norm(hard);
 				np += norm(error);
 				// the error before equalization, flat for white noise
-				gain[i] = norm(chan[i]);
-				value power = norm(error) * gain[i];
+				value power = norm(error) * norm(chan[i]);
 				noise += power;
 				// the noise of each tone from the known seed tones, which take turns over all tones
 				if (i % block_length == seed_off)
@@ -379,12 +377,11 @@ struct Decoder : Common
 				}
 				// tones with more than twice the median noise, as from interference, get less precision
 				value median = DSP::quick_select(sorted_noise, tone_count / 2, tone_count);
-				value limit = 2 * median;
 				// the white noise of this symbol, constellations have unit power
 				noise = std::max(noise / value(tone_count), value(1e-30));
 				for (int i = 0; i < tone_count; ++i) {
-					tone_precision[i] = gain[i] / noise;
-					if (local_noise[i] > limit)
+					tone_precision[i] = norm(chan[i]) / noise;
+					if (local_noise[i] > 2 * median)
 						tone_precision[i] *= median / local_noise[i];
 				}
 			}
