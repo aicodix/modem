@@ -75,7 +75,6 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 </fieldset>
 <fieldset>
 <legend><label><input type="checkbox" id="spectrum-on"> spectrum</label></legend>
-<label><input type="checkbox" id="spectrum-phosphor" checked> phosphor</label>
 <label><input type="checkbox" id="rainbow" checked> rainbow</label>
 <span id="span"></span>
 <label>level <input type="range" id="spectrum-top" min="-60" max="0" value="0"> <span id="spectrum-top-value"></span></label>
@@ -172,7 +171,6 @@ function analyzer_options(dec) {
 	dec.enable_channel(element("channel-on").checked ? 1 : 0);
 	dec.enable_constellation(element("constellation-on").checked ? 1 : 0);
 	dec.show_rainbow(element("rainbow").checked ? 1 : 0);
-	dec.spectrum_phosphor(element("spectrum-phosphor").checked ? 1 : 0);
 	dec.scope_gain(Number(element("gain").value));
 	const top = Number(element("spectrum-top").value);
 	dec.spectrum_range(top, top - spectrum_dB);
@@ -192,7 +190,7 @@ function analyzer_controls() {
 	element("gain-value").textContent = element("gain").value + " dB";
 	const top = Number(element("spectrum-top").value);
 	element("spectrum-top-value").textContent = "from " + top + " to " + (top - spectrum_dB) + " dB";
-	for (const id of ["spectrum-phosphor", "rainbow", "spectrum-top"])
+	for (const id of ["rainbow", "spectrum-top"])
 		element(id).disabled = !spectrum;
 	for (const id of ["gain", "intensity", "decay"])
 		element(id).disabled = !scope;
@@ -566,7 +564,7 @@ async function main() {
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["sync-detection", "spectrum-on", "spectrum-phosphor", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
+	for (const id of ["sync-detection", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	window.requestAnimationFrame(draw);
