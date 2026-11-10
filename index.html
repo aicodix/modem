@@ -64,6 +64,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <h2>Receive</h2>
 <p>
 <button id="listen">listen</button>
+<button id="stop">stop</button>
 <label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
 </p>
 <p>
@@ -115,7 +116,7 @@ const encoders = {}, decoders = {};
 const images = new Map();
 /* the spectrum and spectrogram always show this many dB below the top set by the slider */
 const spectrum_dB = 100;
-let context, wasm, decoder, listening, analog_values, shown, tap_module;
+let context, wasm, decoder, listening, playing, analog_values, shown, tap_module;
 const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
 const code_rates = ["1/2", "2/3", "3/4", "5/6"];
 /* events reported by the decoder module, see Decoder in decoder.hh */
@@ -313,7 +314,19 @@ function stop_listening() {
 	listening.source.disconnect();
 	listening.tap.port.onmessage = null;
 	listening = null;
-	document.getElementById("listen").textContent = "listen";
+}
+/* stops listening and playing and closes the context, so the next listen or play starts with a new one */
+function stop_audio() {
+	if (listening)
+		stop_listening();
+	if (playing) {
+		playing.onended = null;
+		playing.stop();
+		playing = null;
+	}
+	/* the context only reports being closed later */
+	context.stopped = true;
+	context.close().catch(() => {});
 }
 function new_context() {
 	let ctx = new AudioContext();
@@ -327,10 +340,8 @@ function new_context() {
 so listening always starts with a new context, and so does playing while not listening. Call this first thing
 in a click handler: iOS only lets a context start from a user gesture, and the gesture is gone after the first await */
 async function wake(fresh) {
-	if (fresh || context.state != "running") {
-		if (listening)
-			stop_listening();
-		context.close().catch(() => {});
+	if (fresh || context.stopped || context.state != "running") {
+		stop_audio();
 		context = new_context();
 		/* the processor is registered with the context it was added to */
 		tap_module = null;
@@ -341,12 +352,8 @@ async function wake(fresh) {
 	decoder = await load_decoder(context.sampleRate);
 	update();
 }
+/* always starts over with a new context and microphone, also when already listening */
 async function listen() {
-	if (listening) {
-		stop_listening();
-		status("stopped listening");
-		return;
-	}
 	try {
 		await wake(true);
 		const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
@@ -392,7 +399,6 @@ async function listen() {
 					status("microphone ended", true);
 				}
 			});
-		document.getElementById("listen").textContent = "stop";
 		const listening_status = () => status("listening at " + context.sampleRate + " Hz");
 		listening_status();
 		/* iOS can leave the microphone silent after the app was in the background, without any event */
@@ -590,7 +596,11 @@ async function play() {
 		const source = context.createBufferSource();
 		source.buffer = buffer;
 		source.connect(context.destination);
-		source.onended = () => status("done");
+		source.onended = () => {
+			playing = null;
+			status("done");
+		};
+		playing = source;
 		source.start();
 		status("playing " + (samples.length / context.sampleRate).toFixed(1) + "s at " + context.sampleRate + " Hz");
 	} catch (error) {
@@ -624,6 +634,10 @@ async function main() {
 	document.getElementById("play").addEventListener("click", play);
 	document.getElementById("save").addEventListener("click", save);
 	document.getElementById("listen").addEventListener("click", listen);
+	document.getElementById("stop").addEventListener("click", () => {
+		stop_audio();
+		status("stopped");
+	});
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
 	for (const id of ["sync-detection", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
