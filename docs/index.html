@@ -67,6 +67,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <button id="stop">stop</button>
 <label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
 </p>
+<p>Please allow the audio to settle for a few seconds before trying to decode.</p>
 <p>
 <label>sync detection <select id="sync-detection">
 <option value="0" selected>time</option>
@@ -107,7 +108,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </fieldset>
 <div id="log"></div>
 <footer>
-<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/0bd858d">0bd858d</a></p>
+<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/2c8146c">2c8146c</a></p>
 <p>Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.</p>
 <p>DISCLAIMER: THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.</p>
 </footer>
@@ -338,7 +339,8 @@ function new_context() {
 }
 /* iOS breaks the audio when the app goes to the background, even when the context then claims to be running,
 so listening always starts with a new context, and so does playing while not listening. Call this first thing
-in a click handler: iOS only lets a context start from a user gesture, and the gesture is gone after the first await */
+in a click handler: iOS only lets a context start from a user gesture, and the gesture is gone after the first await,
+unless the page captures the microphone, which also lets it play */
 async function wake(fresh) {
 	if (fresh || context.stopped || context.state != "running") {
 		stop_audio();
@@ -355,8 +357,10 @@ async function wake(fresh) {
 /* always starts over with a new context and microphone, also when already listening */
 async function listen() {
 	try {
-		await wake(true);
+		/* the microphone before the context: Safari reconfigures the audio hardware when the microphone starts,
+		which stalls a context that already runs and loses its samples for a while */
 		const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
+		await wake(true);
 		const code = `class Tap extends AudioWorkletProcessor {
 			constructor() { super(); this.buffer = new Float32Array(2048); this.pos = 0; }
 			process(inputs) {
