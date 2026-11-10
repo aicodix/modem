@@ -321,15 +321,13 @@ function new_context() {
 		ctx.close();
 		ctx = new AudioContext({ sampleRate: 48000 });
 	}
-	ctx.ran = ctx.state == "running";
-	ctx.addEventListener("statechange", () => ctx.ran ||= ctx.state == "running");
 	return ctx;
 }
-/* iOS interrupts the context when the app goes to the background and often never lets it run again,
-so a context that ran before and doesn't now is replaced. Call this first thing in a click handler:
-iOS only lets a context start from a user gesture, and the gesture is gone after the first await */
-async function wake() {
-	if (context.ran && context.state != "running") {
+/* iOS breaks the audio when the app goes to the background, even when the context then claims to be running,
+so listening always starts with a new context, and so does playing while not listening. Call this first thing
+in a click handler: iOS only lets a context start from a user gesture, and the gesture is gone after the first await */
+async function wake(fresh) {
+	if (fresh || context.state != "running") {
 		if (listening)
 			stop_listening();
 		context.close().catch(() => {});
@@ -350,7 +348,7 @@ async function listen() {
 		return;
 	}
 	try {
-		await wake();
+		await wake(true);
 		const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
 		const code = `class Tap extends AudioWorkletProcessor {
 			constructor() { super(); this.buffer = new Float32Array(2048); this.pos = 0; }
@@ -378,7 +376,11 @@ async function listen() {
 		}
 		await tap_module;
 		const tap = new AudioWorkletNode(context, "tap", { numberOfInputs: 1, numberOfOutputs: 0 });
-		tap.port.onmessage = event => receive(decoder, event.data);
+		let heard = performance.now(), silent = false;
+		tap.port.onmessage = event => {
+			heard = performance.now();
+			receive(decoder, event.data);
+		};
 		const source = context.createMediaStreamSource(stream);
 		source.connect(tap);
 		listening = { stream, source, tap };
@@ -391,7 +393,21 @@ async function listen() {
 				}
 			});
 		document.getElementById("listen").textContent = "stop";
-		status("listening at " + context.sampleRate + " Hz");
+		const listening_status = () => status("listening at " + context.sampleRate + " Hz");
+		listening_status();
+		/* iOS can leave the microphone silent after the app was in the background, without any event */
+		const watchdog = setInterval(() => {
+			if (!listening || listening.stream != stream)
+				return clearInterval(watchdog);
+			const track = stream.getAudioTracks()[0];
+			if (performance.now() - heard > 1000) {
+				silent = true;
+				status("no audio from the microphone, context " + context.state + ", track " + track.readyState + (track.muted ? ", muted" : ""), true);
+			} else if (silent) {
+				silent = false;
+				listening_status();
+			}
+		}, 500);
 	} catch (error) {
 		status("couldn't listen: " + error.message, true);
 	}
@@ -567,7 +583,7 @@ function wav_file(samples, rate, channels = 1) {
 }
 async function play() {
 	try {
-		await wake();
+		await wake(!listening);
 		const samples = encode(0.1);
 		const buffer = context.createBuffer(1, samples.length, context.sampleRate);
 		buffer.copyToChannel(samples, 0);
