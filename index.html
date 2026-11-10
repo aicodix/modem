@@ -307,18 +307,50 @@ function flush(dec) {
 	while (dec.busy())
 		receive(dec, silence);
 }
+function stop_listening() {
+	/* disconnect the tap too, or it keeps feeding the decoder with silence */
+	listening.stream.getTracks().forEach(track => track.stop());
+	listening.source.disconnect();
+	listening.tap.port.onmessage = null;
+	listening = null;
+	document.getElementById("listen").textContent = "listen";
+}
+function new_context() {
+	let ctx = new AudioContext();
+	if (ctx.sampleRate != 44100 && ctx.sampleRate != 48000) {
+		ctx.close();
+		ctx = new AudioContext({ sampleRate: 48000 });
+	}
+	ctx.ran = ctx.state == "running";
+	ctx.addEventListener("statechange", () => ctx.ran ||= ctx.state == "running");
+	return ctx;
+}
+/* iOS interrupts the context when the app goes to the background and often never lets it run again,
+so a context that ran before and doesn't now is replaced. Call this first thing in a click handler:
+iOS only lets a context start from a user gesture, and the gesture is gone after the first await */
+async function wake() {
+	if (context.ran && context.state != "running") {
+		if (listening)
+			stop_listening();
+		context.close().catch(() => {});
+		context = new_context();
+		/* the processor is registered with the context it was added to */
+		tap_module = null;
+	}
+	/* don't wait for it, on iOS it may never settle */
+	context.resume().catch(() => {});
+	wasm = await load(context.sampleRate);
+	decoder = await load_decoder(context.sampleRate);
+	update();
+}
 async function listen() {
 	if (listening) {
-		/* disconnect the tap too, or it keeps feeding the decoder with silence */
-		listening.stream.getTracks().forEach(track => track.stop());
-		listening.source.disconnect();
-		listening.tap.port.onmessage = null;
-		listening = null;
-		document.getElementById("listen").textContent = "listen";
+		stop_listening();
 		status("stopped listening");
 		return;
 	}
 	try {
+		await wake();
 		const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
 		const code = `class Tap extends AudioWorkletProcessor {
 			constructor() { super(); this.buffer = new Float32Array(2048); this.pos = 0; }
@@ -349,8 +381,15 @@ async function listen() {
 		tap.port.onmessage = event => receive(decoder, event.data);
 		const source = context.createMediaStreamSource(stream);
 		source.connect(tap);
-		await context.resume();
 		listening = { stream, source, tap };
+		/* iOS ends the microphone when the app goes to the background */
+		for (const track of stream.getAudioTracks())
+			track.addEventListener("ended", () => {
+				if (listening && listening.stream == stream) {
+					stop_listening();
+					status("microphone ended", true);
+				}
+			});
 		document.getElementById("listen").textContent = "stop";
 		status("listening at " + context.sampleRate + " Hz");
 	} catch (error) {
@@ -526,8 +565,9 @@ function wav_file(samples, rate, channels = 1) {
 		view.setFloat32(44 + 4 * i, samples[i], true);
 	return new Blob([view.buffer], { type: "audio/wav" });
 }
-function play() {
+async function play() {
 	try {
+		await wake();
 		const samples = encode(0.1);
 		const buffer = context.createBuffer(1, samples.length, context.sampleRate);
 		buffer.copyToChannel(samples, 0);
@@ -535,7 +575,6 @@ function play() {
 		source.buffer = buffer;
 		source.connect(context.destination);
 		source.onended = () => status("done");
-		context.resume();
 		source.start();
 		status("playing " + (samples.length / context.sampleRate).toFixed(1) + "s at " + context.sampleRate + " Hz");
 	} catch (error) {
@@ -556,11 +595,7 @@ function save() {
 	}
 }
 async function main() {
-	context = new AudioContext();
-	if (context.sampleRate != 44100 && context.sampleRate != 48000) {
-		context.close();
-		context = new AudioContext({ sampleRate: 48000 });
-	}
+	context = new_context();
 	try {
 		wasm = await load(context.sampleRate);
 		decoder = await load_decoder(context.sampleRate);
