@@ -356,6 +356,8 @@ async function wake(fresh) {
 }
 /* always starts over with a new context and microphone, also when already listening */
 async function listen() {
+	/* like stop: on iOS, a microphone asked for while the old one is still there doesn't work after the background */
+	stop_audio();
 	try {
 		/* the microphone before the context: Safari reconfigures the audio hardware when the microphone starts,
 		which stalls a context that already runs and loses its samples for a while */
