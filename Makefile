@@ -53,9 +53,9 @@ check-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.w
 .PHONY: pages
 
 # a snapshot of the page and its modules for GitHub Pages, served from the docs directory
-pages: index.html temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm
+pages: index.html manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm
 	mkdir -p docs/temp
-	cp index.html docs/
+	cp index.html manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png docs/
 	cp temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm docs/temp/
 	touch docs/.nojekyll
 
