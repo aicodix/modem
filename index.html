@@ -583,6 +583,9 @@ async function main() {
 	status("ready, " + context.sampleRate + " Hz");
 }
 main();
+/* only in secure contexts, such as https or localhost, for offline use and installing the page as an app */
+if ("serviceWorker" in navigator)
+	navigator.serviceWorker.register("sw.js").catch(error => console.log("no service worker: " + error.message));
 </script>
 </body>
 </html>
