@@ -338,7 +338,8 @@ function new_context() {
 }
 /* iOS breaks the audio when the app goes to the background, even when the context then claims to be running,
 so listening always starts with a new context, and so does playing while not listening. Call this first thing
-in a click handler: iOS only lets a context start from a user gesture, and the gesture is gone after the first await */
+in a click handler: iOS only lets a context start from a user gesture, and the gesture is gone after the first await,
+unless the page captures the microphone, which also lets it play */
 async function wake(fresh) {
 	if (fresh || context.stopped || context.state != "running") {
 		stop_audio();
@@ -355,8 +356,10 @@ async function wake(fresh) {
 /* always starts over with a new context and microphone, also when already listening */
 async function listen() {
 	try {
-		await wake(true);
+		/* the microphone before the context: Safari reconfigures the audio hardware when the microphone starts,
+		which stalls a context that already runs and loses its samples for a while */
 		const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
+		await wake(true);
 		const code = `class Tap extends AudioWorkletProcessor {
 			constructor() { super(); this.buffer = new Float32Array(2048); this.pos = 0; }
 			process(inputs) {
