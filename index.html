@@ -18,6 +18,8 @@ canvas[hidden] { display: none; }
 fieldset { border: 1px solid gray; margin: 0.75em 0; }
 fieldset label { white-space: nowrap; margin-right: 0.5em; }
 #scope { width: 60%; margin: 0.5em auto; }
+a { color: lightskyblue; }
+footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top: 2em; }
 </style>
 </head>
 <body>
@@ -99,6 +101,11 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 <canvas id="constellation" hidden></canvas>
 </fieldset>
 <div id="log"></div>
+<footer>
+<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a></p>
+<p>Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.</p>
+<p>DISCLAIMER: THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.</p>
+</footer>
 <script>
 const encoders = {}, decoders = {};
 const images = new Map();
