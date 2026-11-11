@@ -17,7 +17,11 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 - `check_encoder.mjs`, `check_decoder.mjs`, `index.html`: the Node.js checks
   of the modules and the browser page that sends text and receives it from
   the microphone or a WAV file. For analog frames, the page takes and gives
-  their complex values as stereo WAV files, like the native programs.
+  their complex values as stereo WAV files, like the native programs. Its
+  meters show the CFO and SFO the decoder tracks after each symbol, from the
+  module's `tracking` buffer, on symmetric logarithmic scales, dimmed between
+  frames, and the RMS and peak level of the microphone, which the page
+  measures itself.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
   mode table in `Common::setup()`.

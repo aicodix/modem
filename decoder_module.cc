@@ -30,6 +30,9 @@ float values[2*Common::analog_max];
 /* cfo Hz, sfo ppm, residual cfo mHz, Es/N0 dB min, median, max, real Es/N0 dB min, median, max */
 __attribute__((visibility("default")))
 float stats[9];
+/* the CFO in Hz and SFO in ppm the decoder tracks, after each symbol */
+__attribute__((visibility("default")))
+float tracking[2];
 
 static void update(int events)
 {
@@ -74,6 +77,8 @@ int feed(int offset, int count)
 		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
 		/* only for the analyzer, the page doesn't need to stop for it */
 		if (events & decoder_type::new_symbol) {
+			tracking[0] = decoder.cfo_rad * (RATE / Const::TwoPi());
+			tracking[1] = 1000000 * (decoder.step - 1);
 			int j = events & decoder_type::found_sync ? 0 : symbol;
 			analyzer.channel_estimate(decoder.chan);
 			analyzer.tone_precision(decoder, j);
