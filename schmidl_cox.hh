@@ -57,7 +57,7 @@ public:
 	bool operator()(const cmplx *samples) {
 		cmplx P = cor(samples[search_pos + symbol_len] * conj(samples[search_pos + 2 * symbol_len]));
 		value R = value(0.5) * pwr(norm(samples[search_pos + 2 * symbol_len]));
-		value min_R = 0.00001 * symbol_len;
+		value min_R = value(1e-12) * symbol_len;
 		R = std::max(R, min_R);
 		value timing = match(norm(P) / (R * R));
 		cmplx phase = align(P);
