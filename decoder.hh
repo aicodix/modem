@@ -73,6 +73,8 @@ struct Decoder : Common
 	value index[tone_count], phase[tone_count];
 	value snr[symbols_max];
 	value cfo_rad, sfo_rad, residual_rad;
+	// the change of the timing since the sync, as the slope of the phase over the tones, in radians per tone
+	value drift_rad;
 	value es_n0[3], real_es_n0[3];
 	// real Es/N0 in dB of each tone, averaged over the payload symbols of the frame
 	value real_tone_snr[tone_count];
@@ -306,6 +308,7 @@ struct Decoder : Common
 				demod[i] *= DSP::polar<value>(1, -tse(i+tone_off));
 			for (int i = 0; i < tone_count; ++i)
 				chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
+			drift_rad += tse.slope();
 			if (j) {
 				// update all tones with the seed tones of this symbol, interpolated values with a lower weight
 				// keep the estimate where a seed tone changed far more than the median, as with a carrier
@@ -426,15 +429,28 @@ struct Decoder : Common
 			for (int i = 0; i < tone_count; ++i)
 				chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			symbol_index = 1;
-			countdown = symbol_pos + symbol_len + extended_len + extended_len;
+			countdown = symbol_pos + symbol_len + extended_len + extended_len + resync();
 			return;
 		}
 		if (j < symbol_count) {
 			++symbol_index;
-			countdown = extended_len;
+			countdown = extended_len + resync();
 			return;
 		}
 		finish();
+	}
+	// move the next window by the whole samples the timing drifted, as from SFO, which the seed tones measure
+	// as the slope of their phase, so the symbols stay within the guard interval also on long frames
+	int resync()
+	{
+		int shift = std::nearbyint(- drift_rad * symbol_len / Const::TwoPi());
+		if (!shift)
+			return 0;
+		drift_rad += shift * Const::TwoPi() / value(symbol_len);
+		// the window and the oscillator, which only counts symbols, no longer start at the same sample
+		for (int i = 0; i < tone_count; ++i)
+			chan[i] *= DSP::polar<value>(1, (i+tone_off) * shift * Const::TwoPi() / value(symbol_len) + shift * cfo_rad);
+		return shift;
 	}
 	void finish()
 	{
@@ -521,6 +537,7 @@ struct Decoder : Common
 		analog_mode = false;
 		symbol_index = 0;
 		bit_index = 0;
+		drift_rad = 0;
 		process(buf);
 	}
 	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), freq_correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), frequency_sync(false)
