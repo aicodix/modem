@@ -33,6 +33,8 @@ struct Decoder : Common
 	static const int extended_len = symbol_len + guard_len;
 	static const int buffer_len = 5 * extended_len;
 	static const int search_pos = extended_len;
+	// the windows start this many samples into the buffer, so resampling them can also reach before their start
+	static const int window_margin = 32;
 	// the frequency correlator looks for the sync up to two and a half symbols back
 	static const int freq_pos = 5 * symbol_len / 2 + guard_len;
 	static const int tone_off = - tone_count / 2;
@@ -73,8 +75,12 @@ struct Decoder : Common
 	value index[tone_count], phase[tone_count];
 	value snr[symbols_max];
 	value cfo_rad, sfo_rad, residual_rad;
-	// the change of the timing since the sync, as the slope of the phase over the tones, in radians per tone
+	// the change of the timing since the last window, as the slope of the phase over the tones, in radians per tone
 	value drift_rad;
+	// the change of the phase since the last window, which a residual CFO leaves
+	value phase_rad;
+	// the received samples per sent sample, and where the next window starts after the whole samples of the countdown
+	value step, frac;
 	value es_n0[3], real_es_n0[3];
 	// real Es/N0 in dB of each tone, averaged over the payload symbols of the frame
 	value real_tone_snr[tone_count];
@@ -264,8 +270,10 @@ struct Decoder : Common
 		events |= new_symbol;
 		seed_off = (block_skew * j + first_seed) % block_length;
 		if (j) {
+			// resample around the middle of the window, where the unresampled windows of the sync measure the timing
+			value middle = window_margin + frac + symbol_len / 2;
 			for (int i = 0; i < symbol_len; ++i)
-				tdom[i] = buf[i] * osc();
+				tdom[i] = interpolate(buf, middle + (i - symbol_len / 2) * step) * osc();
 			for (int i = 0; i < guard_len; ++i)
 				osc();
 			fwd(fdom, tdom);
@@ -309,6 +317,7 @@ struct Decoder : Common
 			for (int i = 0; i < tone_count; ++i)
 				chan[i] *= DSP::polar<value>(1, tse(i+tone_off));
 			drift_rad += tse.slope();
+			phase_rad += tse.yint();
 			if (j) {
 				// update all tones with the seed tones of this symbol, interpolated values with a lower weight
 				// keep the estimate where a seed tone changed far more than the median, as with a carrier
@@ -429,7 +438,7 @@ struct Decoder : Common
 			for (int i = 0; i < tone_count; ++i)
 				chan[i] = DSP::lerp(chan[i], tone[i], value(0.5));
 			symbol_index = 1;
-			countdown = symbol_pos + symbol_len + extended_len + extended_len + resync();
+			countdown = symbol_pos + symbol_len + extended_len + extended_len - window_margin + resync(false);
 			return;
 		}
 		if (j < symbol_count) {
@@ -439,17 +448,36 @@ struct Decoder : Common
 		}
 		finish();
 	}
-	// move the next window by the whole samples the timing drifted, as from SFO, which the seed tones measure
-	// as the slope of their phase, so the symbols stay within the guard interval also on long frames
-	int resync()
+	// cubic Lagrange interpolation, plenty for the oversampled baseband
+	static cmplx interpolate(const cmplx *buf, value x)
 	{
-		int shift = std::nearbyint(- drift_rad * symbol_len / Const::TwoPi());
-		if (!shift)
-			return 0;
-		drift_rad += shift * Const::TwoPi() / value(symbol_len);
-		// the window and the oscillator, which only counts symbols, no longer start at the same sample
+		int k = x;
+		value t = x - value(k);
+		const cmplx *y = buf + k - 1;
+		value a = t + 1, b = t, c = t - 1, d = t - 2;
+		return (- b * c * d / value(6)) * y[0] + (a * c * d / value(2)) * y[1] + (- a * b * d / value(2)) * y[2] + (a * b * c / value(6)) * y[3];
+	}
+	// predict where the next window starts from the SFO, correct it by how far the timing drifted from the last
+	// prediction, as the seed tones measure it by the slope of their phase, and correct the SFO by a part of it.
+	// The first symbol after the sync has no prediction, so the drift expected from the SFO is no error there
+	int resync(bool predicted = true)
+	{
+		value drift = - drift_rad * symbol_len / Const::TwoPi();
+		drift_rad = 0;
+		value error = predicted ? drift : drift - extended_len * (step - 1);
+		step += value(0.25) * error / value(extended_len);
+		step = std::min(std::max(step, value(0.995)), value(1.005));
+		// the same for the CFO, the phase changes by the residual CFO from one window to the next
+		cfo_rad += value(0.25) * phase_rad / value(extended_len);
+		phase_rad = 0;
+		osc.omega(-cfo_rad);
+		value advance = extended_len * (step - 1) + drift;
+		// the window moved against the tones by the drift, and against the oscillator, which only counts samples, by all of it
 		for (int i = 0; i < tone_count; ++i)
-			chan[i] *= DSP::polar<value>(1, (i+tone_off) * shift * Const::TwoPi() / value(symbol_len) + shift * cfo_rad);
+			chan[i] *= DSP::polar<value>(1, (i+tone_off) * drift * Const::TwoPi() / value(symbol_len) + advance * cfo_rad);
+		value next = frac + advance;
+		int shift = std::nearbyint(next);
+		frac = next - value(shift);
 		return shift;
 	}
 	void finish()
@@ -514,6 +542,10 @@ struct Decoder : Common
 		tse.compute(index, phase, tone_count);
 		sfo_rad = tse.slope();
 		residual_rad = tse.yint();
+		// the CFO of the correlators comes from all tones weighted by their power, and the phase of
+		// the tones also turns by the SFO, so a channel stronger on one side gets the CFO wrong
+		cfo_rad += residual_rad / value(symbol_len);
+		osc.omega(-cfo_rad);
 		for (int i = 0; i < tone_count; ++i)
 			tone[i] *= DSP::polar<value>(1, tse(i+tone_off));
 		// the noise of each tone from the difference of the two sync symbols, which carries it twice
@@ -538,6 +570,9 @@ struct Decoder : Common
 		symbol_index = 0;
 		bit_index = 0;
 		drift_rad = 0;
+		phase_rad = 0;
+		step = 1 - sfo_rad / Const::TwoPi();
+		frac = 0;
 		process(buf);
 	}
 	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), freq_correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), frequency_sync(false)

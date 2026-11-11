@@ -188,12 +188,23 @@ channel, also near threshold:
     slow phase drift from symbol to symbol, but an offset of a fraction of a
     tone causes interference between the tones: 0.44 Hz, 6 percent of a tone,
     puts it at about -19 dB, which would cap the dense QAM modes. The
-    estimate is one correlation of the two sync symbols per frame.
-  - The decoder doesn't resample. Timing drift from SFO is absorbed by the
-    phase slope of every symbol only while it stays within the clean part of
-    the guard interval, about a quarter of it on each side. At 290 ppm, a
-    3.4 s frame drifts about 1 ms, beyond that, as a rough estimate. Long
-    frames are where tracking and correcting the SFO would pay off.
+    correlation of the two sync symbols weights the tones by their power,
+    and with SFO their phase also turns along the band, so a channel
+    stronger on one side biases it. `preamble()` corrects it by the Theil-Sen
+    intercept of the phases between the two sync symbols, at the middle tone.
+  - The decoder resamples every symbol after the preamble, without a separate
+    estimator. `step`, the received samples per sent sample, starts from the
+    SFO of the sync. Each symbol, the Theil-Sen slope and intercept of the
+    seed tones give how far the timing drifted and how far the phase turned
+    since the last window. `resync()` corrects the start of the next window by
+    the whole drift, `step` and the CFO by a quarter of it, a second order
+    loop each, and turns `chan` by what the window moved. `process()` reads
+    the window with cubic Lagrange interpolation around its middle, where
+    the unresampled sync windows measure the timing, starting
+    `window_margin` samples into the buffer to reach before it. Without
+    it, SFO caps the Es/N0 by the interference between the tones, about
+    27 dB at 300 ppm and 19 dB at 1000 ppm, and the timing drifts beyond
+    the guard interval on long frames.
 - Adjacent tones are divided, not multiplied, so a strong tone or carrier
   can't dominate, and ratios that are far off, as next to a notch, are erased.
 - The decoder doesn't trust the channel estimate of the sync for the whole
