@@ -530,9 +530,13 @@ struct Decoder : Common
 		// comes from all tones weighted by their power, and the phase of the tones also turns by the SFO, so
 		// a channel stronger on one side gets it wrong. Take them again resampled with the SFO and with the
 		// corrected CFO, so their interference between the tones doesn't stay in the channel estimate
+		// The second time also measures where the first sync symbol starts, by the phase of the ratio of adjacent
+		// tones against their known ratio, as the frequency correlator estimates it with the CFO still there, and
+		// when the windows are off by more than an eighth of the guard interval, the third time moves them there
 		step = 1;
-		value middle = symbol_pos + symbol_len / 2;
-		for (int pass = 0; pass < 2; ++pass) {
+		value offset = 0;
+		for (int pass = 0; pass < 3; ++pass) {
+			value middle = symbol_pos + offset + symbol_len / 2;
 			osc.omega(-cfo_rad);
 			window(buf, middle);
 			for (int i = 0; i < tone_count; ++i)
@@ -549,7 +553,29 @@ struct Decoder : Common
 			step = std::min(std::max(step, value(0.995)), value(1.005));
 			residual_rad = tse.yint();
 			cfo_rad += residual_rad / value(symbol_len);
+			if (pass == 1) {
+				CODE::MLS seq0(mls0_poly, mls0_seed);
+				cmplx sum = 0;
+				value mag = 0;
+				for (int i = 0, prev = nrz(seq0()), curr; i < tone_count - 1; ++i, prev = curr) {
+					cmplx ratio = value(prev * (curr = nrz(seq0()))) * demod_or_erase(tone[i+1], tone[i]);
+					sum += ratio;
+					mag += abs(ratio);
+				}
+				value late = arg(sum) * symbol_len / Const::TwoPi();
+				// a radian is a thousand samples, so the estimate scatters by tens of samples until the ratios agree
+				// almost all, and a few samples are well within the guard interval, so only move when it is reliable
+				// and needed. Keep the windows within the buffer
+				if (abs(sum) < value(0.95) * mag || abs(late) <= value(guard_len / 8) || abs(late) > 2 * guard_len || symbol_pos + offset - late < window_margin)
+					break;
+				offset -= late;
+			}
 		}
+		// the whole samples of the offset go into the position of the sync, as the correlators report it
+		int shift = std::nearbyint(offset);
+		symbol_pos += shift;
+		offset -= shift;
+		value middle = symbol_pos + offset + symbol_len / 2;
 		sfo_rad = Const::TwoPi() * (1 - step);
 		osc.omega(-cfo_rad);
 		for (int i = 0; i < guard_len; ++i)
@@ -578,7 +604,7 @@ struct Decoder : Common
 		drift_rad = 0;
 		phase_rad = 0;
 		// how far the first symbol is from where the countdown takes the next one
-		frac = (symbol_len + extended_len) * (step - 1);
+		frac = offset + (symbol_len + extended_len) * (step - 1);
 		process(buf);
 	}
 	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), freq_correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), frequency_sync(false)

@@ -200,7 +200,16 @@ channel, also near threshold:
     again, resampled with that SFO and with the corrected CFO, and the first
     symbol too, as their interference between the tones would otherwise stay
     in the channel estimate: it took the first symbols of a frame to track it
-    out, and the first symbol had about 12 dB Es/N0 at 1000 ppm.
+    out, and the first symbol had about 12 dB Es/N0 at 1000 ppm. The second
+    time also measures the timing, by the phase of the ratio of adjacent
+    tones of the first sync symbol against their known ratio, now without
+    the CFO, which leaves the timing of the frequency correlator late by up
+    to half a guard interval at 2000 ppm. It moves the windows and takes them
+    a third time only when the ratios agree to 95 percent and the timing is
+    off by more than an eighth of the guard interval: a radian is a thousand
+    samples, so near threshold the estimate scatters by tens of samples, and
+    moving there cost frames. The sync detectors stay cheap, all of this
+    runs once per sync.
   - The decoder resamples every symbol after the preamble, without a separate
     estimator. `step`, the received samples per sent sample, starts from the
     SFO of the sync. Each symbol, the Theil-Sen slope and intercept of the
