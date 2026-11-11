@@ -195,7 +195,12 @@ channel, also near threshold:
     correlation of the two sync symbols weights the tones by their power,
     and with SFO their phase also turns along the band, so a channel
     stronger on one side biases it. `preamble()` corrects it by the Theil-Sen
-    intercept of the phases between the two sync symbols, at the middle tone.
+    intercept of the phases between the two sync symbols, at the middle tone,
+    and gets the SFO from their slope. Then it takes the two sync symbols
+    again, resampled with that SFO and with the corrected CFO, and the first
+    symbol too, as their interference between the tones would otherwise stay
+    in the channel estimate: it took the first symbols of a frame to track it
+    out, and the first symbol had about 12 dB Es/N0 at 1000 ppm.
   - The decoder resamples every symbol after the preamble, without a separate
     estimator. `step`, the received samples per sent sample, starts from the
     SFO of the sync. Each symbol, the Theil-Sen slope and intercept of the
