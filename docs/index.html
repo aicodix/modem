@@ -24,6 +24,22 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 #scope { width: 60%; margin: 0.5em auto; }
 a { color: lightskyblue; }
 footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top: 2em; }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: 0.5em 1em; }
+.meter .head { display: flex; justify-content: space-between; font-size: 0.9em; }
+.meter .value { font-family: monospace; }
+.meter .track { position: relative; height: 1em; background-color: #222; border: 1px solid gray; margin-top: 0.2em; overflow: hidden; }
+.meter .bar { position: absolute; top: 0; bottom: 0; background-color: lightskyblue; }
+.meter .bar.stale { opacity: 0.35; }
+.meter .bar.level { background-color: limegreen; }
+.meter .bar.loud { background-color: orange; }
+.meter .bar.clip { background-color: red; }
+.meter .peak { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background-color: white; }
+.meter .tick { position: absolute; bottom: 0; height: 35%; border-left: 1px solid gray; }
+.meter .zero { position: absolute; top: 0; bottom: 0; border-left: 1px solid silver; }
+.meter .mark { position: absolute; top: 0; bottom: 0; border-left: 1px dashed orange; }
+.meter .scale { position: relative; height: 1.2em; font-size: 0.7em; color: silver; }
+.meter .scale span { position: absolute; transform: translateX(-50%); }
+.meter .note { font-size: 0.7em; color: silver; }
 </style>
 </head>
 <body>
@@ -75,6 +91,14 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </select></label>
 </p>
 <fieldset>
+<legend>tracking and level</legend>
+<div class="meters">
+<div class="meter" id="cfo-meter"></div>
+<div class="meter" id="sfo-meter"></div>
+<div class="meter" id="level-meter"></div>
+</div>
+</fieldset>
+<fieldset>
 <legend><label><input type="checkbox" id="scope-on"> scope</label></legend>
 <label>gain <input type="range" id="gain" min="-20" max="60" value="0"> <span id="gain-value"></span></label>
 <label>intensity <input type="range" id="intensity" min="0" max="100" value="50"></label>
@@ -108,7 +132,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </fieldset>
 <div id="log"></div>
 <footer>
-<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/2bd233a">2bd233a</a></p>
+<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/762a198">762a198</a></p>
 <p>Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.</p>
 <p>DISCLAIMER: THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.</p>
 </footer>
@@ -124,6 +148,109 @@ const code_rates = ["1/2", "2/3", "3/4", "5/6"];
 const found_sync = 1 << 0, damaged_seed = 1 << 1, preamble_error = 1 << 2, unsupported_call = 1 << 3;
 const read_meta = 1 << 4, known_mode = 1 << 5, erased_symbol = 1 << 6, frame_end = 1 << 7;
 const payload_error = 1 << 8, decoded_frame = 1 << 11;
+/* the CFO and SFO the decoder tracks after each symbol, held after the frame, and the level of the microphone */
+const tracking = { seen: false, cfo: 0, sfo: 0, busy: false };
+const level = { rms: -200, peak: -200, held: -200, time: 0 };
+const meters = {};
+/* a symmetric logarithmic scale from -max to max, linear within min of zero, as 0 to 1 */
+function symlog(min, max) {
+	const scale = Math.log10(1 + max / min);
+	return x => 0.5 + 0.5 * Math.sign(x) * Math.min(1, Math.log10(1 + Math.abs(x) / min) / scale);
+}
+function make_meter(id, title, position, ticks, labels, marks = [], zero = true) {
+	const element = document.getElementById(id);
+	const add = (parent, name, tag = "div") => { const child = document.createElement(tag); child.className = name; parent.appendChild(child); return child; };
+	const head = add(element, "head");
+	add(head, "", "span").textContent = title;
+	const value = add(head, "value", "span");
+	const track = add(element, "track");
+	for (const tick of ticks)
+		add(track, "tick").style.left = 100 * position(tick) + "%";
+	if (zero)
+		add(track, "zero").style.left = 100 * position(0) + "%";
+	for (const [mark, text] of marks) {
+		const line = add(track, "mark");
+		line.style.left = 100 * position(mark) + "%";
+		line.title = text;
+	}
+	const bar = add(track, "bar"), peak = add(track, "peak");
+	peak.hidden = true;
+	const scale = add(element, "scale");
+	for (const label of labels) {
+		const span = add(scale, "", "span");
+		span.style.left = 100 * position(label) + "%";
+		span.textContent = label;
+	}
+	const note = add(element, "note");
+	meters[id] = { position, value, bar, peak, note };
+}
+function make_meters() {
+	const cfo = symlog(0.01, 250), sfo = symlog(1, 5000), dB = x => (Math.max(-90, Math.min(0, x)) + 90) / 90;
+	const both = list => list.flatMap(x => [-x, x]);
+	make_meter("cfo-meter", "CFO", cfo, both([0.01, 0.1, 1, 10, 100]), [0, ...both([1, 100])],
+		both([3.75]).map(x => [x, "the frequency sync only handles half a tone, 3.75 Hz"]));
+	make_meter("sfo-meter", "SFO", sfo, both([1, 10, 100, 1000]), [0, ...both([10, 1000])],
+		both([3000]).map(x => [x, "the sync doesn't find frames beyond about 3000 ppm"]));
+	make_meter("level-meter", "level", dB, [-90, -80, -70, -60, -50, -40, -30, -20, -10, 0], [-80, -60, -40, -20, 0], [], false);
+	meters["level-meter"].bar.classList.add("level");
+	meters["level-meter"].note.textContent = "RMS and peak, dB of a full scale sine";
+}
+function signed(x, digits, unit) {
+	return (x > 0 ? "+" : "") + x.toFixed(digits) + " " + unit;
+}
+function show_signed(meter, x, stale, text) {
+	const pos = meter.position(x), mid = meter.position(0);
+	meter.bar.style.left = 100 * Math.min(pos, mid) + "%";
+	meter.bar.style.width = 100 * Math.abs(pos - mid) + "%";
+	meter.bar.classList.toggle("stale", stale);
+	meter.value.textContent = text;
+}
+/* the CFO and SFO only exist during a frame, they stay dimmed until the next sync */
+function draw_meters() {
+	const cfo = meters["cfo-meter"], sfo = meters["sfo-meter"], lvl = meters["level-meter"];
+	if (tracking.seen) {
+		const a = Math.abs(tracking.cfo), b = Math.abs(tracking.sfo);
+		show_signed(cfo, tracking.cfo, !tracking.busy, signed(tracking.cfo, a < 0.1 ? 3 : a < 10 ? 2 : 1, "Hz"));
+		show_signed(sfo, tracking.sfo, !tracking.busy, signed(tracking.sfo, b < 10 ? 1 : 0, "ppm"));
+		/* acoustic Doppler: the speed of sound times the SFO */
+		const speed = 343e-6 * tracking.sfo;
+		sfo.note.textContent = "as acoustic Doppler " + (Math.abs(speed) < 1 ? signed(100 * speed, 1, "cm/s") : signed(speed, 2, "m/s"));
+	} else {
+		cfo.value.textContent = sfo.value.textContent = "no frame yet";
+	}
+	if (!listening) {
+		lvl.bar.style.width = "0";
+		lvl.peak.hidden = true;
+		lvl.value.textContent = "not listening";
+		return;
+	}
+	/* the peak holds for a second and a half, then falls by 20 dB per second */
+	const age = (performance.now() - level.time) / 1000;
+	const held = Math.max(level.peak, level.held - Math.max(0, age - 1.5) * 20);
+	lvl.bar.style.left = "0";
+	lvl.bar.style.width = 100 * lvl.position(level.rms) + "%";
+	lvl.bar.classList.toggle("loud", level.rms > -12);
+	lvl.bar.classList.toggle("clip", held > -1);
+	lvl.peak.hidden = false;
+	lvl.peak.style.left = 100 * lvl.position(held) + "%";
+	lvl.value.textContent = (level.rms < -90 ? "< -90" : level.rms.toFixed(0)) + " / " + (held < -90 ? "< -90" : held.toFixed(0)) + " dB";
+}
+/* RMS and peak of a block from the microphone, in dB of a full scale sine, whose RMS is the square root of a half */
+function measure_level(samples) {
+	let sum = 0, max = 0;
+	for (const x of samples) {
+		sum += x * x;
+		max = Math.max(max, Math.abs(x));
+	}
+	level.rms = 10 * Math.log10(Math.max(2 * sum / samples.length, 1e-20));
+	level.peak = 20 * Math.log10(Math.max(max, 1e-10));
+	const age = (performance.now() - level.time) / 1000;
+	const held = level.held - Math.max(0, age - 1.5) * 20;
+	if (level.peak >= held) {
+		level.held = level.peak;
+		level.time = performance.now();
+	}
+}
 
 function status(str, failed) {
 	const element = document.getElementById("status");
@@ -245,14 +372,17 @@ function draw() {
 		}
 		/* each bin is as wide as a tone, 300 / 40 Hz */
 	}
+	draw_meters();
 	window.requestAnimationFrame(draw);
 }
 function report(dec) {
 	const events = dec.events();
 	const stats = new Float32Array(dec.memory.buffer, dec.stats.value, 9);
 	const db = i => stats[i].toFixed(1);
-	if (events & found_sync)
+	if (events & found_sync) {
+		tracking.seen = true;
 		log("sync, cfo " + stats[0].toFixed(1) + " Hz, sfo " + stats[1].toFixed(1) + " ppm");
+	}
 	if (events & damaged_seed)
 		log("seed value damaged", true);
 	if (events & preamble_error)
@@ -303,6 +433,10 @@ function receive(dec, samples) {
 				report(dec);
 		}
 	}
+	const values = new Float32Array(dec.memory.buffer, dec.tracking.value, 2);
+	tracking.cfo = values[0];
+	tracking.sfo = values[1];
+	tracking.busy = dec.busy() > 0;
 }
 function flush(dec) {
 	const silence = new Float32Array(1024);
@@ -392,6 +526,7 @@ async function listen() {
 		let heard = performance.now(), silent = false;
 		tap.port.onmessage = event => {
 			heard = performance.now();
+			measure_level(event.data);
 			receive(decoder, event.data);
 		};
 		const source = context.createMediaStreamSource(stream);
@@ -649,6 +784,7 @@ async function main() {
 	for (const id of ["sync-detection", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
+	make_meters();
 	window.requestAnimationFrame(draw);
 	update();
 	status("ready, " + context.sampleRate + " Hz");
