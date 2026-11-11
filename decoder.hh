@@ -555,18 +555,21 @@ struct Decoder : Common
 			cfo_rad += residual_rad / value(symbol_len);
 			if (pass == 1) {
 				CODE::MLS seq0(mls0_poly, mls0_seed);
+				// both sync symbols, which halves the error of the estimate
 				cmplx sum = 0;
 				value mag = 0;
 				for (int i = 0, prev = nrz(seq0()), curr; i < tone_count - 1; ++i, prev = curr) {
-					cmplx ratio = value(prev * (curr = nrz(seq0()))) * demod_or_erase(tone[i+1], tone[i]);
-					sum += ratio;
-					mag += abs(ratio);
+					value known = prev * (curr = nrz(seq0()));
+					cmplx ratio1 = known * demod_or_erase(tone[i+1], tone[i]);
+					cmplx ratio2 = known * demod_or_erase(chan[i+1], chan[i]);
+					sum += ratio1 + ratio2;
+					mag += abs(ratio1) + abs(ratio2);
 				}
 				value late = arg(sum) * symbol_len / Const::TwoPi();
-				// a radian is a thousand samples, so the estimate scatters by tens of samples until the ratios agree
-				// almost all, and a few samples are well within the guard interval, so only move when it is reliable
-				// and needed. Keep the windows within the buffer
-				if (abs(sum) < value(0.95) * mag || abs(late) <= value(guard_len / 8) || abs(late) > 2 * guard_len || symbol_pos + offset - late < window_margin)
+				// a radian is a thousand samples, so the estimate scatters by tens of samples until most ratios agree,
+				// and a few samples are well within the guard interval, so only move when it is reliable and needed.
+				// Keep the windows within the buffer
+				if (abs(sum) < value(0.88) * mag || abs(late) <= value(guard_len / 8) || abs(late) > 2 * guard_len || symbol_pos + offset - late < window_margin)
 					break;
 				offset -= late;
 			}
