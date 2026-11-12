@@ -17,7 +17,7 @@ QUIRKS = quirks/algorithm quirks/cassert quirks/cmath quirks/cstdint quirks/cstd
 
 .PHONY: all
 
-all: encode decode
+all: encode decode wasm
 
 test: encode decode
 	$(QEMU) ./encode audio.wav 48000 32 ANONYMOUS QAM16 1/2 short /dev/urandom
