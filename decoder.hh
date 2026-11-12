@@ -13,7 +13,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #include "theil_sen.hh"
 #include "filter.hh"
 #include "window.hh"
-#include "fir.hh"
+#include "down_conversion.hh"
 #include "phasor.hh"
 #include "spline.hh"
 #include "delay.hh"
@@ -53,8 +53,7 @@ struct Decoder : Common
 	static const int decoded_frame = 1 << 11;
 	static const int new_symbol = 1 << 12;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
-	DSP::Phasor<cmplx> mix;
-	DSP::FIR<cmplx, value, filter_len> lowpass;
+	DSP::DownConversion<cmplx, filter_len> ddc;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
 	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
@@ -610,14 +609,13 @@ struct Decoder : Common
 		frac = offset + (symbol_len + extended_len) * (step - 1);
 		process(buf);
 	}
-	Decoder() : lowpass(DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), freq_correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), frequency_sync(false)
+	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), freq_correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), frequency_sync(false)
 	{
-		mix.omega(-1500, rate);
 	}
 	int feed(value sample)
 	{
 		events = 0;
-		const cmplx *buf = input_hist(lowpass(sample * mix()));
+		const cmplx *buf = input_hist(ddc(sample));
 		bool found = frequency_sync ? freq_correlator(buf) : correlator(buf);
 		if (countdown) {
 			if (!--countdown)
