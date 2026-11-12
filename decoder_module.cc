@@ -148,16 +148,6 @@ int values_length()
 	return decoder.symbol_count * decoder.data_tones;
 }
 
-/* sync detection in the time (0) or the frequency (1) domain */
-__attribute__((visibility("default")))
-int frequency_sync(int on)
-{
-	if (on < 0 || on > 1)
-		return -1;
-	decoder.frequency_sync = on;
-	return 0;
-}
-
 __attribute__((visibility("default")))
 int analog_rate()
 {

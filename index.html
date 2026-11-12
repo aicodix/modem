@@ -84,12 +84,6 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
 </p>
 <p>Please allow the audio to settle for a few seconds before trying to decode.</p>
-<p>
-<label>sync detection <select id="sync-detection">
-<option value="0" selected>time</option>
-<option value="1">frequency</option>
-</select></label>
-</p>
 <fieldset>
 <legend>tracking and level</legend>
 <div class="meters">
@@ -188,7 +182,7 @@ function make_meters() {
 	const cfo = symlog(0.01, 250), sfo = symlog(1, 5000), dB = x => (Math.max(-90, Math.min(0, x)) + 90) / 90;
 	const both = list => list.flatMap(x => [-x, x]);
 	make_meter("cfo-meter", "CFO", cfo, both([0.01, 0.1, 1, 10, 100]), [0, ...both([1, 100])],
-		both([3.75]).map(x => [x, "the frequency sync only handles half a tone, 3.75 Hz"]));
+		both([250]).map(x => [x, "the sync searches up to 250 Hz"]));
 	make_meter("sfo-meter", "SFO", sfo, both([1, 10, 100, 1000]), [0, ...both([10, 1000])],
 		both([3000]).map(x => [x, "the sync doesn't find frames beyond about 3000 ppm"]));
 	make_meter("level-meter", "level", dB, [-90, -80, -70, -60, -50, -40, -30, -20, -10, 0], [-80, -60, -40, -20, 0], [], false);
@@ -305,7 +299,6 @@ async function load_decoder(rate) {
 }
 function analyzer_options(dec) {
 	const element = id => document.getElementById(id);
-	dec.frequency_sync(Number(element("sync-detection").value));
 	dec.enable_spectrum(element("spectrum-on").checked ? 1 : 0);
 	dec.enable_scope(element("scope-on").checked ? 1 : 0);
 	dec.enable_channel(element("channel-on").checked ? 1 : 0);
@@ -781,7 +774,7 @@ async function main() {
 	});
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["sync-detection", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
+	for (const id of ["spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
 	analyzer_controls();
 	make_meters();

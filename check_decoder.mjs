@@ -62,18 +62,15 @@ function decode(wasm, samples) {
 }
 
 let passed = 0, failed = 0;
-/* with sync detection in the time and in the frequency domain */
-for (const [rate, sync] of [[44100, 0], [44100, 1], [48000, 0], [48000, 1]]) {
+for (const rate of [44100, 48000]) {
 	const module = new WebAssembly.Module(fs.readFileSync(`temp/decoder_${rate}.wasm`));
 	const wasm = new WebAssembly.Instance(module).exports;
 	wasm.__wasm_call_ctors();
-	wasm.frequency_sync(sync);
-	const sync_name = sync ? "frequency sync" : "time sync";
 	for (let mode = 0; mode < 128; ++mode) {
 		if (((mode >> 1) & 7) > 3)
 			continue;
 		const modulation = modulations[(mode >> 4) & 7], code_rate = code_rates[(mode >> 1) & 7], frame_size = frame_sizes[mode & 1];
-		const name = `${rate} Hz ${sync_name} ${modulation} ${code_rate} ${frame_size}`;
+		const name = `${rate} Hz ${modulation} ${code_rate} ${frame_size}`;
 		const payload = crypto.randomBytes(7000);
 		fs.writeFileSync("temp/check.dat", payload);
 		spawnSync("./encode", ["temp/check.wav", String(rate), "32", "ANONYMOUS", modulation, code_rate, frame_size, "temp/check.dat"], { stdio: "ignore" });
@@ -88,7 +85,7 @@ for (const [rate, sync] of [[44100, 0], [44100, 1], [48000, 0], [48000, 1]]) {
 		}
 	}
 	for (const count of [1, 256, 1000, 32768]) {
-		const name = `${rate} Hz ${sync_name} analog with ${count} complex values`;
+		const name = `${rate} Hz analog with ${count} complex values`;
 		const values = new Float32Array(2 * count).map(() => 2 * Math.random() - 1);
 		fs.writeFileSync("temp/check.dat", wav_file(values, wasm.analog_rate(), 2));
 		spawnSync("./encode", ["temp/check.wav", String(rate), "32", "ANONYMOUS", "ANALOG", "temp/check.dat"], { stdio: "ignore" });

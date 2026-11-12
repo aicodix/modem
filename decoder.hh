@@ -109,8 +109,6 @@ struct Decoder : Common
 	int sample_count, countdown, pending;
 	int symbol_index, bit_index, snr_count;
 	bool analog_mode;
-	// no longer used, the sync detection works on the raw input for everything
-	bool frequency_sync;
 	// keep mixing and filtering while waiting for a sync, for the baseband views of the page
 	bool keep_baseband;
 
@@ -622,7 +620,7 @@ struct Decoder : Common
 		frac = offset + (symbol_len + extended_len) * (step - 1);
 		process(buf);
 	}
-	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), raw_sync(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), frequency_sync(false), keep_baseband(false)
+	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), raw_sync(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), keep_baseband(false)
 	{
 	}
 	// mixes and filters the whole raw input again, as nothing did while waiting for a sync

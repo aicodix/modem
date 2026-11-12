@@ -28,21 +28,25 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 - `psk.hh`, `qam.hh`: constellation mapping, hard and soft demapping, templated
   on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
 - `quantize.hh`: turns soft values into the code type of the LLRs.
-- `schmidl_cox.hh`: synchronization (timing, CFO, SFO).
-- `frequency_sync.hh`: sync detection in the frequency domain, for FM or AM,
-  selected by `Decoder::frequency_sync`, `decode -f` and the page. It takes an
-  FFT every `symbol_len` samples, so one window always falls between the two
-  identical sync symbols, and sums the ratio of adjacent tones times the
-  conjugate of their known ratio, against the number of tone pairs. As in
-  Schmidl & Cox, dividing instead of multiplying keeps strong tones, as from a
-  carrier or speech, from dominating. Only the tones of the kernel take part,
-  so there are no empty bins to erase by their power, only pairs whose ratio
-  is far off. Its phase gives the timing modulo a symbol. The ratio hardly
-  notices a window that reaches a few guard intervals beyond the sync symbols,
-  so the correlation between consecutive symbols picks the start among the
-  candidates within half a symbol of that window, and gives the CFO. It only
-  handles a CFO within half a tone (3.75 Hz). `preamble()` then estimates SFO
-  and residual CFO as for Schmidl & Cox.
+- `raw_sync.hh`: sync detection in the frequency domain on the raw input,
+  before mixing and filtering, so while waiting for a sync the decoder only
+  keeps the raw samples and nothing else runs. Every `symbol_len` samples it
+  takes a Hann window over the last two symbols and a real FFT twice as long
+  as a symbol. Within the two identical sync symbols the tones only fall on
+  even bins, and the window only spreads a bin to its neighbours, so it keeps
+  the tones apart while keeping strong tones, hum and DC out of them. Mixing
+  is a shift of the bins: it sums the ratio of adjacent tones times the
+  conjugate of their known ratio, against the number of tone pairs, for every
+  shift by half a tone up to 250 Hz, which finds the CFO within a quarter of
+  a tone. Dividing instead of multiplying keeps strong tones, as from a
+  carrier or speech, from dominating. Its phase gives the timing modulo a
+  symbol. After it fires, the decoder waits until the sync and the symbol
+  after it are in the buffer, mixes and filters the whole buffer of raw input
+  it kept (`catch_up()`), and `refine()` picks the start among the candidates
+  within a symbol of the best window by the correlation between consecutive
+  symbols, which also gives the fraction of a tone of the CFO. `preamble()`
+  then estimates SFO and residual CFO. The detection rests while waiting and
+  during a frame, and `busy()` counts the waiting.
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as
@@ -154,13 +158,14 @@ channel, also near threshold:
   has only about 2 dB less PAPR than the MLS, many roots have more, and the
   real audio signal adds 3 dB to all of them. The ratio of adjacent
   Zadoff-Chu tones turns by the same phase from tone to tone, so a shift by
-  whole tones only turns it as a whole, and the integer CFO search of Schmidl
-  & Cox can't tell the shifts apart for any root. The sync symbols get no SLM:
-  the receiver has to know them exactly.
-- There are two identical sync symbols back to back. Schmidl & Cox correlates
-  them in time, and they let the frequency correlator hop once per symbol, as
-  one window always falls cleanly between them. A third symbol isn't needed
-  for detection.
+  whole tones only turns it as a whole, and the CFO search of the sync
+  detection can't tell the shifts apart for any root. The sync symbols get
+  no SLM: the receiver has to know them exactly.
+- There are two identical sync symbols back to back. They let the sync
+  detection hop once per symbol with a window over two symbols, which then
+  sees mostly the repeating sync, and their correlation picks the start and
+  the fraction of a tone of the CFO. A third symbol isn't needed for
+  detection.
 - Sync detection uses the ratio of adjacent tones, a differential across
   frequency, not across time and not a correlation with the known tones.
   - On the Watterson channel the ratio stays flat apart from the tones next
@@ -175,8 +180,8 @@ channel, also near threshold:
 - Symbols are long: 7.5 Hz tones, a 133 ms symbol and a 3.3 ms guard
   interval. Neighbouring tones are close enough that even a 2 ms echo only
   turns the phase by about 5 degrees from one tone to the next, and there are
-  320 tones to average. The price is the CFO range of the frequency
-  correlator, half a tone, which FM, AM and audio equipment don't need. A
+  320 tones to average. The price is a search over 133 shifts by half a
+  tone for a CFO of 250 Hz, which is cheap once per symbol. A
   room's reverberation lasts far longer than the guard interval, which only
   covers the early reflections.
 - Most of the CFO is SFO in disguise. FM and AM demodulation don't pass an
@@ -203,15 +208,15 @@ channel, also near threshold:
     out, and the first symbol had about 12 dB Es/N0 at 1000 ppm. The second
     time also measures the timing, by the phase of the ratio of adjacent
     tones of both sync symbols against their known ratio, now without the
-    CFO, which leaves the timing of the frequency correlator late by up to
+    CFO, which leaves the timing of the sync detection late by up to
     half a guard interval at 2000 ppm. It moves the windows and takes them a
     third time only when the ratios agree to 88 percent and the timing is off
     by more than an eighth of the guard interval: a radian is a thousand
     samples, so near threshold the estimate scatters by tens of samples, and
     moving there cost frames. Both sync symbols halve its error against the
     first alone, which let the agreement drop from 95 percent and gained
-    frames near threshold with the frequency correlator and SFO. The sync detectors stay cheap, all of this
-    runs once per sync.
+    frames near threshold with sync detection in the frequency domain and
+    SFO. The sync detection stays cheap, all of this runs once per sync.
   - The decoder resamples every symbol after the preamble, without a separate
     estimator. `step`, the received samples per sent sample, starts from the
     SFO of the sync. Each symbol, the Theil-Sen slope and intercept of the
@@ -262,12 +267,15 @@ channel, also near threshold:
   frame that is a common scale and does not hurt decoding, but they are not
   exact there. The real Es/N0 after decoding is.
 - The signal is always a real (one channel) audio signal centered at 1500 Hz.
-  The decoder mixes it down by 1500 Hz and lowpass filters it, flat to ±1050 Hz
-  and at least 65 dB down from ±1500 Hz, which removes DC and out-of-band noise
-  before synchronization. This limits the CFO to about ±250 Hz.
-- Near threshold, the coarse timing of the Schmidl & Cox correlator is often
-  off by more than a guard interval, which the cross-correlation after it
-  corrects for up to two guard intervals. BPSK 1/2 short then decodes all frames
+  The sync detection works on the raw input, where its window keeps DC, hum
+  and out-of-band tones out of the tones. Only after a sync, during a frame,
+  and while the page shows its spectrum or scope (`keep_baseband`) does the
+  decoder mix the signal down by 1500 Hz and lowpass filter it with
+  `DSP::DownConversion`, flat to ±1050 Hz and at least 65 dB down from
+  ±1500 Hz. With the search, this limits the CFO to about ±250 Hz, where the
+  outer tones are already attenuated.
+- Near threshold, the coarse timing of the sync detection scatters by tens
+  of samples, which `preamble()` corrects. BPSK 1/2 short then decodes all frames
   from about 3 dB in-band SNR, also with multipath, CFO and SFO, and fails at
   about the same point as its code does. To compare decoder changes, use many
   noise seeds per point near the threshold of the affected modes, and report
@@ -277,11 +285,14 @@ channel, also near threshold:
 - The guard interval of the symbol after the two sync symbols starts as their
   cyclic continuation, as the encoder's guard interval weights are zero for
   its first quarter. A window that reaches past the second sync symbol can
-  therefore look clean, and the frequency correlator, whose ratio of adjacent
+  therefore look clean, and the sync detection, whose ratio of adjacent
   tones hardly notices a few guard intervals of other symbols, may pick such
-  a window. Don't assume the best window lies within the sync symbols.
+  a window. Silence before the sync looks just as clean, so two windows a hop
+  apart can both look clean, and the best one can be early or late by half a
+  symbol: `refine()` looks a whole symbol either way. Don't assume the best
+  window lies within the sync symbols.
 - When testing anything that works on a grid of hops or blocks, such as the
-  frequency correlator, sweep the offset of the signal over a whole hop, for
+  sync detection, sweep the offset of the signal over a whole hop, for
   example by prepending 0 to `symbol_len` zero samples to a clean WAV. Native
   runs of the same file always see the same phase; the Node checks feed
   their files back to back and see others, which is how a failure at a few

@@ -33,12 +33,6 @@ Decode ```recorded.wav``` audio file to ```decoded.dat``` file:
 ./decode recorded.wav decoded.dat
 ```
 
-With FM or AM, where there is little CFO besides that from the SFO, the decoder can also detect the sync in the frequency domain:
-
-```
-./decode -f recorded.wav decoded.dat
-```
-
 Compare original ```uncoded.dat``` with ```decoded.dat```:
 
 ```
