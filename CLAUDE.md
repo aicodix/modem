@@ -45,8 +45,10 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   it kept (`catch_up()`), and `refine()` picks the start among the candidates
   within a symbol of the best window by the correlation between consecutive
   symbols, which also gives the fraction of a tone of the CFO. `preamble()`
-  then estimates SFO and residual CFO. The detection rests while waiting and
-  during a frame, and `busy()` counts the waiting.
+  then estimates SFO and residual CFO. The detection rests while waiting, so
+  it keeps what it found, and `busy()` counts the waiting. It keeps running
+  during a frame: the decoder lags a few symbols behind the input, and the
+  sync of a frame right after another would be gone by its end.
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as

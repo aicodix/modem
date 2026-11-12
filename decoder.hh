@@ -636,24 +636,26 @@ struct Decoder : Common
 	{
 		events = 0;
 		const value *raw = raw_hist(sample);
+		// the detection also runs during a frame, as the decoder lags behind the input by a few symbols and
+		// the sync of a frame right after it would be gone by the end. It rests while waiting, so it keeps
+		// what it found
+		bool found = !pending && raw_sync(raw + raw_len - 2 * symbol_len);
 		if (countdown) {
 			const cmplx *buf = input_hist(ddc(sample));
 			if (!--countdown)
 				process(buf);
-			return events;
+		} else {
+			if (keep_baseband)
+				input_hist(ddc(sample));
+			++sample_count;
 		}
-		if (keep_baseband)
-			input_hist(ddc(sample));
-		++sample_count;
-		// the detection rests while waiting for the preamble and during a frame, so it keeps what it found
-		if (pending) {
-			if (!--pending) {
-				const cmplx *buf = catch_up();
-				if (raw_sync.refine(buf, sync_start))
-					preamble(buf);
-			}
-		} else if (raw_sync(raw + raw_len - 2 * symbol_len)) {
+		if (found) {
 			pending = sync_delay;
+		} else if (pending && !--pending && !countdown) {
+			// the frame before has ended by now, as its last symbol was processed further into the buffer
+			const cmplx *buf = catch_up();
+			if (raw_sync.refine(buf, sync_start))
+				preamble(buf);
 		}
 		return events;
 	}
