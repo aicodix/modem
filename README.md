@@ -206,11 +206,3 @@ Encode ```uncoded.dat``` to audio signal, add [multipath](https://en.wikipedia.o
 ```
 ./encode - 48000 32 ANONYMOUS QAM16 1/2 short uncoded.dat | ../disorders/multipath - - ../disorders/multipath.txt 10 | ../disorders/cfo - - 234.567 | ../disorders/sfo - - 147 | ../disorders/awgn - - -20 | ./decode - - | diff -q -s uncoded.dat -
 ```
-
-### Reading
-
-* Robust frequency and timing synchronization for OFDM  
-by Timothy M. Schmidl and Donald C. Cox - 1997
-* On Timing Offset Estimation for OFDM Systems  
-by H. Minn, M. Zeng, and V. K. Bhargava - 2000
-
