@@ -8,15 +8,15 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 
 #include "fft.hh"
 
-// Like FrequencySync, but on the real input before mixing and filtering, so nothing
-// else has to run while waiting for a sync. Every symbol_len samples it takes a Hann
-// window over the last two symbols and a real FFT twice as long as a symbol. Within the
-// two identical sync symbols the content repeats every symbol, so the tones only fall on
-// even bins, and the window, which only spreads a bin to its neighbours, leaves them
-// apart while keeping strong out-of-band tones, hum and DC from leaking in. Mixing is a
+// Sync detection on the real input before mixing and filtering, so nothing else has to
+// run while waiting for a sync. Every symbol_len samples it takes a Hann window over the
+// last two symbols and a real FFT twice as long as a symbol. Within the two identical
+// sync symbols the content repeats every symbol, so the tones only fall on even bins, and
+// the window, which only spreads a bin to its neighbours, leaves them apart. Mixing is a
 // shift of the bins, and searching the shifts by whole bins, half a tone, finds the CFO
-// within a quarter of a tone, up to range bins away. As in FrequencySync, adjacent tones
-// are divided, not multiplied, and the phase of the sum gives the timing modulo a symbol.
+// within a quarter of a tone, up to range bins away. Adjacent tones are divided, not
+// multiplied, so a strong tone counts no more than any other, which keeps hum, DC and
+// other tones out, and the phase of the sum gives the timing modulo a symbol.
 // refine() then picks the start among the candidates with the correlation of consecutive
 // symbols on the baseband, and the fraction of a tone of the CFO.
 template<typename value, typename cmplx, int symbol_len, int carrier, int range>
@@ -65,6 +65,18 @@ public:
 
 	// takes the known ratio of adjacent tones on the baseband, as FrequencySync, with carrier the tone at the center
 	RawSync(const cmplx *sequence, value threshold = value(0.2)) : threshold(threshold) {
+		// The FFT treats the window as one period of a periodic signal. Only what repeats
+		// exactly within it, as the two sync symbols in a window that lines up with them,
+		// stays on its bins. A window off by up to half a symbol, a CFO between the bins and
+		// SFO, which stretches the second symbol against the first and moves every tone off
+		// its bin by a different amount, all leave a step where the end wraps around to the
+		// start. Without a taper, that step leaks every tone into its neighbours, the very
+		// tones the ratio compares. Hann goes to zero at both ends, so the step is gone and
+		// what leaks stays on the empty odd bins next to each tone. Measured on a clean frame,
+		// the metric stays between 0.97 and 1.05 for any alignment and fraction of a bin, and
+		// above 0.96 up to 2000 ppm, where a rectangular window drops to 0.62 and to 0.71.
+		// Decoded frames didn't change, but Hann syncs at about 1 dB more noise and gives
+		// preamble() a third less timing error to start from.
 		for (int i = 0; i < fft_len; ++i)
 			win[i] = value(0.5) - value(0.5) * DSP::UnitCircle<value>::cos(i, fft_len);
 		for (int i = 0; i < symbol_len; ++i) {

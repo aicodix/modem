@@ -34,7 +34,10 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   takes a Hann window over the last two symbols and a real FFT twice as long
   as a symbol. Within the two identical sync symbols the tones only fall on
   even bins, and the window only spreads a bin to its neighbours, so it keeps
-  the tones apart while keeping strong tones, hum and DC out of them. Mixing
+  the tones apart. It also hides the step where the end of the window wraps
+  around to its start, which a misaligned window, a CFO between the bins and
+  SFO leave, and which would otherwise leak every tone into its neighbours
+  (see the comment in `RawSync`). Mixing
   is a shift of the bins: it sums the ratio of adjacent tones times the
   conjugate of their known ratio, against the number of tone pairs, for every
   shift by half a tone up to 250 Hz, which finds the CFO within a quarter of
