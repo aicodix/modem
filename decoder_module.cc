@@ -70,6 +70,8 @@ int feed(int offset, int count)
 	if (offset < 0 || count < 0 || offset + count > decoder_type::extended_len)
 		return -1;
 	last_events = 0;
+	// the views of the baseband need it also while waiting for a sync
+	decoder.keep_baseband = analyzer.spectrum_on || analyzer.scope_on;
 	for (int i = 0; i < count; ++i) {
 		/* the symbol and bit index of the next symbol, unless it follows a sync */
 		int symbol = decoder.symbol_index, start = decoder.bit_index;

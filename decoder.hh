@@ -7,8 +7,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 #pragma once
 
 #include "common.hh"
-#include "schmidl_cox.hh"
-#include "frequency_sync.hh"
+#include "raw_sync.hh"
 #include "bip_buffer.hh"
 #include "theil_sen.hh"
 #include "filter.hh"
@@ -32,11 +31,23 @@ struct Decoder : Common
 	static const int filter_len = rate / 100 | 1;
 	static const int extended_len = symbol_len + guard_len;
 	static const int buffer_len = 5 * extended_len;
-	static const int search_pos = extended_len;
 	// the windows start this many samples into the buffer, so resampling them can also reach before their start
 	static const int window_margin = 32;
-	// the frequency correlator looks for the sync up to two and a half symbols back
-	static const int freq_pos = 5 * symbol_len / 2 + guard_len;
+	// the raw input, enough to filter the whole buffer again after a sync
+	static const int raw_len = buffer_len + filter_len;
+	// the tone at 1500 Hz, where the signal is centered
+	static const int carrier = 1500 * symbol_len / rate;
+	static_assert(carrier * rate == 1500 * symbol_len, "1500 Hz must be a whole tone");
+	// the sync detection searches a CFO of up to 250 Hz, in bins of half a tone
+	static const int cfo_range = 250 * 2 * symbol_len / rate;
+	// where the best window of the sync detection starts in the buffer when preamble() takes over. The sync can
+	// start up to a symbol before or after it, as silence before the sync looks as clean as the guard interval after it
+	static const int sync_start = symbol_len + guard_len;
+	// the window ended a hop before the detection fired, and the filter delays the baseband by half its length,
+	// so wait this long after it for the sync and the symbol after it, with some room for preamble() to move the windows
+	static const int sync_delay = buffer_len - 3 * symbol_len - sync_start + (filter_len - 1) / 2;
+	static_assert(sync_start - symbol_len >= window_margin, "sync too early in the buffer");
+	static_assert(sync_start + symbol_len + 3 * symbol_len + 3 * guard_len <= buffer_len, "sync too late in the buffer");
 	static const int tone_off = - tone_count / 2;
 	// what happened during a call of feed(), as reported by its return value
 	static const int found_sync = 1 << 0;
@@ -55,9 +66,9 @@ struct Decoder : Common
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::DownConversion<cmplx, filter_len> ddc;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
+	DSP::BipBuffer<value, raw_len> raw_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
-	SchmidlCox<value, cmplx, search_pos, symbol_len, guard_len> correlator;
-	FrequencySync<value, cmplx, freq_pos, symbol_len, guard_len> freq_correlator;
+	RawSync<value, cmplx, symbol_len, carrier, cfo_range> raw_sync;
 	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	CODE::PolarEncoder<code_type> polar_encoder;
@@ -95,11 +106,13 @@ struct Decoder : Common
 	int crc_bits;
 	DSP::Phasor<cmplx> osc;
 	CODE::MLS seq1;
-	int sample_count, countdown;
+	int sample_count, countdown, pending;
 	int symbol_index, bit_index, snr_count;
 	bool analog_mode;
-	// sync detection in the frequency instead of the time domain, for FM or AM without CFO
+	// no longer used, the sync detection works on the raw input for everything
 	bool frequency_sync;
+	// keep mixing and filtering while waiting for a sync, for the baseband views of the page
+	bool keep_baseband;
 
 	static int bin(int carrier)
 	{
@@ -518,8 +531,8 @@ struct Decoder : Common
 	}
 	void preamble(const cmplx *buf)
 	{
-		symbol_pos = frequency_sync ? freq_correlator.symbol_pos : correlator.symbol_pos;
-		cfo_rad = frequency_sync ? freq_correlator.cfo_rad : correlator.cfo_rad;
+		symbol_pos = raw_sync.symbol_pos;
+		cfo_rad = raw_sync.cfo_rad;
 		// resampling reaches before the window
 		if (symbol_pos < window_margin)
 			return;
@@ -609,26 +622,46 @@ struct Decoder : Common
 		frac = offset + (symbol_len + extended_len) * (step - 1);
 		process(buf);
 	}
-	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), correlator(mls0_seq()), freq_correlator(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), frequency_sync(false)
+	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), raw_sync(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), frequency_sync(false), keep_baseband(false)
 	{
+	}
+	// mixes and filters the whole raw input again, as nothing did while waiting for a sync
+	const cmplx *catch_up()
+	{
+		const value *raw = raw_hist();
+		const cmplx *buf = input_hist();
+		for (int i = raw_len - buffer_len - filter_len + 1; i < raw_len; ++i)
+			buf = input_hist(ddc(raw[i]));
+		return buf;
 	}
 	int feed(value sample)
 	{
 		events = 0;
-		const cmplx *buf = input_hist(ddc(sample));
-		bool found = frequency_sync ? freq_correlator(buf) : correlator(buf);
+		const value *raw = raw_hist(sample);
 		if (countdown) {
+			const cmplx *buf = input_hist(ddc(sample));
 			if (!--countdown)
 				process(buf);
-		} else {
-			++sample_count;
-			if (found)
-				preamble(buf);
+			return events;
+		}
+		if (keep_baseband)
+			input_hist(ddc(sample));
+		++sample_count;
+		// the detection rests while waiting for the preamble and during a frame, so it keeps what it found
+		if (pending) {
+			if (!--pending) {
+				const cmplx *buf = catch_up();
+				if (raw_sync.refine(buf, sync_start))
+					preamble(buf);
+			}
+		} else if (raw_sync(raw + raw_len - 2 * symbol_len)) {
+			pending = sync_delay;
 		}
 		return events;
 	}
+	// also while waiting for the preamble after a sync
 	bool busy()
 	{
-		return countdown > 0;
+		return countdown > 0 || pending > 0;
 	}
 };
