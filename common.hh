@@ -102,27 +102,27 @@ struct Common
 	}
 
 	// forward interleaves the code bits like the encoder, backward undoes it like the decoder
-	// the xorshift triples of orders 10 and 17 to 19 have the fewest linear dependencies between the low
-	// bits, and between the top bits, of an index and of the indices up to eight steps later
+	// the xorshift triples have the fewest linear dependencies between the low bits, and between the top bits,
+	// of an index and of the indices up to eight steps later, as ranked by tools/rank.cc of code
 	template <typename TYPE>
 	static void shuffle(TYPE *dest, const TYPE *src, int order, bool forward)
 	{
 		if (order == 8)
-			permute<CODE::XorShiftMask<int, 8, 1, 1, 2, 1>>(dest, src, 256, forward);
+			permute<CODE::XorShiftMask<int, 8, 3, 5, 5, 1>>(dest, src, 256, forward);
 		else if (order == 10)
 			permute<CODE::XorShiftMask<int, 10, 3, 7, 8, 1>>(dest, src, 1024, forward);
 		else if (order == 11)
-			permute<CODE::XorShiftMask<int, 11, 1, 3, 4, 1>>(dest, src, 2048, forward);
+			permute<CODE::XorShiftMask<int, 11, 7, 5, 3, 1>>(dest, src, 2048, forward);
 		else if (order == 12)
-			permute<CODE::XorShiftMask<int, 12, 1, 1, 4, 1>>(dest, src, 4096, forward);
+			permute<CODE::XorShiftMask<int, 12, 5, 7, 11, 1>>(dest, src, 4096, forward);
 		else if (order == 13)
-			permute<CODE::XorShiftMask<int, 13, 1, 1, 9, 1>>(dest, src, 8192, forward);
+			permute<CODE::XorShiftMask<int, 13, 4, 7, 5, 1>>(dest, src, 8192, forward);
 		else if (order == 14)
-			permute<CODE::XorShiftMask<int, 14, 1, 5, 10, 1>>(dest, src, 16384, forward);
+			permute<CODE::XorShiftMask<int, 14, 3, 7, 9, 1>>(dest, src, 16384, forward);
 		else if (order == 15)
-			permute<CODE::XorShiftMask<int, 15, 1, 1, 3, 1>>(dest, src, 32768, forward);
+			permute<CODE::XorShiftMask<int, 15, 13, 8, 5, 1>>(dest, src, 32768, forward);
 		else if (order == 16)
-			permute<CODE::XorShiftMask<int, 16, 1, 1, 14, 1>>(dest, src, 65536, forward);
+			permute<CODE::XorShiftMask<int, 16, 9, 7, 13, 1>>(dest, src, 65536, forward);
 		else if (order == 17)
 			permute<CODE::XorShiftMask<int, 17, 8, 9, 14, 1>>(dest, src, 131072, forward);
 		else if (order == 18)
