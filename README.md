@@ -89,25 +89,25 @@ These are the numbers for the normal modes with a 1/2 code rate:
 | QAM64      |   2048B | 4.8kb/s |
 | QAM256     |   2048B | 6.3kb/s |
 
-These are the numbers for the short modes with a 2/3 code rate:
+These are the numbers for the short modes with an 11/16 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| BPSK       |    171B | 0.9kb/s |
-| QPSK       |    171B | 1.4kb/s |
-| QAM16      |    342B | 2.9kb/s |
-| QAM64      |   1368B | 5.7kb/s |
-| QAM256     |   1368B | 7.3kb/s |
+| BPSK       |    176B | 0.9kb/s |
+| QPSK       |    176B | 1.5kb/s |
+| QAM16      |    352B | 2.9kb/s |
+| QAM64      |   1408B | 5.9kb/s |
+| QAM256     |   1408B | 7.5kb/s |
 
-These are the numbers for the normal modes with a 2/3 code rate:
+These are the numbers for the normal modes with an 11/16 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| BPSK       |    342B | 1.1kb/s |
-| QPSK       |    684B | 2.1kb/s |
-| QAM16      |   1368B | 4.2kb/s |
-| QAM64      |   2736B | 6.4kb/s |
-| QAM256     |   2736B | 8.4kb/s |
+| BPSK       |    352B | 1.1kb/s |
+| QPSK       |    704B | 2.2kb/s |
+| QAM16      |   1408B | 4.3kb/s |
+| QAM64      |   2816B | 6.6kb/s |
+| QAM256     |   2816B | 8.7kb/s |
 
 These are the numbers for the short modes with a 3/4 code rate:
 
@@ -129,25 +129,25 @@ These are the numbers for the normal modes with a 3/4 code rate:
 | QAM64      |   3072B | 7.2kb/s |
 | QAM256     |   3072B | 9.5kb/s |
 
-These are the numbers for the short modes with a 5/6 code rate:
+These are the numbers for the short modes with a 13/16 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| BPSK       |    213B | 1.1kb/s |
-| QPSK       |    213B | 1.8kb/s |
-| QAM16      |    426B | 3.6kb/s |
-| QAM64      |   1704B | 7.1kb/s |
-| QAM256     |   1704B | 9.1kb/s |
+| BPSK       |    208B | 1.1kb/s |
+| QPSK       |    208B | 1.7kb/s |
+| QAM16      |    416B | 3.5kb/s |
+| QAM64      |   1664B | 7.0kb/s |
+| QAM256     |   1664B | 8.9kb/s |
 
-These are the numbers for the normal modes with a 5/6 code rate:
+These are the numbers for the normal modes with a 13/16 code rate:
 
 | Modulation | Payload | Bitrate |
 | ---------- | ------- | ------- |
-| BPSK       |    426B | 1.3kb/s |
-| QPSK       |    852B | 2.6kb/s |
-| QAM16      |   1704B | 5.2kb/s |
-| QAM64      |   3408B | 8.0kb/s |
-| QAM256     |   3408B |10.5kb/s |
+| BPSK       |    416B | 1.3kb/s |
+| QPSK       |    832B | 2.6kb/s |
+| QAM16      |   1664B | 5.1kb/s |
+| QAM64      |   3328B | 7.8kb/s |
+| QAM256     |   3328B |10.3kb/s |
 
 ### Simulating
 

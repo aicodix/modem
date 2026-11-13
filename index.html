@@ -56,9 +56,9 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </select>
 <select id="code-rate">
 <option value="0" selected>1/2</option>
-<option value="1">2/3</option>
+<option value="1">11/16</option>
 <option value="2">3/4</option>
-<option value="3">5/6</option>
+<option value="3">13/16</option>
 </select>
 <select id="frame-size">
 <option value="0" selected>short</option>
@@ -133,7 +133,7 @@ const images = new Map();
 const spectrum_dB = 100;
 let context, wasm, decoder, listening, playing, shown, tap_module;
 const modulations = ["BPSK", "QPSK", "", "QAM16", "QAM64", "QAM256"];
-const code_rates = ["1/2", "2/3", "3/4", "5/6"];
+const code_rates = ["1/2", "11/16", "3/4", "13/16"];
 /* events reported by the decoder module, see Decoder in decoder.hh */
 const found_sync = 1 << 0, damaged_seed = 1 << 1, preamble_error = 1 << 2, unsupported_call = 1 << 3;
 const read_meta = 1 << 4, known_mode = 1 << 5, erased_symbol = 1 << 6, frame_end = 1 << 7;

@@ -104,11 +104,11 @@ int main(int argc, char **argv)
 	char *code_rate = argv[6];
 	if (!strcmp(code_rate, "1/2")) {
 		oper_mode |= 0 << 1;
-	} else if (!strcmp(code_rate, "2/3")) {
+	} else if (!strcmp(code_rate, "11/16")) {
 		oper_mode |= 1 << 1;
 	} else if (!strcmp(code_rate, "3/4")) {
 		oper_mode |= 2 << 1;
-	} else if (!strcmp(code_rate, "5/6")) {
+	} else if (!strcmp(code_rate, "13/16")) {
 		oper_mode |= 3 << 1;
 	} else {
 		std::cerr << "Unsupported code rate." << std::endl;

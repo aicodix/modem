@@ -9,7 +9,7 @@ import crypto from "crypto";
 import { spawnSync } from "child_process";
 
 const modulations = ["BPSK", "QPSK", "", "QAM16", "QAM64", "QAM256"];
-const code_rates = ["1/2", "2/3", "3/4", "5/6"];
+const code_rates = ["1/2", "11/16", "3/4", "13/16"];
 const frame_sizes = ["short", "normal"];
 const decoded_frame = 1 << 11;
 

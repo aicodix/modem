@@ -50,7 +50,7 @@ struct Common
 	CODE::HadamardEncoder<7> hadamard_encoder;
 	int8_t seed[seed_tones];
 	uint8_t data[data_max];
-	const uint32_t *frozen_bits;
+	uint32_t frozen_bits[bits_max / 32];
 	int mod_bits;
 	int data_bits;
 	int data_bytes;
@@ -165,126 +165,45 @@ struct Common
 				++code_order;
 			}
 		}
+		// the payload is k / 16 of the code, with the 32 bit CRC on top
+		static const int rates[4] = { 8, 11, 12, 13 };
 		int code_rate = (mode >> 1) & 7;
-		if (code_rate == 0) {
-			switch (code_order) {
-			case 11:
-				data_bits = 1024;
-				frozen_bits = frozen_2048_1056;
-				break;
-			case 12:
-				data_bits = 2048;
-				frozen_bits = frozen_4096_2080;
-				break;
-			case 13:
-				data_bits = 4096;
-				frozen_bits = frozen_8192_4128;
-				break;
-			case 14:
-				data_bits = 8192;
-				frozen_bits = frozen_16384_8224;
-				break;
-			case 15:
-				data_bits = 16384;
-				frozen_bits = frozen_32768_16416;
-				break;
-			case 16:
-				data_bits = 32768;
-				frozen_bits = frozen_65536_32800;
-				break;
-			default:
-				return false;
-			}
-		} else if (code_rate == 1) {
-			switch (code_order) {
-			case 11:
-				data_bits = 1368;
-				frozen_bits = frozen_2048_1400;
-				break;
-			case 12:
-				data_bits = 2736;
-				frozen_bits = frozen_4096_2768;
-				break;
-			case 13:
-				data_bits = 5472;
-				frozen_bits = frozen_8192_5504;
-				break;
-			case 14:
-				data_bits = 10944;
-				frozen_bits = frozen_16384_10976;
-				break;
-			case 15:
-				data_bits = 21888;
-				frozen_bits = frozen_32768_21920;
-				break;
-			case 16:
-				data_bits = 43776;
-				frozen_bits = frozen_65536_43808;
-				break;
-			default:
-				return false;
-			}
-		} else if (code_rate == 2) {
-			switch (code_order) {
-			case 11:
-				data_bits = 1536;
-				frozen_bits = frozen_2048_1568;
-				break;
-			case 12:
-				data_bits = 3072;
-				frozen_bits = frozen_4096_3104;
-				break;
-			case 13:
-				data_bits = 6144;
-				frozen_bits = frozen_8192_6176;
-				break;
-			case 14:
-				data_bits = 12288;
-				frozen_bits = frozen_16384_12320;
-				break;
-			case 15:
-				data_bits = 24576;
-				frozen_bits = frozen_32768_24608;
-				break;
-			case 16:
-				data_bits = 49152;
-				frozen_bits = frozen_65536_49184;
-				break;
-			default:
-				return false;
-			}
-		} else if (code_rate == 3) {
-			switch (code_order) {
-			case 11:
-				data_bits = 1704;
-				frozen_bits = frozen_2048_1736;
-				break;
-			case 12:
-				data_bits = 3408;
-				frozen_bits = frozen_4096_3440;
-				break;
-			case 13:
-				data_bits = 6816;
-				frozen_bits = frozen_8192_6848;
-				break;
-			case 14:
-				data_bits = 13632;
-				frozen_bits = frozen_16384_13664;
-				break;
-			case 15:
-				data_bits = 27264;
-				frozen_bits = frozen_32768_27296;
-				break;
-			case 16:
-				data_bits = 54528;
-				frozen_bits = frozen_65536_54560;
-				break;
-			default:
-				return false;
-			}
-		} else {
+		if (code_rate > 3)
+			return false;
+		const uint8_t *nested;
+		switch (code_order) {
+		case 10:
+			nested = nested_1024_32;
+			break;
+		case 11:
+			nested = nested_2048_32;
+			break;
+		case 12:
+			nested = nested_4096_32;
+			break;
+		case 13:
+			nested = nested_8192_32;
+			break;
+		case 14:
+			nested = nested_16384_32;
+			break;
+		case 15:
+			nested = nested_32768_32;
+			break;
+		case 16:
+			nested = nested_65536_32;
+			break;
+		default:
 			return false;
 		}
+		int k = rates[code_rate];
+		data_bits = k << (code_order - 4);
+		// bit i is frozen, if its entry is at least k
+		for (int i = 0; i < 1 << (code_order - 5); ++i)
+			frozen_bits[i] = 0;
+		for (int i = 0; i < 1 << code_order; ++i)
+			if (((nested[i/2] >> (i%2*4)) & 15) >= k)
+				frozen_bits[i/32] |= uint32_t(1) << (i%32);
 		oper_mode = mode;
 		data_bytes = data_bits / 8;
 		return true;

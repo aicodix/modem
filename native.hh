@@ -19,7 +19,7 @@ static void print_setup(const Common &common, int mode)
 		std::cerr << "oper mode: unsupported" << std::endl;
 		return;
 	}
-	static const char *const code_rates[4] = { "1/2", "2/3", "3/4", "5/6" };
+	static const char *const code_rates[4] = { "1/2", "11/16", "3/4", "13/16" };
 	std::cerr << "modulation: " << modulations[(mode >> 4) & 7] << std::endl;
 	std::cerr << "frame size: " << (mode & 1 ? "normal" : "short") << std::endl;
 	int code_rate = (mode >> 1) & 7;
