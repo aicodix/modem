@@ -232,13 +232,13 @@ struct Analyzer
 		if (channel_on)
 			plot<channel_width>(channel_snr, snr, snr_top, 1 / snr_range);
 	}
-	// takes the precision of each tone from the decoder after symbol j, nothing for erased or analog symbols
+	// takes the precision of each tone from the decoder after symbol j, nothing for erased symbols
 	template <typename DECODER>
 	void tone_precision(DECODER &dec, int j)
 	{
 		if (!channel_on)
 			return;
-		if (dec.lost[j] || dec.analog_mode) {
+		if (dec.lost[j]) {
 			clear<channel_width>(channel_precision);
 			return;
 		}
@@ -270,7 +270,7 @@ struct Analyzer
 		for (int i = 0, l = start; i < Common::tone_count; ++i) {
 			if (i % Common::block_length == dec.seed_off)
 				continue;
-			if (!j || dec.analog_mode) {
+			if (!j) {
 				point(dec.demod[i]);
 			} else {
 				int bits = dec.bits_at(l);

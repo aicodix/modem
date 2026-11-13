@@ -33,7 +33,8 @@ struct Common
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 8192;
-	static const int symbols_max = 128 + 1;
+	// the preamble symbol and the payload symbols of the longest frame, QAM1024 normal
+	static const int symbols_max = 1 + 26;
 	static const int mls0_poly = 0x2d1;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
@@ -41,8 +42,6 @@ struct Common
 	static const int data_tones = 256;
 	static const int seed_tones = 64;
 	static const int tone_count = data_tones + seed_tones;
-	static const int analog_max = 128 * data_tones;
-	static const int analog_rate = data_tones * 300 / 41;
 	static const int block_length = 5;
 	static const int block_skew = 3;
 	static const int first_seed = 4;
@@ -134,12 +133,8 @@ struct Common
 
 	bool setup(int mode)
 	{
-		bool analog_mode = mode & 128;
-		if (analog_mode) {
-			symbol_count = (mode & 127) + 1;
-			oper_mode = mode;
-			return true;
-		}
+		if (mode & 128)
+			return false;
 		int modulation = (mode >> 4) & 7;
 		switch (modulation) {
 		case 0:

@@ -30,7 +30,6 @@ struct Encoder : public Common
 	cmplx guard[guard_len];
 	cmplx tone[tone_count];
 	cmplx temp[tone_count];
-	cmplx analog[analog_max];
 	value weight[guard_len];
 	value papr[symbols_max];
 	value audio[audio_max];
@@ -204,8 +203,7 @@ struct Encoder : public Common
 	bool start(int oper_mode)
 	{
 		audio_len = 0;
-		bool analog_mode = oper_mode & 128;
-		if (!analog_mode && !setup(oper_mode))
+		if (!setup(oper_mode))
 			return false;
 		leading_noise();
 		return true;
@@ -240,20 +238,6 @@ struct Encoder : public Common
 		prepare(call_sign);
 		return true;
 	}
-	bool begin(const cmplx *values, int count, int64_t call_sign)
-	{
-		symbol_index = -3;
-		if (count < 1 || count > analog_max)
-			return false;
-		if (!setup(128 | (count - 1) / data_tones))
-			return false;
-		for (int i = 0; i < count; ++i)
-			analog[i] = values[i];
-		for (int i = count; i % data_tones; ++i)
-			analog[i] = 0;
-		prepare(call_sign);
-		return true;
-	}
 	int next()
 	{
 		audio_len = 0;
@@ -265,14 +249,11 @@ struct Encoder : public Common
 			symbol(symbol_index++);
 			return audio_len;
 		}
-		bool analog_mode = oper_mode & 128;
 		int j = symbol_index++;
 		seed_off = (block_skew * j + first_seed) % block_length;
 		for (int i = 0; i < tone_count; ++i) {
 			if (i % block_length == seed_off) {
 				tone[i] = nrz(seq1());
-			} else if (j && analog_mode) {
-				tone[i] = analog[tone_index++];
 			} else if (j) {
 				int bits = bits_at(tone_index);
 				tone[i] = map_bits(perm+tone_index, bits);

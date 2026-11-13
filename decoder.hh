@@ -78,7 +78,7 @@ struct Decoder : Common
 	cmplx knots[seed_tones];
 	value innov[seed_tones], sorted[seed_tones];
 	// equalized values of the data tones
-	cmplx values[analog_max];
+	cmplx values[(symbols_max - 1) * data_tones];
 	code_type reenc[bits_max];
 	bool lost[symbols_max];
 	cmplx fdom[symbol_len], tdom[symbol_len];
@@ -110,7 +110,6 @@ struct Decoder : Common
 	// how many samples the preamble waited after the sync delay for the frame before to end
 	int late;
 	int symbol_index, bit_index, snr_count;
-	bool analog_mode;
 	// keep mixing and filtering while waiting for a sync, for the baseband views of the page
 	bool keep_baseband;
 
@@ -122,11 +121,11 @@ struct Decoder : Common
 	{
 		return 1 - 2 * bit;
 	}
-	static cmplx demod_or_erase(cmplx curr, cmplx prev, bool limit = true)
+	static cmplx demod_or_erase(cmplx curr, cmplx prev)
 	{
 		if (norm(prev) > 0) {
 			cmplx demod = curr / prev;
-			if (!limit || norm(demod) < 4)
+			if (norm(demod) < 4)
 				return demod;
 		}
 		return 0;
@@ -281,7 +280,7 @@ struct Decoder : Common
 		for (int i = seed_off; i < tone_count; i += block_length)
 			tone[i] *= nrz(seq1());
 		for (int i = 0; i < tone_count; ++i)
-			demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
+			demod[i] = demod_or_erase(tone[i], chan[i]);
 		for (int i = 0; i < seed_tones; ++i)
 			seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
 		int seed_value = hadamard_decoder(seed);
@@ -330,7 +329,7 @@ struct Decoder : Common
 						chan[i] = DSP::lerp(chan[i], knots[i/block_length], value(0.5));
 					} else {
 						chan[i] = DSP::lerp(chan[i], spline(i), value(1) / value(3));
-						demod[i] = demod_or_erase(tone[i], chan[i], !analog_mode);
+						demod[i] = demod_or_erase(tone[i], chan[i]);
 					}
 				}
 			}
@@ -341,69 +340,56 @@ struct Decoder : Common
 						demod[i] *= nrz(seq());
 			}
 		}
-		if (analog_mode) {
-			value sp = 0, np = 0;
-			for (int i = seed_off; !erased && i < tone_count; i += block_length) {
-				sp += 1;
-				np += norm(demod[i] - cmplx(1, 0));
+		value sp = 0, np = 0, noise = 0;
+		for (int i = 0, l = bit_index; !erased && i < tone_count; ++i) {
+			cmplx hard(1, 0);
+			if (i % block_length != seed_off) {
+				int bits = bits_at(l);
+				demap_hard(perm+l, demod[i], bits);
+				hard = map_bits(perm+l, bits);
+				l += bits;
 			}
-			if (!erased)
-				snr[snr_count++] = sp / std::max(np, value(1e-9) * sp);
+			cmplx error = demod[i] - hard;
+			sp += norm(hard);
+			np += norm(error);
+			// the error before equalization, flat for white noise
+			value power = norm(error) * norm(chan[i]);
+			noise += power;
+			// the noise of each tone from the known seed tones, which take turns over all tones
+			if (i % block_length == seed_off)
+				tone_noise[i] = DSP::lerp(tone_noise[i], power, value(0.5));
+		}
+		if (erased) {
+			// erased symbols get zero LLRs
 			for (int i = 0; i < tone_count; ++i)
-				if (i % block_length != seed_off)
-					values[bit_index++] = demod[i];
+				tone_precision[i] = 0;
 		} else {
-			value sp = 0, np = 0, noise = 0;
-			for (int i = 0, l = bit_index; !erased && i < tone_count; ++i) {
-				cmplx hard(1, 0);
-				if (i % block_length != seed_off) {
-					int bits = bits_at(l);
-					demap_hard(perm+l, demod[i], bits);
-					hard = map_bits(perm+l, bits);
-					l += bits;
-				}
-				cmplx error = demod[i] - hard;
-				sp += norm(hard);
-				np += norm(error);
-				// the error before equalization, flat for white noise
-				value power = norm(error) * norm(chan[i]);
-				noise += power;
-				// the noise of each tone from the known seed tones, which take turns over all tones
-				if (i % block_length == seed_off)
-					tone_noise[i] = DSP::lerp(tone_noise[i], power, value(0.5));
+			snr[snr_count++] = sp / np;
+			for (int i = 0; i < tone_count; ++i) {
+				value sum = 0;
+				int count = 0;
+				for (int k = std::max(i - 8, 0); k <= std::min(i + 8, tone_count - 1); ++k, ++count)
+					sum += tone_noise[k];
+				sorted_noise[i] = local_noise[i] = sum / value(count);
 			}
-			if (erased) {
-				// erased symbols get zero LLRs
-				for (int i = 0; i < tone_count; ++i)
-					tone_precision[i] = 0;
-			} else {
-				snr[snr_count++] = sp / np;
-				for (int i = 0; i < tone_count; ++i) {
-					value sum = 0;
-					int count = 0;
-					for (int k = std::max(i - 8, 0); k <= std::min(i + 8, tone_count - 1); ++k, ++count)
-						sum += tone_noise[k];
-					sorted_noise[i] = local_noise[i] = sum / value(count);
-				}
-				// tones with more than twice the median noise, as from interference, get less precision
-				value median = DSP::quick_select(sorted_noise, tone_count / 2, tone_count);
-				// the white noise of this symbol, constellations have unit power
-				noise = std::max(noise / value(tone_count), value(1e-30));
-				for (int i = 0; i < tone_count; ++i) {
-					tone_precision[i] = norm(chan[i]) / noise;
-					if (local_noise[i] > 2 * median)
-						tone_precision[i] *= median / local_noise[i];
-				}
+			// tones with more than twice the median noise, as from interference, get less precision
+			value median = DSP::quick_select(sorted_noise, tone_count / 2, tone_count);
+			// the white noise of this symbol, constellations have unit power
+			noise = std::max(noise / value(tone_count), value(1e-30));
+			for (int i = 0; i < tone_count; ++i) {
+				tone_precision[i] = norm(chan[i]) / noise;
+				if (local_noise[i] > 2 * median)
+					tone_precision[i] *= median / local_noise[i];
 			}
-			for (int i = 0, n = (j - 1) * data_tones; i < tone_count; ++i) {
-				if (i % block_length != seed_off) {
-					if (j)
-						values[n++] = demod[i];
-					int bits = bits_at(bit_index);
-					// more resolution after rounding, quantize() caps the slope
-					demap_soft(perm+bit_index, demod[i], value(300) * tone_precision[i], bits);
-					bit_index += bits;
-				}
+		}
+		for (int i = 0, n = (j - 1) * data_tones; i < tone_count; ++i) {
+			if (i % block_length != seed_off) {
+				if (j)
+					values[n++] = demod[i];
+				int bits = bits_at(bit_index);
+				// more resolution after rounding, quantize() caps the slope
+				demap_soft(perm+bit_index, demod[i], value(300) * tone_precision[i], bits);
+				bit_index += bits;
 			}
 		}
 		if (!j) {
@@ -423,7 +409,6 @@ struct Decoder : Common
 			if (!setup(mode))
 				return;
 			events |= known_mode;
-			analog_mode = mode & 128;
 			bit_index = 0;
 			CODE::MLS seq(mls2_poly, seed_value);
 			for (int i = 0, m = 0; i < tone_count; ++i) {
@@ -490,10 +475,6 @@ struct Decoder : Common
 		es_n0[1] = DSP::decibel(snr[(snr_count-1)/2]);
 		es_n0[2] = DSP::decibel(snr[snr_count-1]);
 		events |= frame_end;
-		if (analog_mode) {
-			events |= decoded_frame;
-			return;
-		}
 		crc_bits = data_bits + 32;
 		shuffle(code, perm, code_order, false);
 		polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
@@ -603,7 +584,6 @@ struct Decoder : Common
 		oper_mode = -1;
 		symbol_count = 0;
 		snr_count = 0;
-		analog_mode = false;
 		symbol_index = 0;
 		bit_index = 0;
 		drift_rad = 0;
