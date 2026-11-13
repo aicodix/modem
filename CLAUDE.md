@@ -173,6 +173,24 @@ channel, also near threshold:
   whole tones only turns it as a whole, and the CFO search of the sync
   detection can't tell the shifts apart for any root. The sync symbols get
   no SLM: the receiver has to know them exactly.
+- The sync sequence is the first 320 bits of the MLS of poly 0x2d1 from seed
+  214. Nothing correlates with the tones themselves: the sync detection and
+  the timing in `preamble()` only use the ratio of adjacent tones, which is
+  again the same MLS, just further along. So a sequence has to be chosen for
+  two things at once. Its PAPR follows the correlation of the tones
+  themselves, as the power over time is the Fourier transform of it, while
+  the ratios have to correlate well against the shifts of the CFO search.
+  The two don't depend on each other, so a search for low PAPR alone, which
+  gave the poly 0x331 of next, can land on poor ratios: up to 29 of 319
+  within 250 Hz. Of all windows of all degree 9 MLS, 0x2d1 from 214 has
+  7.2 dB PAPR as the real audio signal, 0.3 dB less, and 19 of 319. Longer
+  MLS have about 1 dB more PAPR. Golay sequences of length 320 have at most
+  3 dB PAPR at baseband, but their ratios repeat, with sidelobes from 77 to
+  209 of 319, and Legendre sequences get about 6 dB of audio PAPR, but no
+  better ratios than an MLS. A search over all 320 bits gets 6.5 dB at 17 of
+  319, but needs a table. The sync is also a different sequence than that of
+  next, so neither finds the frames of the other, though the metric of one
+  on the sync of the other can reach about 0.2, the threshold.
 - There are two identical sync symbols back to back. They let the sync
   detection hop once per symbol with a window over two symbols, which then
   sees mostly the repeating sync, and their correlation picks the start and
