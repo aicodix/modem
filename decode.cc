@@ -56,15 +56,6 @@ void write_output(Decoder<value, cmplx, rate> *decoder, const char *output_name,
 {
 	if (output_count == 1 && output_name[0] == '-' && output_name[1] == 0)
 		output_name = "/dev/stdout";
-	if (decoder->analog_mode) {
-		DSP::WriteWAV<value> output_file(output_name, decoder->analog_rate, 32, 2);
-		if (!output_file.good()) {
-			std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;
-			return;
-		}
-		output_file.write(reinterpret_cast<value *>(decoder->values), decoder->symbol_count * decoder->data_tones, 2);
-		return;
-	}
 	std::ofstream output_file(output_name, std::ios::binary | std::ios::trunc);
 	if (output_file.bad()) {
 		std::cerr << "Couldn't open file \"" << output_name << "\" for writing." << std::endl;

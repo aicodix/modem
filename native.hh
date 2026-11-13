@@ -15,11 +15,7 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 static void print_setup(const Common &common, int mode)
 {
 	if (mode & 128) {
-		float duration = 41. / 300. * (3 + common.symbol_count);
-		std::cerr << "analog mode" << std::endl;
-		std::cerr << "symbols: " << common.symbol_count << std::endl;
-		std::cerr << "duration: " << duration << "s" << std::endl;
-		std::cerr << "payload: " << common.symbol_count * common.data_tones << " complex values" << std::endl;
+		std::cerr << "oper mode: unsupported" << std::endl;
 		return;
 	}
 	static const char *const modulations[8] = { "BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096" };
