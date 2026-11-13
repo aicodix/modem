@@ -80,8 +80,12 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   that carry all bits of the mode, without seed tones, the tones with fewer
   bits that pad the code to whole symbols, or erased symbols. All views are
   off until the page turns them on, and take no time while off.
-- `freezer.cc`: generates `polar_tables.hh`. Don't edit the tables by hand;
-  regenerate them with `make polar_tables.hh`.
+- `freezer.cc`: generates the frozen bits of the metadata code in
+  `polar_tables.hh`, and `tools/nested.cc` from `code` the nested tables of
+  the payload codes of length 1024 to 65536 with a 32 bit CRC, where bit i
+  is frozen for a payload of k / 16 of the code if its 4 bit entry is at
+  least k. Don't edit the tables by hand; regenerate them with
+  `make polar_tables.hh`.
 
 Most building blocks come from two sibling checkouts found by `-I../dsp -I../code`:
 [dsp](https://github.com/aicodix/dsp) (namespace `DSP`) and
