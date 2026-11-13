@@ -50,7 +50,6 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <select id="modulation">
 <option value="0">BPSK</option>
 <option value="1">QPSK</option>
-<option value="2">8PSK</option>
 <option value="3" selected>QAM16</option>
 <option value="4">QAM64</option>
 <option value="5">QAM256</option>
@@ -133,7 +132,7 @@ const images = new Map();
 /* the spectrum and spectrogram always show this many dB below the top set by the slider */
 const spectrum_dB = 100;
 let context, wasm, decoder, listening, playing, shown, tap_module;
-const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256"];
+const modulations = ["BPSK", "QPSK", "", "QAM16", "QAM64", "QAM256"];
 const code_rates = ["1/2", "2/3", "3/4", "5/6"];
 /* events reported by the decoder module, see Decoder in decoder.hh */
 const found_sync = 1 << 0, damaged_seed = 1 << 1, preamble_error = 1 << 2, unsupported_call = 1 << 3;

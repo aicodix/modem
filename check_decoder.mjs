@@ -8,7 +8,7 @@ import fs from "fs";
 import crypto from "crypto";
 import { spawnSync } from "child_process";
 
-const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256"];
+const modulations = ["BPSK", "QPSK", "", "QAM16", "QAM64", "QAM256"];
 const code_rates = ["1/2", "2/3", "3/4", "5/6"];
 const frame_sizes = ["short", "normal"];
 const decoded_frame = 1 << 11;
@@ -47,7 +47,7 @@ for (const rate of [44100, 48000]) {
 	const wasm = new WebAssembly.Instance(module).exports;
 	wasm.__wasm_call_ctors();
 	for (let mode = 0; mode < 128; ++mode) {
-		if (((mode >> 4) & 7) > 5 || ((mode >> 1) & 7) > 3)
+		if (!modulations[(mode >> 4) & 7] || ((mode >> 1) & 7) > 3)
 			continue;
 		const modulation = modulations[(mode >> 4) & 7], code_rate = code_rates[(mode >> 1) & 7], frame_size = frame_sizes[mode & 1];
 		const name = `${rate} Hz ${modulation} ${code_rate} ${frame_size}`;
