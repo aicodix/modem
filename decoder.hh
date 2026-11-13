@@ -107,6 +107,8 @@ struct Decoder : Common
 	DSP::Phasor<cmplx> osc;
 	CODE::MLS seq1;
 	int sample_count, countdown, pending;
+	// how many samples the preamble waited after the sync delay for the frame before to end
+	int late;
 	int symbol_index, bit_index, snr_count;
 	bool analog_mode;
 	// keep mixing and filtering while waiting for a sync, for the baseband views of the page
@@ -610,7 +612,7 @@ struct Decoder : Common
 		frac = offset + (symbol_len + extended_len) * (step - 1);
 		process(buf);
 	}
-	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), keep_baseband(false)
+	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), late(0), keep_baseband(false)
 	{
 	}
 	// mixes and filters the whole raw input again, as nothing did while waiting for a sync
@@ -641,10 +643,19 @@ struct Decoder : Common
 		}
 		if (found) {
 			pending = sync_delay;
-		} else if (pending && !--pending && !countdown) {
-			// the frame before has ended by now, as its last symbol was processed further into the buffer
+			late = 0;
+		} else if (pending > 1) {
+			--pending;
+		} else if (pending && countdown) {
+			// the detection can fire up to a hop early, so the frame right before may not have ended yet.
+			// Wait up to a symbol for it, longer means the detection fired within that frame
+			if (++late > symbol_len)
+				pending = 0;
+		} else if (pending) {
+			pending = 0;
 			const cmplx *buf = catch_up();
-			if (raw_sync.refine(buf, sync_start))
+			// the sync moved back in the buffer while waiting, but not before the windows
+			if (raw_sync.refine(buf, sync_start - late, window_margin))
 				preamble(buf);
 		}
 		return events;

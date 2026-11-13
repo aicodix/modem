@@ -53,7 +53,12 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   then estimates SFO and residual CFO. The detection rests while waiting, so
   it keeps what it found, and `busy()` counts the waiting. It keeps running
   during a frame: the decoder lags a few symbols behind the input, and the
-  sync of a frame right after another would be gone by its end.
+  sync of a frame right after another would be gone by its end. As the
+  detection hops by a symbol, but frames by a symbol and its guard interval,
+  it fires up to about half a symbol early or late, depending on the length
+  of the frame before. If that frame hasn't ended when the waiting is over,
+  the preamble waits for it up to a symbol and `refine()` searches that much
+  earlier in the buffer, but not before the windows.
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as
@@ -303,7 +308,8 @@ channel, also near threshold:
   example by prepending 0 to `symbol_len` zero samples to a clean WAV. Native
   runs of the same file always see the same phase; the Node checks feed
   their files back to back and see others, which is how a failure at a few
-  phases showed up.
+  phases showed up. Frames right after another need the same sweep, as half
+  of the phases once lost the second frame.
 - Test false syncs with structured signals, such as tones, chirps or speech,
   not only with white noise, which a detector weighted by power never
   mistakes for a sync but a strong tone can.

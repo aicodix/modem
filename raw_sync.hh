@@ -149,11 +149,14 @@ public:
 	// takes the baseband, in which the best window started at start, and picks the start of the first sync
 	// symbol within a symbol before or after it: silence before the sync looks as clean as the guard interval
 	// after it, so two windows a hop apart can both look clean, the best one early or late by half a symbol
-	bool refine(const cmplx *samples, int start) {
+	bool refine(const cmplx *samples, int start, int lowest = 0) {
 		int earliest = start - symbol_len, latest = start + symbol_len;
 		int pos = 0;
 		cmplx P = 0;
 		for (int cand = earliest + ((start - shift - earliest) % symbol_len + symbol_len) % symbol_len; cand <= latest; cand += symbol_len) {
+			// nothing before the samples, or the windows of the caller
+			if (cand < lowest)
+				continue;
 			cmplx Q = repetition(samples, cand);
 			if (norm(Q) > norm(P)) {
 				pos = cand;
