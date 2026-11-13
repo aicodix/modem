@@ -102,11 +102,15 @@ struct Common
 	}
 
 	// forward interleaves the code bits like the encoder, backward undoes it like the decoder
+	// the xorshift triples of orders 10 and 17 to 19 have the fewest linear dependencies between the low
+	// bits, and between the top bits, of an index and of the indices up to eight steps later
 	template <typename TYPE>
 	static void shuffle(TYPE *dest, const TYPE *src, int order, bool forward)
 	{
 		if (order == 8)
 			permute<CODE::XorShiftMask<int, 8, 1, 1, 2, 1>>(dest, src, 256, forward);
+		else if (order == 10)
+			permute<CODE::XorShiftMask<int, 10, 3, 7, 8, 1>>(dest, src, 1024, forward);
 		else if (order == 11)
 			permute<CODE::XorShiftMask<int, 11, 1, 3, 4, 1>>(dest, src, 2048, forward);
 		else if (order == 12)
@@ -119,6 +123,12 @@ struct Common
 			permute<CODE::XorShiftMask<int, 15, 1, 1, 3, 1>>(dest, src, 32768, forward);
 		else if (order == 16)
 			permute<CODE::XorShiftMask<int, 16, 1, 1, 14, 1>>(dest, src, 65536, forward);
+		else if (order == 17)
+			permute<CODE::XorShiftMask<int, 17, 8, 9, 14, 1>>(dest, src, 131072, forward);
+		else if (order == 18)
+			permute<CODE::XorShiftMask<int, 18, 3, 7, 4, 1>>(dest, src, 262144, forward);
+		else if (order == 19)
+			permute<CODE::XorShiftMask<int, 19, 7, 8, 1, 1>>(dest, src, 524288, forward);
 	}
 
 	bool setup(int mode)

@@ -25,7 +25,12 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
   mode table in `Common::setup()`. It rejects modes with bit 7 set, which
-  once marked frames of the analog mode, which was removed.
+  once marked frames of the analog mode, which was removed. The xorshift
+  triples of the interleaver for orders 10 and 17 to 19 were chosen from all
+  with full period by the rank of the low and of the top bits of an index
+  together with those of the indices up to eight steps later, which tells
+  how evenly neighbours spread. The older triples of orders 8 and 11 to 16
+  lose more of that rank, but changing them changes the signal.
 - `psk.hh`, `qam.hh`: constellation mapping, hard and soft demapping, templated
   on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
 - `quantize.hh`: turns soft values into the code type of the LLRs.
