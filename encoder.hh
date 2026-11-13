@@ -180,10 +180,6 @@ struct Encoder : public Common
 			return QuadratureAmplitudeModulation<6, cmplx, code_type>::map(b);
 		case 8:
 			return QuadratureAmplitudeModulation<8, cmplx, code_type>::map(b);
-		case 10:
-			return QuadratureAmplitudeModulation<10, cmplx, code_type>::map(b);
-		case 12:
-			return QuadratureAmplitudeModulation<12, cmplx, code_type>::map(b);
 		}
 		return 0;
 	}

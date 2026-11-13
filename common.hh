@@ -29,12 +29,12 @@ namespace DSP { using std::abs; using std::min; using std::nearbyint; using std:
 
 struct Common
 {
-	static const int mod_max = 12;
+	static const int mod_max = 8;
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 8192;
-	// the preamble symbol and the payload symbols of the longest frame, QAM1024 normal
-	static const int symbols_max = 1 + 26;
+	// the preamble symbol and the payload symbols of the longest frames, 8PSK and QAM64 normal
+	static const int symbols_max = 1 + 22;
 	static const int mls0_poly = 0x2d1;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
@@ -77,10 +77,6 @@ struct Common
 			return QuadratureAmplitudeModulation<6, cmplx, code_type>::DIST;
 		case 8:
 			return QuadratureAmplitudeModulation<8, cmplx, code_type>::DIST;
-		case 10:
-			return QuadratureAmplitudeModulation<10, cmplx, code_type>::DIST;
-		case 12:
-			return QuadratureAmplitudeModulation<12, cmplx, code_type>::DIST;
 		}
 		return 2;
 	}
@@ -92,8 +88,6 @@ struct Common
 			return 2;
 		if (mod_bits == 6 && k % 64 == 60)
 			return 4;
-		if ((mod_bits == 10 || mod_bits == 12) && k % 128 == 120)
-			return 8;
 		return mod_bits;
 	}
 
@@ -166,16 +160,6 @@ struct Common
 			mod_bits = 8;
 			symbol_count = 8;
 			code_order = 14;
-			break;
-		case 6:
-			mod_bits = 10;
-			symbol_count = 13;
-			code_order = 15;
-			break;
-		case 7:
-			mod_bits = 12;
-			symbol_count = 11;
-			code_order = 15;
 			break;
 		default:
 			return false;

@@ -76,10 +76,8 @@ for (const rate of [44100, 48000]) {
 	const wasm = new WebAssembly.Instance(module).exports;
 	wasm.__wasm_call_ctors();
 	for (let mode = 0; mode < 256; ++mode) {
-		if (((mode >> 4) & 7) > 5 && !(mode & 128))
-			continue;
 		const name = `${rate} Hz ${modulations[(mode >> 4) & 7]} ${code_rates[(mode >> 1) & 7]} ${frame_sizes[mode & 1]}`;
-		if (mode & 128 || ((mode >> 1) & 7) > 3) {
+		if (mode & 128 || ((mode >> 4) & 7) > 5 || ((mode >> 1) & 7) > 3) {
 			if (wasm.start(mode) != -1) {
 				console.log(`FAILED ${mode}: unsupported mode accepted`);
 				++failed;
