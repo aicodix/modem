@@ -196,6 +196,26 @@ channel, also near threshold:
   sees mostly the repeating sync, and their correlation picks the start and
   the fraction of a tone of the CFO. A third symbol isn't needed for
   detection.
+  - A train of more sync symbols in place of the leading noise was tried.
+    Averaging them into the channel estimate decoded the meta data of 193
+    instead of 139 of 200 frames on static multipath near threshold, but
+    nothing more on a Watterson channel with 1 Hz spread. Finding the end of
+    a fading train needed the coherence of consecutive symbols in
+    `refine()`, a bigger buffer and more, and a variable number of sync
+    symbols works against concatenating frames. It was dropped.
+  - A single sync symbol was modeled. A Hann window over one period leaks
+    every tone into its neighbours, so the ratio of adjacent tones mixes
+    them, and shorter windows only smear them more: about 3 dB less
+    detection, and nothing repeats for the fine CFO and the SFO. Tones on
+    every other subcarrier, a symbol of two identical halves, keep the
+    scheme at half the scale, but still detect about 2 dB worse. Either way
+    the channel estimate comes from one symbol, about 1.2 dB worse for the
+    meta data, which already fails before the sync detection does.
+  - The window is exactly two symbols long, so its leakage lands on the odd
+    bins, between the tones. Shorter Hann windows leak into the neighbouring
+    tones and detect worse. Hops shorter than a symbol, or the worst
+    alignment of the windows against the sync, change nothing measurable
+    near threshold.
 - Sync detection uses the ratio of adjacent tones, a differential across
   frequency, not across time and not a correlation with the known tones.
   - On the Watterson channel the ratio stays flat apart from the tones next
