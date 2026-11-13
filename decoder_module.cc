@@ -25,8 +25,6 @@ __attribute__((visibility("default")))
 unsigned char payload[Common::data_max];
 __attribute__((visibility("default")))
 char call_sign[10];
-__attribute__((visibility("default")))
-float values[2*Common::analog_max];
 /* cfo Hz, sfo ppm, residual cfo mHz, Es/N0 dB min, median, max, real Es/N0 dB min, median, max */
 __attribute__((visibility("default")))
 float stats[9];
@@ -53,14 +51,9 @@ static void update(int events)
 	if (events & decoder_type::real_snr)
 		for (int i = 0; i < 3; ++i)
 			stats[6+i] = decoder.real_es_n0[i];
-	if ((events & decoder_type::decoded_frame) && !decoder.analog_mode)
+	if (events & decoder_type::decoded_frame)
 		for (int i = 0; i < decoder.data_bytes; ++i)
 			payload[i] = decoder.data[i];
-	if ((events & decoder_type::decoded_frame) && decoder.analog_mode)
-		for (int i = 0; i < decoder.symbol_count * decoder.data_tones; ++i) {
-			values[2*i] = decoder.values[i].real();
-			values[2*i+1] = decoder.values[i].imag();
-		}
 }
 
 /* feeds samples from offset on, stops after the first sample with events and returns the number of samples used */
@@ -141,24 +134,8 @@ int code_bits()
 }
 
 __attribute__((visibility("default")))
-int values_length()
-{
-	if (!decoder.analog_mode)
-		return -1;
-	return decoder.symbol_count * decoder.data_tones;
-}
-
-__attribute__((visibility("default")))
-int analog_rate()
-{
-	return Common::analog_rate;
-}
-
-__attribute__((visibility("default")))
 int payload_length()
 {
-	if (decoder.analog_mode)
-		return -1;
 	return decoder.data_bytes;
 }
 
