@@ -33,8 +33,8 @@ struct Common
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 8192;
-	// the preamble symbol and the payload symbols of the longest frame, QAM64 normal
-	static const int symbols_max = 1 + 22;
+	// the preamble symbol and the payload symbols of the longest frame
+	static const int symbols_max = 1 + 256;
 	static const int mls0_poly = 0x2d1;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
@@ -131,55 +131,28 @@ struct Common
 			permute<CODE::XorShiftMask<int, 19, 7, 8, 1, 1>>(dest, src, 524288, forward);
 	}
 
+	// the bits per tone and k of the code rate k / 16 of each efficiency index, rates below 1 / 2 only with BPSK,
+	// the highest rates only with QAM256, spaced from 1 / 16 to 7.5 bits per tone as evenly as the rates allow
+	static constexpr int efficiency[32][2] = {
+		{ 1, 1 }, { 1, 2 }, { 1, 3 }, { 1, 4 }, { 1, 5 }, { 1, 6 }, { 1, 7 }, { 1, 8 },
+		{ 1, 9 }, { 1, 10 }, { 1, 11 }, { 1, 12 }, { 1, 14 }, { 2, 8 }, { 2, 9 }, { 2, 10 },
+		{ 2, 11 }, { 2, 12 }, { 2, 14 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 4, 12 },
+		{ 4, 14 }, { 8, 8 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 12 }, { 8, 13 }, { 8, 15 },
+	};
+	// the mode carries 4 << (mode >> 5) payload symbols, up to 256, and the efficiency index mode & 31.
+	// A frame has a single code, so the symbols times their bits can't be more than the longest code
 	bool setup(int mode)
 	{
-		if (mode & 128)
+		if (mode < 0 || mode >= 7 << 5)
 			return false;
-		int modulation = (mode >> 4) & 7;
-		switch (modulation) {
-		case 0:
-			mod_bits = 1;
-			symbol_count = 8;
-			code_order = 11;
-			break;
-		case 1:
-			mod_bits = 2;
-			symbol_count = 4;
-			code_order = 11;
-			break;
-		case 3:
-			mod_bits = 4;
-			symbol_count = 4;
-			code_order = 12;
-			break;
-		case 4:
-			mod_bits = 6;
-			symbol_count = 11;
-			code_order = 14;
-			break;
-		case 5:
-			mod_bits = 8;
-			symbol_count = 8;
-			code_order = 14;
-			break;
-		default:
+		mod_bits = efficiency[mode & 31][0];
+		symbol_count = 4 << (mode >> 5);
+		int code_bits = symbol_count * data_tones * mod_bits;
+		if (code_bits > bits_max)
 			return false;
-		}
-		bool frame_size = mode & 1;
-		if (frame_size) {
-			if (symbol_count == 4) {
-				symbol_count *= 4;
-				code_order += 2;
-			} else {
-				symbol_count *= 2;
-				++code_order;
-			}
-		}
-		// the payload is k / 16 of the code, with the 32 bit CRC on top
-		static const int rates[4] = { 8, 11, 12, 13 };
-		int code_rate = (mode >> 1) & 7;
-		if (code_rate > 3)
-			return false;
+		code_order = 0;
+		while (1 << code_order < code_bits)
+			++code_order;
 		const uint8_t *nested;
 		switch (code_order) {
 		case 10:
@@ -206,7 +179,8 @@ struct Common
 		default:
 			return false;
 		}
-		int k = rates[code_rate];
+		// the payload is k / 16 of the code, with the 32 bit CRC on top
+		int k = efficiency[mode & 31][1];
 		data_bits = k << (code_order - 4);
 		// bit i is frozen, if its entry is at least k
 		for (int i = 0; i < 1 << (code_order - 5); ++i)
@@ -217,6 +191,31 @@ struct Common
 		oper_mode = mode;
 		data_bytes = data_bits / 8;
 		return true;
+	}
+	// the duration of a frame in seconds is 41 / 300 times the payload symbols plus three,
+	// pick the symbols, as 4 << code, whose frame lasts closest to the given seconds
+	static int symbols_code(int seconds)
+	{
+		auto off = [seconds](int code){ int d = 41 * (3 + (4 << code)) - 300 * seconds; return d < 0 ? -d : d; };
+		int best = 0;
+		for (int code = 1; code < 7; ++code)
+			if (off(code) < off(best))
+				best = code;
+		return best;
+	}
+	// the most robust mode, the lowest efficiency index, that carries length bytes in about the given seconds,
+	// set up for it, or -1 if none does. As a frame has a single code, long frames only have the lower
+	// efficiencies, so a payload too large for them gets fewer symbols
+	int pick_mode(int seconds, int length)
+	{
+		for (int code = symbols_code(seconds); code >= 0; --code) {
+			for (int index = 0; index < 32; ++index) {
+				int mode = code << 5 | index;
+				if (setup(mode) && data_bytes >= length)
+					return mode;
+			}
+		}
+		return -1;
 	}
 };
 

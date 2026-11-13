@@ -14,20 +14,17 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 
 static void print_setup(const Common &common, int mode)
 {
-	static const char *const modulations[6] = { "BPSK", "QPSK", nullptr, "QAM16", "QAM64", "QAM256" };
-	if (mode & 128 || ((mode >> 4) & 7) > 5 || !modulations[(mode >> 4) & 7]) {
+	// a mode that failed to set up leaves oper_mode alone
+	if (common.oper_mode != mode) {
 		std::cerr << "oper mode: unsupported" << std::endl;
 		return;
 	}
-	static const char *const code_rates[4] = { "1/2", "11/16", "3/4", "13/16" };
-	std::cerr << "modulation: " << modulations[(mode >> 4) & 7] << std::endl;
-	std::cerr << "frame size: " << (mode & 1 ? "normal" : "short") << std::endl;
-	int code_rate = (mode >> 1) & 7;
-	if (code_rate > 3) {
-		std::cerr << "code rate: unsupported" << std::endl;
-		return;
-	}
-	std::cerr << "code rate: " << code_rates[code_rate] << std::endl;
+	const char *modulation = common.mod_bits == 1 ? "BPSK" : common.mod_bits == 2 ? "QPSK" : common.mod_bits == 4 ? "QAM16" : common.mod_bits == 6 ? "QAM64" : "QAM256";
+	std::cerr << "symbols: " << common.symbol_count << std::endl;
+	std::cerr << "efficiency index: " << (mode & 31) << std::endl;
+	std::cerr << "modulation: " << modulation << std::endl;
+	std::cerr << "code rate: " << common.data_bits / (1 << (common.code_order - 4)) << "/16" << std::endl;
+	std::cerr << "code length: " << (1 << common.code_order) << std::endl;
 	float duration = 41. / 300. * (3 + common.symbol_count);
 	std::cerr << "duration: " << duration << "s" << std::endl;
 	std::cerr << "payload: " << common.data_bytes << "B" << std::endl;
