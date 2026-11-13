@@ -172,8 +172,6 @@ struct Encoder : public Common
 			return PhaseShiftKeying<1, cmplx, code_type>::map(b);
 		case 2:
 			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
-		case 3:
-			return PhaseShiftKeying<3, cmplx, code_type>::map(b);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::map(b);
 		case 6:

@@ -137,8 +137,6 @@ struct Decoder : Common
 			return PhaseShiftKeying<1, cmplx, code_type>::map(b);
 		case 2:
 			return PhaseShiftKeying<2, cmplx, code_type>::map(b);
-		case 3:
-			return PhaseShiftKeying<3, cmplx, code_type>::map(b);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::map(b);
 		case 6:
@@ -155,8 +153,6 @@ struct Decoder : Common
 			return PhaseShiftKeying<1, cmplx, code_type>::soft(b, c, precision);
 		case 2:
 			return PhaseShiftKeying<2, cmplx, code_type>::soft(b, c, precision);
-		case 3:
-			return PhaseShiftKeying<3, cmplx, code_type>::soft(b, c, precision);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::soft(b, c, precision);
 		case 6:
@@ -172,8 +168,6 @@ struct Decoder : Common
 			return PhaseShiftKeying<1, cmplx, code_type>::hard(b, c);
 		case 2:
 			return PhaseShiftKeying<2, cmplx, code_type>::hard(b, c);
-		case 3:
-			return PhaseShiftKeying<3, cmplx, code_type>::hard(b, c);
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::hard(b, c);
 		case 6:

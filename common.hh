@@ -33,7 +33,7 @@ struct Common
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 8192;
-	// the preamble symbol and the payload symbols of the longest frames, 8PSK and QAM64 normal
+	// the preamble symbol and the payload symbols of the longest frame, QAM64 normal
 	static const int symbols_max = 1 + 22;
 	static const int mls0_poly = 0x2d1;
 	static const int mls0_seed = 214;
@@ -69,8 +69,6 @@ struct Common
 			return PhaseShiftKeying<1, cmplx, code_type>::DIST;
 		case 2:
 			return PhaseShiftKeying<2, cmplx, code_type>::DIST;
-		case 3:
-			return PhaseShiftKeying<3, cmplx, code_type>::DIST;
 		case 4:
 			return QuadratureAmplitudeModulation<4, cmplx, code_type>::DIST;
 		case 6:
@@ -84,8 +82,6 @@ struct Common
 	// some tones carry fewer bits, so the code length fits
 	int bits_at(int k)
 	{
-		if (mod_bits == 3 && k % 32 == 30)
-			return 2;
 		if (mod_bits == 6 && k % 64 == 60)
 			return 4;
 		return mod_bits;
@@ -140,11 +136,6 @@ struct Common
 			mod_bits = 2;
 			symbol_count = 4;
 			code_order = 11;
-			break;
-		case 2:
-			mod_bits = 3;
-			symbol_count = 11;
-			code_order = 13;
 			break;
 		case 3:
 			mod_bits = 4;
