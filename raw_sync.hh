@@ -7,6 +7,7 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 #pragma once
 
 #include "fft.hh"
+#include "mls.hh"
 
 // Sync detection on the real input before mixing and filtering, so nothing else has to
 // run while waiting for a sync. Every symbol_len samples it takes a Hann window over the
@@ -19,18 +20,27 @@ Copyright 2026 Ahmet Inan <inan@aicodix.de>
 // other tones out, and the phase of the sum gives the timing modulo a symbol.
 // refine() then picks the start among the candidates with the correlation of consecutive
 // symbols on the baseband, and the fraction of a tone of the CFO.
-template<typename value, typename cmplx, int symbol_len, int carrier, int range>
+// The tone_count tones of the sync symbols are BPSK from the MLS of poly and seed, centered
+// on carrier, the tone at the center, so the known ratio of adjacent tones is +1 or -1.
+template<typename value, typename cmplx, int symbol_len, int carrier, int range, int tone_count, int poly, int seed>
 class RawSync {
 	typedef DSP::Const<value> Const;
 	static const int fft_len = 2 * symbol_len;
+	// each tone and the one before it, a whole tone or two bins lower
+	static const int pairs = tone_count - 1;
+	// the bin of the first tone that has one before it, without CFO
+	static const int first = 2 * (carrier - tone_count / 2 + 1);
+	// the bins whose ratio the search over the shifts reads
+	static const int low = first - range, high = first + 2 * (pairs - 1) + range;
+	static_assert(low >= 2 && high <= symbol_len, "the shifts reach beyond the spectrum");
 	DSP::RealToHalfComplexTransform<fft_len, cmplx> fwd;
 	value win[fft_len], tmp[fft_len];
 	cmplx spec[symbol_len + 1];
-	cmplx ratio[symbol_len + 1];
-	// the conjugate of the known ratio of adjacent tones and the bin of the tone without CFO
-	cmplx kern[symbol_len];
-	int tone_bin[symbol_len];
-	int pairs = 0, low = symbol_len, high = 0;
+	// the real and imaginary parts of the ratios of the even and of the odd bins, so a shift reads every second
+	// bin as contiguous arrays of reals and the search is two plain dot products with the real kernel
+	value ratio_re[2][symbol_len / 2 + 1], ratio_im[2][symbol_len / 2 + 1];
+	// the known ratio of adjacent tones, real as the tones are BPSK
+	value kern[pairs];
 	value threshold;
 	value metric_max = 0;
 	cmplx sum_max = 0;
@@ -63,8 +73,7 @@ public:
 	// the CFO in bins of half a tone
 	int cfo_bins = 0;
 
-	// takes the known ratio of adjacent tones on the baseband, as FrequencySync, with carrier the tone at the center
-	RawSync(const cmplx *sequence, value threshold = value(0.2)) : threshold(threshold) {
+	RawSync(value threshold = value(0.2)) : threshold(threshold) {
 		// The FFT treats the window as one period of a periodic signal. Only what repeats
 		// exactly within it, as the two sync symbols in a window that lines up with them,
 		// stays on its bins. A window off by up to half a symbol, a CFO between the bins and
@@ -79,18 +88,13 @@ public:
 		// preamble() a third less timing error to start from.
 		for (int i = 0; i < fft_len; ++i)
 			win[i] = value(0.5) - value(0.5) * DSP::UnitCircle<value>::cos(i, fft_len);
-		for (int i = 0; i < symbol_len; ++i) {
-			if (norm(sequence[i]) > value(0)) {
-				int tone = i < symbol_len / 2 ? i : i - symbol_len;
-				kern[pairs] = conj(sequence[i]);
-				tone_bin[pairs] = 2 * (tone + carrier);
-				low = std::min(low, tone_bin[pairs]);
-				high = std::max(high, tone_bin[pairs]);
-				++pairs;
-			}
+		CODE::MLS seq(poly, seed);
+		value prev = 1 - 2 * seq();
+		for (int i = 0; i < pairs; ++i) {
+			value curr = 1 - 2 * seq();
+			kern[i] = prev * curr;
+			prev = curr;
 		}
-		low -= range;
-		high += range;
 	}
 
 	// takes the last fft_len samples of the raw input
@@ -103,14 +107,22 @@ public:
 			tmp[i] = win[i] * samples[i];
 		fwd(spec, tmp);
 		// the tone before is a whole tone, two bins, lower
-		for (int i = low; i <= high; ++i)
-			ratio[i] = demod_or_erase(spec[i], spec[i - 2]);
+		for (int i = low; i <= high; ++i) {
+			cmplx r = demod_or_erase(spec[i], spec[i - 2]);
+			ratio_re[i & 1][i >> 1] = r.real();
+			ratio_im[i & 1][i >> 1] = r.imag();
+		}
 		cmplx best = 0;
 		int cfo = 0;
 		for (int c = -range; c <= range; ++c) {
-			cmplx sum = 0;
-			for (int i = 0; i < pairs; ++i)
-				sum += kern[i] * ratio[tone_bin[i] + c];
+			const value *re = ratio_re[(first + c) & 1] + ((first + c) >> 1);
+			const value *im = ratio_im[(first + c) & 1] + ((first + c) >> 1);
+			value sum_re = 0, sum_im = 0;
+			for (int i = 0; i < pairs; ++i) {
+				sum_re += kern[i] * re[i];
+				sum_im += kern[i] * im[i];
+			}
+			cmplx sum(sum_re, sum_im);
 			if (norm(sum) > norm(best)) {
 				best = sum;
 				cfo = c;

@@ -68,7 +68,7 @@ struct Decoder : Common
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
 	DSP::BipBuffer<value, raw_len> raw_hist;
 	DSP::TheilSenEstimator<value, tone_count> tse;
-	RawSync<value, cmplx, symbol_len, carrier, cfo_range> raw_sync;
+	RawSync<value, cmplx, symbol_len, carrier, cfo_range, tone_count, mls0_poly, mls0_seed> raw_sync;
 	CODE::HadamardDecoder<7> hadamard_decoder;
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	CODE::PolarEncoder<code_type> polar_encoder;
@@ -128,16 +128,6 @@ struct Decoder : Common
 				return demod;
 		}
 		return 0;
-	}
-	const cmplx *mls0_seq()
-	{
-		CODE::MLS seq0(mls0_poly, mls0_seed);
-		for (int i = 0; i < symbol_len; ++i)
-			fdom[i] = 0;
-		value cur = 0, prv = 0;
-		for (int i = 0; i < tone_count; ++i, prv = cur)
-			fdom[bin(i+tone_off)] = prv * (cur = nrz(seq0()));
-		return fdom;
 	}
 	cmplx map_bits(code_type *b, int bits)
 	{
@@ -620,7 +610,7 @@ struct Decoder : Common
 		frac = offset + (symbol_len + extended_len) * (step - 1);
 		process(buf);
 	}
-	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), raw_sync(mls0_seq()), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), keep_baseband(false)
+	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), keep_baseband(false)
 	{
 	}
 	// mixes and filters the whole raw input again, as nothing did while waiting for a sync
