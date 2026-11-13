@@ -99,10 +99,6 @@ int main(int argc, char **argv)
 		oper_mode |= 4 << 4;
 	} else if (!strcmp(modulation, "QAM256")) {
 		oper_mode |= 5 << 4;
-	} else if (!strcmp(modulation, "QAM1024")) {
-		oper_mode |= 6 << 4;
-	} else if (!strcmp(modulation, "QAM4096")) {
-		oper_mode |= 7 << 4;
 	} else {
 		std::cerr << "Unsupported modulation." << std::endl;
 		return 1;
