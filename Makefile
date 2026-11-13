@@ -72,11 +72,15 @@ webserver: wasm
 freezer: freezer.cc
 	$(CXX) $(CXXFLAGS) $< -o $@
 
-polar_tables.hh: freezer
-	./$< > $@
+nested: ../code/tools/nested.cc
+	$(CXX) $(CXXFLAGS) $< -o $@
+
+polar_tables.hh: freezer nested
+	./freezer > $@
+	for n in 10 11 12 13 14 15 16; do ./nested $$n 4 32 >> $@; done
 
 .PHONY: clean
 
 clean:
-	rm -f encode decode freezer temp/*.wasm
+	rm -f encode decode freezer nested temp/*.wasm
 
