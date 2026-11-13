@@ -16,17 +16,16 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   "WebAssembly module").
 - `check_encoder.mjs`, `check_decoder.mjs`, `index.html`: the Node.js checks
   of the modules and the browser page that sends text and receives it from
-  the microphone or a WAV file. For analog frames, the page takes and gives
-  their complex values as stereo WAV files, like the native programs. Its
-  meters show the CFO and SFO the decoder tracks after each symbol, from the
-  module's `tracking` buffer, on symmetric logarithmic scales, dimmed between
-  frames, and the RMS and peak level of the microphone, which the page
-  measures itself. Like the views of the analyzer, the meters are off until
-  the page turns them on and take no time while off, and the page only
-  redraws while at least one of them is on.
+  the microphone or a WAV file. Its meters show the CFO and SFO the decoder
+  tracks after each symbol, from the module's `tracking` buffer, on symmetric
+  logarithmic scales, dimmed between frames, and the RMS and peak level of
+  the microphone, which the page measures itself. Like the views of the
+  analyzer, the meters are off until the page turns them on and take no time
+  while off, and the page only redraws while at least one of them is on.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
-  mode table in `Common::setup()`.
+  mode table in `Common::setup()`. It rejects modes with bit 7 set, which
+  once marked frames of the analog mode, which was removed.
 - `psk.hh`, `qam.hh`: constellation mapping, hard and soft demapping, templated
   on bits per symbol (`PhaseShiftKeying<1..3>`, `QuadratureAmplitudeModulation<4..12>`).
 - `quantize.hh`: turns soft values into the code type of the LLRs.
@@ -74,11 +73,10 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   power from 0 to -100 dB of a full scale sine, the phase from -180 to 180
   degrees, one dot per tone. After each decoded frame it plots the real Es/N0
   of each tone, `real_tone_snr` of the decoder, from 0 to 50 dB, and after
-  each digital symbol the precision of each tone the soft demapper uses,
+  each symbol the precision of each tone the soft demapper uses,
   `tone_precision` of the decoder, its estimated Es/N0, on the same scale,
-  blank for erased or analog symbols. Its
-  constellation shows the equalized tones of the latest symbol on a fixed
-  scale: the BPSK tones of the preamble symbol, then only the payload tones
+  blank for erased symbols. Its constellation shows the equalized tones of
+  the latest symbol on a fixed scale: the BPSK tones of the preamble symbol, then only the payload tones
   that carry all bits of the mode, without seed tones, the tones with fewer
   bits that pad the code to whole symbols, or erased symbols. All views are
   off until the page turns them on, and take no time while off.
@@ -100,7 +98,7 @@ make test
 ```
 
 `make test` encodes random data to `audio.wav` and decodes it. `make play-modes`
-plays a frame in every digital mode with sox `play`, each carrying the name of its
+plays a frame in every mode with sox `play`, each carrying the name of its
 mode, for testing the decoder over the air. There is no test
 suite; check a change by encoding, decoding and comparing, for example with the
 simulation pipeline in the README ("Simulating"), which adds multipath, CFO,

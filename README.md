@@ -176,27 +176,6 @@ These are the numbers for the normal modes with a 5/6 code rate:
 | QAM1024    |   6816B |13.8kb/s |
 | QAM4096    |   6816B |16.0kb/s |
 
-### Analog Mode
-
-Instead of digital data, the analog mode transmits complex values without any coding.
-Input files must be [WAV](https://en.wikipedia.org/wiki/WAV) files with two channels (real and imaginary part) and 32 bit float samples.
-Their sample rate is ignored.
-Each symbol carries 256 complex values and a frame can have up to 128 symbols, which is 32768 complex values in 17.9s.
-Longer inputs are cut off and the last symbol is padded with zeros:
-
-```
-./encode encoded.wav 48000 32 ANONYMOUS ANALOG complex.wav
-```
-
-When the decoder encounters an analog transmission, it writes the equalized complex values as two channel WAV file with 32 bit float samples and a sample rate of 1873 Hz.
-The number of complex values is a multiple of 256, including the padding, and the values of symbols with a damaged seed value are erased to zero:
-
-```
-./decode recorded.wav decoded.wav
-```
-
-The decoder estimates Es/N0 of each symbol from its seed tones.
-
 ### Simulating
 
 Prerequisite: [disorders](https://github.com/aicodix/disorders)
