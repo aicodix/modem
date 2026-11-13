@@ -56,6 +56,20 @@ int symbol_count()
 	return encoder.symbol_count;
 }
 
+/* bits per tone of the modulation */
+__attribute__((visibility("default")))
+int mod_bits()
+{
+	return encoder.mod_bits;
+}
+
+/* k of the code rate k / 16 */
+__attribute__((visibility("default")))
+int code_rate()
+{
+	return encoder.data_bits >> (encoder.code_order - 4);
+}
+
 __attribute__((visibility("default")))
 int begin(int length, long long call_sign)
 {

@@ -133,6 +133,25 @@ int code_bits()
 	return 1 << decoder.code_order;
 }
 
+/* the payload symbols, the bits per tone and k of the code rate k / 16 of the latest known mode */
+__attribute__((visibility("default")))
+int symbol_count()
+{
+	return decoder.symbol_count;
+}
+
+__attribute__((visibility("default")))
+int mod_bits()
+{
+	return decoder.mod_bits;
+}
+
+__attribute__((visibility("default")))
+int code_rate()
+{
+	return decoder.data_bits >> (decoder.code_order - 4);
+}
+
 __attribute__((visibility("default")))
 int payload_length()
 {
