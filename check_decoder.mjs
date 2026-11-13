@@ -8,9 +8,8 @@ import fs from "fs";
 import crypto from "crypto";
 import { spawnSync } from "child_process";
 
-const modulations = ["BPSK", "QPSK", "", "QAM16", "QAM64", "QAM256"];
-const code_rates = ["1/2", "11/16", "3/4", "13/16"];
-const frame_sizes = ["short", "normal"];
+/* the seconds whose frame lasts closest to 4 << code payload symbols */
+const seconds = [1, 2, 3, 5, 9, 18, 35];
 const decoded_frame = 1 << 11;
 
 function wav_samples(buffer) {
@@ -46,17 +45,29 @@ for (const rate of [44100, 48000]) {
 	const module = new WebAssembly.Module(fs.readFileSync(`temp/decoder_${rate}.wasm`));
 	const wasm = new WebAssembly.Instance(module).exports;
 	wasm.__wasm_call_ctors();
-	for (let mode = 0; mode < 128; ++mode) {
-		if (!modulations[(mode >> 4) & 7] || ((mode >> 1) & 7) > 3)
-			continue;
-		const modulation = modulations[(mode >> 4) & 7], code_rate = code_rates[(mode >> 1) & 7], frame_size = frame_sizes[mode & 1];
-		const name = `${rate} Hz ${modulation} ${code_rate} ${frame_size}`;
-		const payload = crypto.randomBytes(7000);
+	/* the encoder module knows the payload of every mode */
+	const encoder = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(`temp/encoder_${rate}.wasm`))).exports;
+	encoder.__wasm_call_ctors();
+	const payload_of = new Map();
+	for (let mode = 0; mode < 256; ++mode)
+		if (encoder.start(mode) >= 0)
+			payload_of.set(mode, encoder.payload_length());
+	/* every valid mode up to 32 symbols, the lowest and the highest valid index of the longer ones */
+	const modes = [];
+	for (let code = 0; code < 7; ++code) {
+		const valid = [...payload_of.keys()].filter(mode => mode >> 5 == code);
+		modes.push(...(code < 4 ? valid : [valid[0], valid[valid.length - 1]]));
+	}
+	for (const mode of modes) {
+		const name = `${rate} Hz mode ${mode} (${4 << (mode >> 5)} symbols, index ${mode & 31})`;
+		/* one byte more than the next lower index carries, so the native encoder picks this mode */
+		const lower = [...payload_of.keys()].filter(m => m >> 5 == mode >> 5 && m < mode);
+		const payload = crypto.randomBytes(lower.length ? payload_of.get(lower[lower.length - 1]) + 1 : 1);
 		fs.writeFileSync("temp/check.dat", payload);
-		spawnSync("./encode", ["temp/check.wav", String(rate), "32", "ANONYMOUS", modulation, code_rate, frame_size, "temp/check.dat"], { stdio: "ignore" });
+		spawnSync("./encode", ["temp/check.wav", String(rate), "32", "ANONYMOUS", String(seconds[mode >> 5]), "temp/check.dat"], { stdio: "ignore" });
 		const frames = decode(wasm, wav_samples(fs.readFileSync("temp/check.wav")));
 		const ok = frames.length == 1 && frames[0].mode == mode && frames[0].call_sign == "ANONYMOUS" &&
-			frames[0].payload.equals(payload.subarray(0, frames[0].payload.length));
+			frames[0].payload.length == payload_of.get(mode) && frames[0].payload.subarray(0, payload.length).equals(payload);
 		if (ok) {
 			++passed;
 		} else {

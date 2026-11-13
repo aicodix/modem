@@ -28,11 +28,20 @@ static int copy_audio()
 __attribute__((visibility("default")))
 int start(int oper_mode)
 {
-	if (oper_mode < 0 || oper_mode > 127)
+	if (oper_mode < 0 || oper_mode > 255)
 		return -1;
 	if (!encoder.start(oper_mode))
 		return -1;
 	return copy_audio();
+}
+
+/* the most robust mode that carries length bytes in about the given seconds, or -1 if none does */
+__attribute__((visibility("default")))
+int pick_mode(int seconds, int length)
+{
+	if (seconds < 1 || seconds > 60 || length < 0 || length > Common::data_max)
+		return -1;
+	return encoder.pick_mode(seconds, length);
 }
 
 __attribute__((visibility("default")))

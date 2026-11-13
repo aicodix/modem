@@ -8,9 +8,8 @@ import fs from "fs";
 import crypto from "crypto";
 import { spawnSync } from "child_process";
 
-const modulations = ["BPSK", "QPSK", "", "QAM16", "QAM64", "QAM256"];
-const code_rates = ["1/2", "11/16", "3/4", "13/16"];
-const frame_sizes = ["short", "normal"];
+/* the seconds whose frame lasts closest to 4 << code payload symbols */
+const seconds = [1, 2, 3, 5, 9, 18, 35];
 
 function base40(str) {
 	let acc = 0n;
@@ -75,13 +74,30 @@ for (const rate of [44100, 48000]) {
 	const module = new WebAssembly.Module(fs.readFileSync(`temp/encoder_${rate}.wasm`));
 	const wasm = new WebAssembly.Instance(module).exports;
 	wasm.__wasm_call_ctors();
+	/* the payload of every valid mode, the symbol count in the top three bits, the efficiency index in the low five */
+	const payload_of = new Map();
 	for (let mode = 0; mode < 256; ++mode) {
-		const name = `${rate} Hz ${modulations[(mode >> 4) & 7]} ${code_rates[(mode >> 1) & 7]} ${frame_sizes[mode & 1]}`;
-		if (mode & 128 || !modulations[(mode >> 4) & 7] || ((mode >> 1) & 7) > 3) {
-			if (wasm.start(mode) != -1) {
-				console.log(`FAILED ${mode}: unsupported mode accepted`);
-				++failed;
-			}
+		const ok = wasm.start(mode) >= 0;
+		if (mode >= 224 && ok) {
+			console.log(`FAILED ${rate} Hz mode ${mode}: unsupported mode accepted`);
+			++failed;
+		}
+		if (ok)
+			payload_of.set(mode, wasm.payload_length());
+	}
+	/* every valid mode up to 32 symbols, the lowest and the highest valid index of the longer ones */
+	const modes = [];
+	for (let code = 0; code < 7; ++code) {
+		const valid = [...payload_of.keys()].filter(mode => mode >> 5 == code);
+		modes.push(...(code < 4 ? valid : [valid[0], valid[valid.length - 1]]));
+	}
+	for (const mode of modes) {
+		const name = `${rate} Hz mode ${mode} (${4 << (mode >> 5)} symbols, index ${mode & 31})`;
+		const length = payload_of.get(mode);
+		/* the most robust mode for exactly its payload is the mode itself */
+		if (wasm.pick_mode(seconds[mode >> 5], length) != mode) {
+			console.log(`FAILED ${name}: pick_mode`);
+			++failed;
 			continue;
 		}
 		if (wasm.start(mode) < 0) {
@@ -89,7 +105,6 @@ for (const rate of [44100, 48000]) {
 			++failed;
 			continue;
 		}
-		const length = wasm.payload_length();
 		const payload = crypto.randomBytes(length - (mode & 3));
 		const samples = encode(wasm, rate, mode, payload, call_sign);
 		if (!samples) {
@@ -106,6 +121,14 @@ for (const rate of [44100, 48000]) {
 			++passed;
 		} else {
 			console.log(`FAILED ${name}: decoded data differs`);
+			++failed;
+		}
+	}
+	/* no mode carries more than the largest payload */
+	const largest = Math.max(...payload_of.values());
+	for (const s of seconds) {
+		if (wasm.pick_mode(s, largest + 1) != -1) {
+			console.log(`FAILED ${rate} Hz ${s} seconds: payload too long accepted`);
 			++failed;
 		}
 	}
