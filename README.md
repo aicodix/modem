@@ -69,8 +69,6 @@ These are the durations for each modulation scheme:
 | QAM16      |  1.0s |   2.6s |
 | QAM64      |  1.9s |   3.4s |
 | QAM256     |  1.5s |   2.6s |
-| QAM1024    |  2.2s |   4.0s |
-| QAM4096    |  1.9s |   3.4s |
 
 These are the numbers for the short modes with a 1/2 code rate:
 
@@ -82,8 +80,6 @@ These are the numbers for the short modes with a 1/2 code rate:
 | QAM16      |    256B | 2.1kb/s |
 | QAM64      |   1024B | 4.3kb/s |
 | QAM256     |   1024B | 5.4kb/s |
-| QAM1024    |   2048B | 7.5kb/s |
-| QAM4096    |   2048B | 8.6kb/s |
 
 These are the numbers for the normal modes with a 1/2 code rate:
 
@@ -95,8 +91,6 @@ These are the numbers for the normal modes with a 1/2 code rate:
 | QAM16      |   1024B | 3.2kb/s |
 | QAM64      |   2048B | 4.8kb/s |
 | QAM256     |   2048B | 6.3kb/s |
-| QAM1024    |   4096B | 8.3kb/s |
-| QAM4096    |   4096B | 9.6kb/s |
 
 These are the numbers for the short modes with a 2/3 code rate:
 
@@ -108,8 +102,6 @@ These are the numbers for the short modes with a 2/3 code rate:
 | QAM16      |    342B | 2.9kb/s |
 | QAM64      |   1368B | 5.7kb/s |
 | QAM256     |   1368B | 7.3kb/s |
-| QAM1024    |   2736B |10.0kb/s |
-| QAM4096    |   2736B |11.4kb/s |
 
 These are the numbers for the normal modes with a 2/3 code rate:
 
@@ -121,8 +113,6 @@ These are the numbers for the normal modes with a 2/3 code rate:
 | QAM16      |   1368B | 4.2kb/s |
 | QAM64      |   2736B | 6.4kb/s |
 | QAM256     |   2736B | 8.4kb/s |
-| QAM1024    |   5472B |11.0kb/s |
-| QAM4096    |   5472B |12.8kb/s |
 
 These are the numbers for the short modes with a 3/4 code rate:
 
@@ -134,8 +124,6 @@ These are the numbers for the short modes with a 3/4 code rate:
 | QAM16      |    384B | 3.2kb/s |
 | QAM64      |   1536B | 6.4kb/s |
 | QAM256     |   1536B | 8.2kb/s |
-| QAM1024    |   3072B |11.2kb/s |
-| QAM4096    |   3072B |12.8kb/s |
 
 These are the numbers for the normal modes with a 3/4 code rate:
 
@@ -147,8 +135,6 @@ These are the numbers for the normal modes with a 3/4 code rate:
 | QAM16      |   1536B | 4.7kb/s |
 | QAM64      |   3072B | 7.2kb/s |
 | QAM256     |   3072B | 9.5kb/s |
-| QAM1024    |   6144B |12.4kb/s |
-| QAM4096    |   6144B |14.4kb/s |
 
 These are the numbers for the short modes with a 5/6 code rate:
 
@@ -160,8 +146,6 @@ These are the numbers for the short modes with a 5/6 code rate:
 | QAM16      |    426B | 3.6kb/s |
 | QAM64      |   1704B | 7.1kb/s |
 | QAM256     |   1704B | 9.1kb/s |
-| QAM1024    |   3408B |12.5kb/s |
-| QAM4096    |   3408B |14.2kb/s |
 
 These are the numbers for the normal modes with a 5/6 code rate:
 
@@ -173,8 +157,6 @@ These are the numbers for the normal modes with a 5/6 code rate:
 | QAM16      |   1704B | 5.2kb/s |
 | QAM64      |   3408B | 8.0kb/s |
 | QAM256     |   3408B |10.5kb/s |
-| QAM1024    |   6816B |13.8kb/s |
-| QAM4096    |   6816B |16.0kb/s |
 
 ### Simulating
 

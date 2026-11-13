@@ -349,9 +349,6 @@ channel, also near threshold:
 - Test false syncs with structured signals, such as tones, chirps or speech,
   not only with white noise, which a detector weighted by power never
   mistakes for a sync but a strong tone can.
-- Don't take the QAM1024 and QAM4096 modes too seriously. They are only there
-  for fun and might be replaced with something else in the future, so don't
-  tune or design anything around them.
 
 ## Workflow
 
