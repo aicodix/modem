@@ -34,7 +34,7 @@ struct Common
 	static const int bits_max = 1 << code_max;
 	static const int data_max = 8192;
 	static const int symbols_max = 128 + 1;
-	static const int mls0_poly = 0x331;
+	static const int mls0_poly = 0x2d1;
 	static const int mls0_seed = 214;
 	static const int mls1_poly = 0x43;
 	static const int mls2_poly = 0x163;
