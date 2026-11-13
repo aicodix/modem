@@ -21,7 +21,9 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   meters show the CFO and SFO the decoder tracks after each symbol, from the
   module's `tracking` buffer, on symmetric logarithmic scales, dimmed between
   frames, and the RMS and peak level of the microphone, which the page
-  measures itself.
+  measures itself. Like the views of the analyzer, the meters are off until
+  the page turns them on and take no time while off, and the page only
+  redraws while at least one of them is on.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
   mode table in `Common::setup()`.
