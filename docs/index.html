@@ -25,6 +25,7 @@ fieldset label { white-space: nowrap; margin-right: 0.5em; }
 a { color: lightskyblue; }
 footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top: 2em; }
 .meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: 0.5em 1em; }
+.meters[hidden] { display: none; }
 .meter .head { display: flex; justify-content: space-between; font-size: 0.9em; }
 .meter .value { font-family: monospace; }
 .meter .track { position: relative; height: 1em; background-color: #222; border: 1px solid gray; margin-top: 0.2em; overflow: hidden; }
@@ -85,8 +86,8 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </p>
 <p>Please allow the audio to settle for a few seconds before trying to decode.</p>
 <fieldset>
-<legend>tracking and level</legend>
-<div class="meters">
+<legend><label><input type="checkbox" id="meters-on"> tracking and level</label></legend>
+<div class="meters" id="meters" hidden>
 <div class="meter" id="cfo-meter"></div>
 <div class="meter" id="sfo-meter"></div>
 <div class="meter" id="level-meter"></div>
@@ -126,7 +127,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </fieldset>
 <div id="log"></div>
 <footer>
-<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/0bdd00b">0bdd00b</a></p>
+<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/e756208">e756208</a></p>
 <p>Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.</p>
 <p>DISCLAIMER: THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.</p>
 </footer>
@@ -145,6 +146,8 @@ const payload_error = 1 << 8, decoded_frame = 1 << 11;
 /* the CFO and SFO the decoder tracks after each symbol, held after the frame, and the level of the microphone */
 const tracking = { seen: false, cfo: 0, sfo: 0, busy: false };
 const level = { rms: -200, peak: -200, held: -200, time: 0 };
+/* the meters, like the views, take no time while turned off, and nothing is redrawn while all are off */
+let meters_on = false, drawing = false;
 const meters = {};
 /* a symmetric logarithmic scale from -max to max, linear within min of zero, as 0 to 1 */
 function symlog(min, max) {
@@ -327,6 +330,17 @@ function analyzer_controls() {
 		element(id).disabled = !spectrum;
 	for (const id of ["gain", "intensity", "decay"])
 		element(id).disabled = !scope;
+	const meters = element("meters-on").checked;
+	element("meters").hidden = !meters;
+	/* start over, so the level doesn't show what it measured before it was turned off */
+	if (meters && !meters_on)
+		Object.assign(level, { rms: -200, peak: -200, held: -200, time: 0 });
+	meters_on = meters;
+	const any = meters || spectrum || scope || channel || element("constellation-on").checked;
+	if (any && !drawing) {
+		drawing = true;
+		window.requestAnimationFrame(draw);
+	}
 	/* each bin is as wide as a tone, 300 / 40 Hz */
 	const half = (decoder ? decoder.analyzer_width() : 400) * 300 / 40 / 2;
 	element("span").textContent = spectrum ? "from " + (1500 - half) + " to " + (1500 + half) + " Hz" : "";
@@ -365,8 +379,13 @@ function draw() {
 		}
 		/* each bin is as wide as a tone, 300 / 40 Hz */
 	}
-	draw_meters();
-	window.requestAnimationFrame(draw);
+	if (meters_on)
+		draw_meters();
+	const element = id => document.getElementById(id);
+	if (["meters-on", "spectrum-on", "scope-on", "channel-on", "constellation-on"].some(id => element(id).checked))
+		window.requestAnimationFrame(draw);
+	else
+		drawing = false;
 }
 function report(dec) {
 	const events = dec.events();
@@ -519,7 +538,8 @@ async function listen() {
 		let heard = performance.now(), silent = false;
 		tap.port.onmessage = event => {
 			heard = performance.now();
-			measure_level(event.data);
+			if (meters_on)
+				measure_level(event.data);
 			receive(decoder, event.data);
 		};
 		const source = context.createMediaStreamSource(stream);
@@ -774,11 +794,10 @@ async function main() {
 	});
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	document.getElementById("analog-file").addEventListener("change", load_analog);
-	for (const id of ["spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
+	for (const id of ["meters-on", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
-	analyzer_controls();
 	make_meters();
-	window.requestAnimationFrame(draw);
+	analyzer_controls();
 	update();
 	status("ready, " + context.sampleRate + " Hz");
 }
