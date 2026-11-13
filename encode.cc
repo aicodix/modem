@@ -91,8 +91,6 @@ int main(int argc, char **argv)
 		oper_mode |= 0 << 4;
 	} else if (!strcmp(modulation, "QPSK")) {
 		oper_mode |= 1 << 4;
-	} else if (!strcmp(modulation, "8PSK")) {
-		oper_mode |= 2 << 4;
 	} else if (!strcmp(modulation, "QAM16")) {
 		oper_mode |= 3 << 4;
 	} else if (!strcmp(modulation, "QAM64")) {
