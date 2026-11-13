@@ -24,8 +24,16 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   while off, and the page only redraws while at least one of them is on.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
-  mode table in `Common::setup()`. It rejects modes with bit 7 set, which
-  once marked frames of the analog mode, which was removed. The xorshift
+  mode in `Common::setup()`. The mode byte carries the number of payload
+  symbols, 4 << (mode >> 5) from 4 to 256, and an index into the table
+  `efficiency` of 32 pairs of bits per tone and code rate k / 16. The table
+  is a draft spaced from 1 / 16 to 7.5 bits per tone, with rates below 1 / 2
+  only for BPSK, and waits for measured thresholds. A frame has a single
+  code of at most order 16, so `setup()` rejects modes with more code bits.
+  `pick_mode()` picks the symbols whose frame lasts closest to the given
+  seconds and the lowest index that carries the payload, with fewer symbols
+  when the long frames can't carry it. QAM64 is left out until frames carry
+  several codewords, as its 6 bits per tone never fill a power of two. The xorshift
   triples of the interleaver were chosen from all with full period by the
   rank of the low and of the top bits of an index together with those of
   the indices up to eight steps later, which tells how evenly neighbours
@@ -107,8 +115,9 @@ make test
 ```
 
 `make test` encodes random data to `audio.wav` and decodes it. `make play-modes`
-plays a frame in every mode with sox `play`, each carrying the name of its
-mode, for testing the decoder over the air. There is no test
+plays frames of every number of payload symbols, each with a small payload
+and with one close to the largest, with sox `play`, each saying its seconds
+and size, for testing the decoder over the air. There is no test
 suite; check a change by encoding, decoding and comparing, for example with the
 simulation pipeline in the README ("Simulating"), which adds multipath, CFO,
 SFO and AWGN with the disorders tools and ends with `diff -s`.
@@ -332,7 +341,7 @@ channel, also near threshold:
   ±1500 Hz. With the search, this limits the CFO to about ±250 Hz, where the
   outer tones are already attenuated.
 - Near threshold, the coarse timing of the sync detection scatters by tens
-  of samples, which `preamble()` corrects. BPSK 1/2 short then decodes all frames
+  of samples, which `preamble()` corrects. BPSK at rate 1/2 over 8 symbols then decodes all frames
   from about 3 dB in-band SNR, also with multipath, CFO and SFO, and fails at
   about the same point as its code does. To compare decoder changes, use many
   noise seeds per point near the threshold of the affected modes, and report

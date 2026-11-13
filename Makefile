@@ -20,7 +20,7 @@ QUIRKS = quirks/algorithm quirks/cassert quirks/cmath quirks/cstdint quirks/cstd
 all: encode decode wasm
 
 test: encode decode
-	$(QEMU) ./encode audio.wav 48000 32 ANONYMOUS QAM16 1/2 short /dev/urandom
+	head -c 1024 /dev/urandom | $(QEMU) ./encode audio.wav 48000 32 ANONYMOUS 5 -
 	$(QEMU) ./decode audio.wav /dev/null
 
 encode: encode.cc encoder.hh native.hh common.hh psk.hh qam.hh quantize.hh
@@ -32,7 +32,7 @@ decode: decode.cc decoder.hh native.hh common.hh raw_sync.hh psk.hh qam.hh quant
 .PHONY: play-modes
 
 play-modes: encode
-	for m in BPSK QPSK QAM16 QAM64 QAM256; do for r in 1/2 11/16 3/4 13/16; do for f in short normal; do echo "$$m $$r $$f"; echo "$$m $$r $$f" | $(QEMU) ./encode - 48000 16 ANONYMOUS $$m $$r $$f - 2>/dev/null | play -q -; done; done; done
+	for p in "1 100" "1 900" "2 100" "2 1800" "3 100" "3 3600" "5 100" "5 7600" "9 100" "9 7000" "18 100" "18 7000" "35 100" "35 7000"; do set -- $$p; echo "$$1 s $$2 B"; (echo "$$1 s $$2 B"; head -c $$2 /dev/zero) | head -c $$2 | $(QEMU) ./encode - 48000 16 ANONYMOUS $$1 - 2>/dev/null | play -q -; done
 
 .PHONY: wasm
 
