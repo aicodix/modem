@@ -150,10 +150,10 @@ public:
 	// symbol within a symbol before or after it: silence before the sync looks as clean as the guard interval
 	// after it, so two windows a hop apart can both look clean, the best one early or late by half a symbol
 	bool refine(const cmplx *samples, int start) {
-		int first = start - symbol_len, last = start + symbol_len;
+		int earliest = start - symbol_len, latest = start + symbol_len;
 		int pos = 0;
 		cmplx P = 0;
-		for (int cand = first + ((start - shift - first) % symbol_len + symbol_len) % symbol_len; cand <= last; cand += symbol_len) {
+		for (int cand = earliest + ((start - shift - earliest) % symbol_len + symbol_len) % symbol_len; cand <= latest; cand += symbol_len) {
 			cmplx Q = repetition(samples, cand);
 			if (norm(Q) > norm(P)) {
 				pos = cand;
