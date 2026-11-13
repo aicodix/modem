@@ -32,7 +32,7 @@ decode: decode.cc decoder.hh native.hh common.hh raw_sync.hh psk.hh qam.hh quant
 .PHONY: play-modes
 
 play-modes: encode
-	for m in BPSK QPSK 8PSK QAM16 QAM64 QAM256 QAM1024 QAM4096; do for r in 1/2 2/3 3/4 5/6; do for f in short normal; do echo "$$m $$r $$f"; echo "$$m $$r $$f" | $(QEMU) ./encode - 48000 16 ANONYMOUS $$m $$r $$f - 2>/dev/null | play -q -; done; done; done
+	for m in BPSK QPSK 8PSK QAM16 QAM64 QAM256; do for r in 1/2 2/3 3/4 5/6; do for f in short normal; do echo "$$m $$r $$f"; echo "$$m $$r $$f" | $(QEMU) ./encode - 48000 16 ANONYMOUS $$m $$r $$f - 2>/dev/null | play -q -; done; done; done
 
 .PHONY: wasm
 

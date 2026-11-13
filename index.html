@@ -54,8 +54,6 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <option value="3" selected>QAM16</option>
 <option value="4">QAM64</option>
 <option value="5">QAM256</option>
-<option value="6">QAM1024</option>
-<option value="7">QAM4096</option>
 </select>
 <select id="code-rate">
 <option value="0" selected>1/2</option>
@@ -135,7 +133,7 @@ const images = new Map();
 /* the spectrum and spectrogram always show this many dB below the top set by the slider */
 const spectrum_dB = 100;
 let context, wasm, decoder, listening, playing, shown, tap_module;
-const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
+const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256"];
 const code_rates = ["1/2", "2/3", "3/4", "5/6"];
 /* events reported by the decoder module, see Decoder in decoder.hh */
 const found_sync = 1 << 0, damaged_seed = 1 << 1, preamble_error = 1 << 2, unsupported_call = 1 << 3;
@@ -400,7 +398,7 @@ function report(dec) {
 	if (events & read_meta) {
 		const call = new TextDecoder().decode(new Uint8Array(dec.memory.buffer, dec.call_sign.value, 9)).trim();
 		const mode = dec.meta_mode();
-		const name = mode & 128 ? "mode " + mode : modulations[(mode >> 4) & 7] + " " + (code_rates[(mode >> 1) & 7] || "?") + " " + (mode & 1 ? "normal" : "short");
+		const name = mode & 128 ? "mode " + mode : (modulations[(mode >> 4) & 7] || "?") + " " + (code_rates[(mode >> 1) & 7] || "?") + " " + (mode & 1 ? "normal" : "short");
 		log("from " + call + ", " + name + (events & known_mode ? "" : " unsupported"), !(events & known_mode));
 	}
 	if (events & erased_symbol)
