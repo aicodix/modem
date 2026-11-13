@@ -357,8 +357,8 @@ channel, also near threshold:
 
 ## Workflow
 
-- Work on the `next` branch. Keep changes to this modem minimal; larger
-  redesigns are for its successor.
+- Work on the `robusto` branch, the successor of `next`. Larger redesigns
+  belong here; `next` only gets minimal changes.
 - Commit messages are a single short lowercase line, such as
   "moved common header includes to common.hh". There is no body and
   no trailers: no `Co-Authored-By`, no session links.
