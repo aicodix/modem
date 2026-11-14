@@ -113,6 +113,16 @@ These are the efficiencies, the payload grows with the number of symbols:
 |    30 | QAM256     |     13/16 |           6.5 |               208B |
 |    31 | QAM256     |     15/16 |           7.5 |               240B |
 
+### Pings
+
+A ping is a frame without payload, only the call sign and a value from 0 to 31, as robust as a frame can be and about half a second long:
+
+```
+./encode ping.wav 48000 32 ANONYMOUS 0 7
+```
+
+The decoder reports it as ```ping 7 received``` and writes no output file for it.
+
 ### Simulating
 
 Prerequisite: [disorders](https://github.com/aicodix/disorders)

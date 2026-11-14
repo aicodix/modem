@@ -23,18 +23,21 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   analyzer, the meters are off until the page turns them on and take no time
   while off, and the page only redraws while at least one of them is on.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
-  interleaver (`shuffle()`) and the operation mode in `Common::setup()`. The mode byte carries the number of payload
-  symbols, 4 << (mode >> 5) from 4 to 256, and an index into the table
-  `efficiency` of 32 pairs of bits per tone and code rate k / 16. The table
-  is a draft spaced from 1 / 16 to 7.5 bits per tone, each modulation from
-  rate 1 / 2 to below where the next one starts, rates below 1 / 2 only for
-  BPSK, and waits for measured thresholds. The code bits of a frame are a
+  interleaver (`shuffle()`) and the operation mode in `Common::setup()`.
+  The mode byte carries the number of payload symbols, 2 << (mode >> 5)
+  from 4 to 256, and an index into the table `efficiency` of 32 pairs of
+  bits per tone and code rate k / 16. The table is a draft spaced from
+  1 / 16 to 7.5 bits per tone, each modulation from rate 1 / 2 to below
+  where the next one starts, rates below 1 / 2 only for BPSK, and waits for
+  measured thresholds. The code bits of a frame are a
   power of two, or three times one for QAM64, split into codewords of up to
   order 16 with a 32 bit CRC each, and the interleaver spreads them across
   the whole frame, skipping the indices beyond its size below a power of
   two. A frame only decodes if all its codewords do. `pick_mode()` picks
   the symbols whose frame lasts closest to the given seconds and the lowest
-  index that carries the payload. The xorshift
+  index that carries the payload. A mode with mode >> 5 of zero is a ping,
+  a frame without payload symbols, that only carries the value mode & 31.
+  The xorshift
   triples of the interleaver were chosen from all with full period by the
   rank of the low and of the top bits of an index together with those of
   the indices up to eight steps later, which tells how evenly neighbours
