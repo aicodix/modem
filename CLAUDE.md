@@ -150,7 +150,9 @@ open `index.html` there. Any other static web server works too, as long as it
 sends `.wasm` as `application/wasm`.
 `make pages` builds the modules and copies the page and the modules to `docs/`,
 the snapshot GitHub Pages serves, so work on `next` doesn't change the public
-page until `docs/` is rebuilt and committed.
+page until `docs/` is rebuilt and committed. Robusto isn't published for now:
+don't run `make pages` here, and leave `docs/` as the snapshot of `next`, as
+deleting it would conflict with every rebase onto `next`.
 
 Everything is compiled with `-std=c++17 -O3 -ffast-math -fno-exceptions -fno-rtti`,
 so code must:
@@ -313,6 +315,17 @@ channel, also near threshold:
   more than twice the median, as with interference in part of the band,
   and white noise keeps the weights of the channel power alone.
 
+- The interleaver triples ranked by `tools/rank.cc` replaced hand-picked
+  ones whose pairs of indices clustered far beyond those of random
+  permutations. Near threshold on static multipath and the Watterson
+  channel, 336 paired trials decoded 23 frames only with the new and 27 only
+  with the old interleavers: no measurable difference.
+- First thresholds around QAM64, 32 symbols on static multipath, as the
+  last `awgn` level of the disorders tools with all of 8 frames decoded:
+  QAM16 11/16 at -14, QAM64 8/16, 9/16 and 10/16 at -16, -17 and -18, and
+  QAM256 8/16 at -20. The step from QAM16 11/16 to QAM64 8/16 is twice the
+  others, so QAM16 12/16 might do better at 3 bits per tone.
+
 ## Conventions worth knowing
 
 - Encoder and decoder must stay in step. A change to anything on the air, such
@@ -322,8 +335,17 @@ channel, also near threshold:
 - Soft demapping produces int16 LLRs for a min-sum polar list decoder, which
   ignores their overall scale. What matters is resolution after rounding and
   headroom against saturation. `quantize()` caps the slope `DIST * precision`
-  at 4096, so every constellation gets the same headroom, and `decode.cc`
+  at 4096, so every constellation gets the same headroom, and `process()`
   scales the precision by 300 for resolution.
+  - int8 LLRs were measured and lose to int16 where dense QAM meets high
+    rates. Translating the int16 scaling (cap 16, two bits of headroom)
+    costs about 0.5 dB on QAM256 5/6 and 0.25 dB on QAM64 and QAM256 1/2.
+    Larger caps saturate the sums inside the polar decoder: a cap of 32 had
+    an error floor on QAM64 1/2 2 dB above its threshold, and clipping the
+    channel LLRs lower didn't help. The best found, scale 1.75 and cap 24,
+    still lost 0.1 dB at rate 1/2 and 0.3 to 0.5 dB on QAM256 13/16 and 5/6.
+    PSK and QAM16 lost nothing. The lowest and highest rates of the nested
+    codes need the range even more.
 - Each tone's precision is its channel power over the white noise of its
   symbol before equalization, the mean over all tones of their errors times
   their channel power, and less where its own noise is more than twice the
