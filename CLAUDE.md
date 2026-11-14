@@ -320,11 +320,42 @@ channel, also near threshold:
   permutations. Near threshold on static multipath and the Watterson
   channel, 336 paired trials decoded 23 frames only with the new and 27 only
   with the old interleavers: no measurable difference.
-- First thresholds around QAM64, 32 symbols on static multipath, as the
-  last `awgn` level of the disorders tools with all of 8 frames decoded:
-  QAM16 11/16 at -14, QAM64 8/16, 9/16 and 10/16 at -16, -17 and -18, and
-  QAM256 8/16 at -20. The step from QAM16 11/16 to QAM64 8/16 is twice the
-  others, so QAM16 12/16 might do better at 3 bits per tone.
+- Thresholds of 54 pairs of modulation and rate k / 16, from BPSK 1/16 to
+  QAM256 15/16, with the mode forced, at 32 symbols, as the `awgn` level of
+  the disorders tools at which half of the frames decode, interpolated from
+  16 seeds per 1 dB step on static multipath with CFO and SFO. A higher
+  level is more noise. Those that no other pair beats in both bits per tone
+  and threshold:
+  BPSK 1/16 -0.7, 2/16 -0.8, 4/16 -1.0;
+  QPSK 3/16 -1.5, 4/16 -2.5, 5/16 -3.5, 6/16 -4.5, 7/16 -5.3, 8/16 -5.6,
+  9/16 -6.5, 10/16 -7.5, 11/16 -8.5;
+  QAM16 6/16 -8.7, 7/16 -9.8, 8/16 -10.6, 9/16 -11.6, 10/16 -12.5,
+  11/16 -13.5, 12/16 -14.9;
+  QAM64 9/16 -16.4, 10/16 -17.5, 11/16 -18.7, 12/16 -20.5;
+  QAM256 9/16 -20.5, 10/16 -22.5, 11/16 -24.4, 12/16 -26.3, 13/16 -28.5,
+  14/16 -31.5, 15/16 -38.2.
+  - Below about 0.4 bits per tone the preamble, not the payload, fails
+    first: 70 to 100 percent of the failures of BPSK 1/16 to 5/16 are sync
+    or preamble errors, and their thresholds lie within 1 dB. Lower rates
+    only help where the channel itself limits, see below.
+  - QPSK beats BPSK at the same bits per tone, by 1 dB at 0.375 and 0.5 and
+    by 2 to 4 dB from 0.625 to 0.875, so BPSK above 4/16 is never worth it.
+    The higher rates of each modulation lose to the next one at a lower
+    rate: QAM16 6/16 beats QPSK 12/16 by 0.8 dB, QAM64 5/16 QPSK 15/16 by
+    1.9 dB, QAM16 9/16 QAM64 6/16 by 0.9 dB. At 3 bits per tone QAM16 12/16
+    and QAM64 8/16 are within 0.4 dB, and QAM64 9/16 carries more at the
+    threshold of QAM16 13/16. QAM64 12/16 and QAM256 9/16 tie.
+  - 4 symbols, codes of a quarter or an eighth the length, give the same
+    thresholds within 0.5 dB, apart from QAM256 15/16, 3.4 dB better.
+  - On a Watterson channel with 2 ms delay and 0.1 Hz spread, 8 seeds per
+    2 dB step, the order stays, QAM256 9/16 beats QAM64 12/16 by 1 dB, and
+    QAM256 12/16 and above never decode half the frames even without
+    noise: the fading alone leaves a real Es/N0 of about 14 to 22 dB for
+    32 symbols. It drops to about 8 dB at 0.5 Hz, and at 1 Hz to about
+    0 dB, where without noise BPSK 1/16 decodes 21 percent, BPSK 2/16 and
+    QPSK 3/16 6 percent and rates from 1/2 none of 32 frames. An older build
+    of robusto with the previous modes gave the same Es/N0, so this isn't a
+    regression of the new modes.
 
 ## Conventions worth knowing
 
