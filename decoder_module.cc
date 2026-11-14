@@ -130,7 +130,7 @@ int bit_flips()
 __attribute__((visibility("default")))
 int code_bits()
 {
-	return 1 << decoder.code_order;
+	return decoder.frame_bits;
 }
 
 /* the payload symbols, the bits per tone and k of the code rate k / 16 of the latest known mode */
@@ -149,7 +149,7 @@ int mod_bits()
 __attribute__((visibility("default")))
 int code_rate()
 {
-	return decoder.data_bits >> (decoder.code_order - 4);
+	return decoder.data_bits / decoder.codewords >> (decoder.code_order - 4);
 }
 
 __attribute__((visibility("default")))

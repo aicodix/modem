@@ -46,7 +46,7 @@ void report(Decoder<value, cmplx, rate> *decoder, int events)
 	if (events & decoder_type::payload_error)
 		std::cerr << "payload decoding error." << std::endl;
 	if (events & decoder_type::reencoded)
-		std::cerr << "bit flips: " << decoder->bit_flips << " of " << (1 << decoder->code_order) << std::endl;
+		std::cerr << "bit flips: " << decoder->bit_flips << " of " << decoder->frame_bits << std::endl;
 	if (events & decoder_type::real_snr)
 		std::cerr << "real Es/N0 (dB): " << decoder->real_es_n0[0] << " .. " << decoder->real_es_n0[1] << " .. " << decoder->real_es_n0[2] << std::endl;
 }

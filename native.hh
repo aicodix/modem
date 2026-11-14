@@ -23,8 +23,8 @@ static void print_setup(const Common &common, int mode)
 	std::cerr << "symbols: " << common.symbol_count << std::endl;
 	std::cerr << "efficiency index: " << (mode & 31) << std::endl;
 	std::cerr << "modulation: " << modulation << std::endl;
-	std::cerr << "code rate: " << common.data_bits / (1 << (common.code_order - 4)) << "/16" << std::endl;
-	std::cerr << "code length: " << (1 << common.code_order) << std::endl;
+	std::cerr << "code rate: " << (common.data_bits / common.codewords >> (common.code_order - 4)) << "/16" << std::endl;
+	std::cerr << "codewords: " << common.codewords << " of " << (1 << common.code_order) << " bits" << std::endl;
 	float duration = 41. / 300. * (3 + common.symbol_count);
 	std::cerr << "duration: " << duration << "s" << std::endl;
 	std::cerr << "payload: " << common.data_bytes << "B" << std::endl;

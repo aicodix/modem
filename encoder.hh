@@ -22,7 +22,7 @@ struct Encoder : public Common
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::PolarEncoder<code_type> polar_encoder;
 	CODE::MLS seq1;
-	code_type code[bits_max], perm[bits_max], mesg[bits_max], meta[data_tones];
+	code_type code[frame_max], perm[frame_max], mesg[bits_max], meta[data_tones];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
 	cmplx test[symbol_len];
@@ -220,15 +220,20 @@ struct Encoder : public Common
 		CODE::Xorshift32 scrambler;
 		for (int i = 0; i < data_bytes; ++i)
 			data[i] ^= scrambler();
-		for (int i = 0; i < data_bits; ++i)
-			mesg[i] = nrz(CODE::get_le_bit(data, i));
-		crc1.reset();
-		for (int i = 0; i < data_bytes; ++i)
-			crc1(data[i]);
-		for (int i = 0; i < 32; ++i)
-			mesg[i+data_bits] = nrz((crc1()>>i)&1);
-		polar_encoder(code, mesg, frozen_bits, code_order);
-		shuffle(perm, code, 1 << code_order, true);
+		// each codeword carries its part of the payload with its own CRC
+		int code_bits = 1 << code_order, part_bits = data_bits / codewords, part_bytes = part_bits / 8;
+		for (int c = 0; c < codewords; ++c) {
+			const uint8_t *part = data + c * part_bytes;
+			for (int i = 0; i < part_bits; ++i)
+				mesg[i] = nrz(CODE::get_le_bit(part, i));
+			crc1.reset();
+			for (int i = 0; i < part_bytes; ++i)
+				crc1(part[i]);
+			for (int i = 0; i < 32; ++i)
+				mesg[i+part_bits] = nrz((crc1()>>i)&1);
+			polar_encoder(code + c * code_bits, mesg, frozen_bits, code_order);
+		}
+		shuffle(perm, code, frame_bits, true);
 		prepare(call_sign);
 		return true;
 	}

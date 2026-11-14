@@ -73,7 +73,7 @@ struct Decoder : Common
 	CODE::PolarListDecoder<mesg_type, code_max> polar_decoder;
 	CODE::PolarEncoder<code_type> polar_encoder;
 	mesg_type mesg[bits_max];
-	code_type code[bits_max], perm[bits_max], meta[data_tones];
+	code_type code[frame_max], perm[frame_max], meta[data_tones];
 	cmplx demod[tone_count], chan[tone_count], tone[tone_count];
 	cmplx knots[seed_tones];
 	value innov[seed_tones], sorted[seed_tones];
@@ -176,17 +176,23 @@ struct Decoder : Common
 			return QuadratureAmplitudeModulation<8, cmplx, code_type>::hard(b, c);
 		}
 	}
-	void reencode(int best)
+	// re-encodes the decoded message of codeword c in place of its soft values, counting the bits that disagree
+	void reencode(int c, int best)
 	{
+		code_type *cw = code + (c << code_order);
 		for (int i = 0; i < crc_bits; ++i)
-			perm[i] = mesg[i].v[best] < 0 ? -1 : 1;
-		polar_encoder(reenc, perm, frozen_bits, code_order);
+			reenc[i] = mesg[i].v[best] < 0 ? -1 : 1;
+		polar_encoder(perm, reenc, frozen_bits, code_order);
 		int code_bits = 1 << code_order;
-		bit_flips = 0;
-		for (int i = 0; i < code_bits; ++i)
-			bit_flips += code[i] * reenc[i] <= 0;
-		events |= reencoded;
-		shuffle(perm, reenc, 1 << code_order, true);
+		for (int i = 0; i < code_bits; ++i) {
+			bit_flips += cw[i] * perm[i] <= 0;
+			cw[i] = perm[i];
+		}
+	}
+	// the real Es/N0 against the re-encoded symbols of the whole frame
+	void real_es_n0_of_frame()
+	{
+		shuffle(perm, code, frame_bits, true);
 		int count = 0;
 		for (int i = 0; i < tone_count; ++i)
 			tone_sp[i] = tone_np[i] = 0;
@@ -457,26 +463,33 @@ struct Decoder : Common
 		es_n0[1] = DSP::decibel(snr[(snr_count-1)/2]);
 		es_n0[2] = DSP::decibel(snr[snr_count-1]);
 		events |= frame_end;
-		crc_bits = data_bits + 32;
-		shuffle(code, perm, 1 << code_order, false);
-		polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
-		int best = -1;
-		for (int k = 0; k < mesg_type::SIZE; ++k) {
-			crc1.reset();
-			for (int i = 0; i < crc_bits; ++i)
-				crc1(mesg[i].v[k] < 0);
-			if (crc1() == 0) {
-				best = k;
-				break;
+		int part_bits = data_bits / codewords;
+		crc_bits = part_bits + 32;
+		shuffle(code, perm, frame_bits, false);
+		bit_flips = 0;
+		// the codewords one after another, the frame only decodes if all of them do
+		for (int c = 0; c < codewords; ++c) {
+			polar_decoder(nullptr, mesg, code + (c << code_order), frozen_bits, code_order);
+			int best = -1;
+			for (int k = 0; k < mesg_type::SIZE; ++k) {
+				crc1.reset();
+				for (int i = 0; i < crc_bits; ++i)
+					crc1(mesg[i].v[k] < 0);
+				if (crc1() == 0) {
+					best = k;
+					break;
+				}
 			}
+			if (best < 0) {
+				events |= payload_error;
+				return;
+			}
+			for (int i = 0; i < part_bits; ++i)
+				CODE::set_le_bit(data, c * part_bits + i, mesg[i].v[best] < 0);
+			reencode(c, best);
 		}
-		if (best < 0) {
-			events |= payload_error;
-			return;
-		}
-		for (int i = 0; i < data_bits; ++i)
-			CODE::set_le_bit(data, i, mesg[i].v[best] < 0);
-		reencode(best);
+		events |= reencoded;
+		real_es_n0_of_frame();
 		CODE::Xorshift32 scrambler;
 		for (int i = 0; i < data_bytes; ++i)
 			data[i] ^= scrambler();

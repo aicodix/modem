@@ -32,7 +32,9 @@ struct Common
 	static const int mod_max = 8;
 	static const int code_max = 16;
 	static const int bits_max = 1 << code_max;
-	static const int data_max = 8192;
+	// the code bits of the longest frame, in codewords of up to bits_max bits
+	static const int frame_max = 256 * 256 * mod_max;
+	static const int data_max = frame_max / 8;
 	// the preamble symbol and the payload symbols of the longest frame
 	static const int symbols_max = 1 + 256;
 	static const int mls0_poly = 0x2d1;
@@ -58,6 +60,9 @@ struct Common
 	int oper_mode;
 	int seed_off;
 	int symbol_count;
+	// the code bits of a frame, in codewords of 1 << code_order bits each
+	int frame_bits;
+	int codewords;
 
 	Common() : crc0(0xA8F4), crc1(0x8F6E37A0) {}
 
@@ -147,19 +152,19 @@ struct Common
 		{ 4, 14 }, { 8, 8 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 12 }, { 8, 13 }, { 8, 15 },
 	};
 	// the mode carries 4 << (mode >> 5) payload symbols, up to 256, and the efficiency index mode & 31.
-	// A frame has a single code, so the symbols times their bits can't be more than the longest code
+	// The code bits of a frame are a power of two, or three times one, and longer frames have several
+	// codewords of the longest code, interleaved across the whole frame
 	bool setup(int mode)
 	{
 		if (mode < 0 || mode >= 7 << 5)
 			return false;
 		mod_bits = efficiency[mode & 31][0];
 		symbol_count = 4 << (mode >> 5);
-		int code_bits = symbol_count * data_tones * mod_bits;
-		if (code_bits > bits_max)
-			return false;
+		frame_bits = symbol_count * data_tones * mod_bits;
 		code_order = 0;
-		while (1 << code_order < code_bits)
+		while (code_order < code_max && !((frame_bits >> code_order) & 1))
 			++code_order;
+		codewords = frame_bits >> code_order;
 		const uint8_t *nested;
 		switch (code_order) {
 		case 10:
@@ -186,9 +191,9 @@ struct Common
 		default:
 			return false;
 		}
-		// the payload is k / 16 of the code, with the 32 bit CRC on top
+		// the payload is k / 16 of each codeword, with its 32 bit CRC on top
 		int k = efficiency[mode & 31][1];
-		data_bits = k << (code_order - 4);
+		data_bits = codewords * (k << (code_order - 4));
 		// bit i is frozen, if its entry is at least k
 		for (int i = 0; i < 1 << (code_order - 5); ++i)
 			frozen_bits[i] = 0;
@@ -211,16 +216,14 @@ struct Common
 		return best;
 	}
 	// the most robust mode, the lowest efficiency index, that carries length bytes in about the given seconds,
-	// set up for it, or -1 if none does. As a frame has a single code, long frames only have the lower
-	// efficiencies, so a payload too large for them gets fewer symbols
+	// set up for it, or -1 if none does
 	int pick_mode(int seconds, int length)
 	{
-		for (int code = symbols_code(seconds); code >= 0; --code) {
-			for (int index = 0; index < 32; ++index) {
-				int mode = code << 5 | index;
-				if (setup(mode) && data_bytes >= length)
-					return mode;
-			}
+		int code = symbols_code(seconds);
+		for (int index = 0; index < 32; ++index) {
+			int mode = code << 5 | index;
+			if (setup(mode) && data_bytes >= length)
+				return mode;
 		}
 		return -1;
 	}

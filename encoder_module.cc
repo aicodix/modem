@@ -67,7 +67,7 @@ int mod_bits()
 __attribute__((visibility("default")))
 int code_rate()
 {
-	return encoder.data_bits >> (encoder.code_order - 4);
+	return encoder.data_bits / encoder.codewords >> (encoder.code_order - 4);
 }
 
 __attribute__((visibility("default")))
