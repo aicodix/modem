@@ -59,9 +59,10 @@ Stream audio out of the encoder:
 
 All modes need a bandwidth of 2400 Hz.
 The encoder picks the mode from SECONDS and the length of the input: first the number of payload symbols whose frame lasts closest to SECONDS, then the lowest efficiency index, the most robust mode, that carries all of the input.
+An input that no mode carries in about SECONDS is refused.
 The decoder writes the whole payload of the mode, so a shorter input comes back padded with zeros.
-A frame has a single polar code of at most 65536 bits, so the long frames only have the lower efficiencies.
-An input too large for them gets fewer symbols, and an input that no mode carries is refused.
+The code bits of a frame are split into polar codewords of up to 65536 bits, each with its own 32 bit CRC, and interleaved across the whole frame.
+QAM64 frames always have three codewords, or six in the longest frames, the others a power of two of them.
 
 These are the frames for each number of payload symbols:
 
@@ -75,42 +76,42 @@ These are the frames for each number of payload symbols:
 |     128 |    17.9s | 14 .. 26 |
 |     256 |    35.4s | 27 .. 60 |
 
-These are the efficiencies, the payload grows with the number of symbols up to the longest frame:
+These are the efficiencies, the payload grows with the number of symbols:
 
-| Index | Modulation | Code rate | Bits per tone | Payload per symbol | Longest frame |
-| ----- | ---------- | --------- | ------------- | ------------------ | ------------- |
-|     0 | BPSK       |      1/16 |        0.0625 |                 2B |   256 symbols |
-|     1 | BPSK       |      2/16 |         0.125 |                 4B |   256 symbols |
-|     2 | BPSK       |      3/16 |        0.1875 |                 6B |   256 symbols |
-|     3 | BPSK       |      4/16 |          0.25 |                 8B |   256 symbols |
-|     4 | BPSK       |      5/16 |        0.3125 |                10B |   256 symbols |
-|     5 | BPSK       |      6/16 |         0.375 |                12B |   256 symbols |
-|     6 | BPSK       |      7/16 |        0.4375 |                14B |   256 symbols |
-|     7 | BPSK       |      8/16 |           0.5 |                16B |   256 symbols |
-|     8 | BPSK       |      9/16 |        0.5625 |                18B |   256 symbols |
-|     9 | BPSK       |     10/16 |         0.625 |                20B |   256 symbols |
-|    10 | BPSK       |     11/16 |        0.6875 |                22B |   256 symbols |
-|    11 | BPSK       |     12/16 |          0.75 |                24B |   256 symbols |
-|    12 | BPSK       |     14/16 |         0.875 |                28B |   256 symbols |
-|    13 | QPSK       |      8/16 |             1 |                32B |   128 symbols |
-|    14 | QPSK       |      9/16 |         1.125 |                36B |   128 symbols |
-|    15 | QPSK       |     10/16 |          1.25 |                40B |   128 symbols |
-|    16 | QPSK       |     11/16 |         1.375 |                44B |   128 symbols |
-|    17 | QPSK       |     12/16 |           1.5 |                48B |   128 symbols |
-|    18 | QPSK       |     14/16 |          1.75 |                56B |   128 symbols |
-|    19 | QAM16      |      8/16 |             2 |                64B |    64 symbols |
-|    20 | QAM16      |      9/16 |          2.25 |                72B |    64 symbols |
-|    21 | QAM16      |     10/16 |           2.5 |                80B |    64 symbols |
-|    22 | QAM16      |     11/16 |          2.75 |                88B |    64 symbols |
-|    23 | QAM16      |     12/16 |             3 |                96B |    64 symbols |
-|    24 | QAM16      |     14/16 |           3.5 |               112B |    64 symbols |
-|    25 | QAM256     |      8/16 |             4 |               128B |    32 symbols |
-|    26 | QAM256     |      9/16 |           4.5 |               144B |    32 symbols |
-|    27 | QAM256     |     10/16 |             5 |               160B |    32 symbols |
-|    28 | QAM256     |     11/16 |           5.5 |               176B |    32 symbols |
-|    29 | QAM256     |     12/16 |             6 |               192B |    32 symbols |
-|    30 | QAM256     |     13/16 |           6.5 |               208B |    32 symbols |
-|    31 | QAM256     |     15/16 |           7.5 |               240B |    32 symbols |
+| Index | Modulation | Code rate | Bits per tone | Payload per symbol |
+| ----- | ---------- | --------- | ------------- | ------------------ |
+|     0 | BPSK       |      1/16 |        0.0625 |                 2B |
+|     1 | BPSK       |      2/16 |         0.125 |                 4B |
+|     2 | BPSK       |      3/16 |        0.1875 |                 6B |
+|     3 | BPSK       |      4/16 |          0.25 |                 8B |
+|     4 | BPSK       |      5/16 |        0.3125 |                10B |
+|     5 | BPSK       |      6/16 |         0.375 |                12B |
+|     6 | BPSK       |      7/16 |        0.4375 |                14B |
+|     7 | BPSK       |      8/16 |           0.5 |                16B |
+|     8 | BPSK       |      9/16 |        0.5625 |                18B |
+|     9 | BPSK       |     10/16 |         0.625 |                20B |
+|    10 | BPSK       |     11/16 |        0.6875 |                22B |
+|    11 | BPSK       |     12/16 |          0.75 |                24B |
+|    12 | BPSK       |     14/16 |         0.875 |                28B |
+|    13 | QPSK       |      8/16 |             1 |                32B |
+|    14 | QPSK       |      9/16 |         1.125 |                36B |
+|    15 | QPSK       |     10/16 |          1.25 |                40B |
+|    16 | QPSK       |     11/16 |         1.375 |                44B |
+|    17 | QPSK       |     12/16 |           1.5 |                48B |
+|    18 | QPSK       |     14/16 |          1.75 |                56B |
+|    19 | QAM16      |      8/16 |             2 |                64B |
+|    20 | QAM16      |      9/16 |          2.25 |                72B |
+|    21 | QAM16      |     10/16 |           2.5 |                80B |
+|    22 | QAM16      |     11/16 |          2.75 |                88B |
+|    23 | QAM64      |      8/16 |             3 |                96B |
+|    24 | QAM64      |      9/16 |         3.375 |               108B |
+|    25 | QAM64      |     10/16 |          3.75 |               120B |
+|    26 | QAM256     |      8/16 |             4 |               128B |
+|    27 | QAM256     |      9/16 |           4.5 |               144B |
+|    28 | QAM256     |     10/16 |             5 |               160B |
+|    29 | QAM256     |     11/16 |           5.5 |               176B |
+|    30 | QAM256     |     13/16 |           6.5 |               208B |
+|    31 | QAM256     |     15/16 |           7.5 |               240B |
 
 ### Simulating
 

@@ -23,17 +23,18 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   analyzer, the meters are off until the page turns them on and take no time
   while off, and the page only redraws while at least one of them is on.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
-  interleaver (`shuffle()`), bits per tone (`bits_at()`) and the operation
-  mode in `Common::setup()`. The mode byte carries the number of payload
+  interleaver (`shuffle()`) and the operation mode in `Common::setup()`. The mode byte carries the number of payload
   symbols, 4 << (mode >> 5) from 4 to 256, and an index into the table
   `efficiency` of 32 pairs of bits per tone and code rate k / 16. The table
-  is a draft spaced from 1 / 16 to 7.5 bits per tone, with rates below 1 / 2
-  only for BPSK, and waits for measured thresholds. A frame has a single
-  code of at most order 16, so `setup()` rejects modes with more code bits.
-  `pick_mode()` picks the symbols whose frame lasts closest to the given
-  seconds and the lowest index that carries the payload, with fewer symbols
-  when the long frames can't carry it. QAM64 is left out until frames carry
-  several codewords, as its 6 bits per tone never fill a power of two. The xorshift
+  is a draft spaced from 1 / 16 to 7.5 bits per tone, each modulation from
+  rate 1 / 2 to below where the next one starts, rates below 1 / 2 only for
+  BPSK, and waits for measured thresholds. The code bits of a frame are a
+  power of two, or three times one for QAM64, split into codewords of up to
+  order 16 with a 32 bit CRC each, and the interleaver spreads them across
+  the whole frame, skipping the indices beyond its size below a power of
+  two. A frame only decodes if all its codewords do. `pick_mode()` picks
+  the symbols whose frame lasts closest to the given seconds and the lowest
+  index that carries the payload. The xorshift
   triples of the interleaver were chosen from all with full period by the
   rank of the low and of the top bits of an index together with those of
   the indices up to eight steps later, which tells how evenly neighbours
@@ -89,9 +90,8 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   each symbol the precision of each tone the soft demapper uses,
   `tone_precision` of the decoder, its estimated Es/N0, on the same scale,
   blank for erased symbols. Its constellation shows the equalized tones of
-  the latest symbol on a fixed scale: the BPSK tones of the preamble symbol, then only the payload tones
-  that carry all bits of the mode, without seed tones, the tones with fewer
-  bits that pad the code to whole symbols, or erased symbols. All views are
+  the latest symbol on a fixed scale: the BPSK tones of the preamble symbol,
+  then the payload tones, without seed tones or erased symbols. All views are
   off until the page turns them on, and take no time while off.
 - `freezer.cc`: generates the frozen bits of the metadata code in
   `polar_tables.hh`, and `tools/nested.cc` from `code` the nested tables of
