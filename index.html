@@ -48,6 +48,10 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <h1>OFDM Modem</h1>
 <p>
 <label>call sign <input id="call-sign" value="ANONYMOUS" size="9" maxlength="9"></label>
+<label>ping value <select id="ping-value"></select></label>
+<button id="ping">ping</button>
+</p>
+<p>
 <label>about <input id="seconds" type="number" min="1" max="60" value="5"> seconds</label>
 <span id="mode-info"></span>
 </p>
@@ -624,15 +628,15 @@ function update() {
 	const time = duration(wasm.symbol_count());
 	info.textContent = mode_name(wasm) + ", " + time.toFixed(1) + "s, " + (8 * capacity / time / 1000).toFixed(1) + "kb/s";
 }
-function encode(silence) {
-	const payload = message();
+/* a frame of the mode with the payload, or a ping with its value as the mode and no payload */
+function encode(silence, mode, payload) {
 	const call_sign = base40(document.getElementById("call-sign").value.trim());
 	if (call_sign <= 0n || call_sign >= 262144000000000n)
 		throw new Error("unsupported call sign");
 	const rate = context.sampleRate;
 	const chunks = [new Float32Array(Math.round(silence * rate))];
 	const take = len => chunks.push(new Float32Array(wasm.memory.buffer, wasm.audio.value, len).slice());
-	let len = wasm.start(oper_mode());
+	let len = wasm.start(mode);
 	if (len < 0)
 		throw new Error("message too long for about " + seconds() + " seconds: " + payload.length + " bytes");
 	take(len);
@@ -671,10 +675,10 @@ function wav_file(samples, rate) {
 		view.setFloat32(44 + 4 * i, samples[i], true);
 	return new Blob([view.buffer], { type: "audio/wav" });
 }
-async function play() {
+async function play(ping) {
 	try {
 		await wake(!listening);
-		const samples = encode(0.1);
+		const samples = ping ? encode(0.1, Number(document.getElementById("ping-value").value), new Uint8Array(0)) : encode(0.1, oper_mode(), message());
 		const buffer = context.createBuffer(1, samples.length, context.sampleRate);
 		buffer.copyToChannel(samples, 0);
 		const source = context.createBufferSource();
@@ -693,7 +697,7 @@ async function play() {
 }
 function save() {
 	try {
-		const samples = encode(1);
+		const samples = encode(1, oper_mode(), message());
 		const link = document.createElement("a");
 		link.href = URL.createObjectURL(wav_file(samples, context.sampleRate));
 		link.download = "encoded.wav";
@@ -715,7 +719,8 @@ async function main() {
 	}
 	for (const id of ["seconds", "message"])
 		document.getElementById(id).addEventListener("input", update);
-	document.getElementById("play").addEventListener("click", play);
+	document.getElementById("play").addEventListener("click", () => play(false));
+	document.getElementById("ping").addEventListener("click", () => play(true));
 	document.getElementById("save").addEventListener("click", save);
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("stop").addEventListener("click", () => {
@@ -725,6 +730,9 @@ async function main() {
 	document.getElementById("wav-file").addEventListener("change", decode_file);
 	for (const id of ["meters-on", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
+	const ping_value = document.getElementById("ping-value");
+	for (let value = 0; value < 32; ++value)
+		ping_value.add(new Option(value, value));
 	make_meters();
 	analyzer_controls();
 	update();
