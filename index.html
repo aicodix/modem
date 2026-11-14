@@ -387,7 +387,7 @@ function report(dec) {
 		log("call sign unsupported", true);
 	if (events & read_meta) {
 		const call = new TextDecoder().decode(new Uint8Array(dec.memory.buffer, dec.call_sign.value, 9)).trim();
-		const name = events & known_mode ? mode_name(dec) : "mode " + dec.meta_mode() + " unsupported";
+		const name = !(events & known_mode) ? "mode " + dec.meta_mode() + " unsupported" : dec.symbol_count() ? mode_name(dec) : "ping " + (dec.oper_mode() & 31);
 		log("from " + call + ", " + name, !(events & known_mode));
 	}
 	if (events & erased_symbol)

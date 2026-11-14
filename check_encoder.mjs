@@ -8,8 +8,8 @@ import fs from "fs";
 import crypto from "crypto";
 import { spawnSync } from "child_process";
 
-/* the seconds whose frame lasts closest to 4 << code payload symbols */
-const seconds = [1, 2, 3, 5, 9, 18, 35];
+/* the seconds whose frame lasts closest to 2 << code payload symbols, zero for the pings of code zero */
+const seconds = [0, 1, 2, 3, 5, 9, 18, 35];
 
 function base40(str) {
 	let acc = 0n;
@@ -74,25 +74,36 @@ for (const rate of [44100, 48000]) {
 	const module = new WebAssembly.Module(fs.readFileSync(`temp/encoder_${rate}.wasm`));
 	const wasm = new WebAssembly.Instance(module).exports;
 	wasm.__wasm_call_ctors();
-	/* the payload of every valid mode, the symbol count in the top three bits, the efficiency index in the low five */
+	/* the payload of every mode with payload symbols, their count in the top three bits, the efficiency index in the low five */
 	const payload_of = new Map();
 	for (let mode = 0; mode < 256; ++mode) {
-		const ok = wasm.start(mode) >= 0;
-		if (mode >= 224 && ok) {
-			console.log(`FAILED ${rate} Hz mode ${mode}: unsupported mode accepted`);
+		if (wasm.start(mode) < 0) {
+			console.log(`FAILED ${rate} Hz mode ${mode}: not accepted`);
+			++failed;
+		} else if (mode >> 5) {
+			payload_of.set(mode, wasm.payload_length());
+		}
+	}
+	/* pings carry their value in the mode and nothing else */
+	for (const value of [0, 7, 31]) {
+		const samples = encode(wasm, rate, value, new Uint8Array(0), call_sign);
+		fs.writeFileSync("temp/check.wav", wav_file(samples, rate));
+		const result = spawnSync("./decode", ["temp/check.wav", "temp/check.dat"], { encoding: "utf8" });
+		if (samples && result.stderr.includes(`ping ${value} received`)) {
+			++passed;
+		} else {
+			console.log(`FAILED ${rate} Hz ping ${value}`);
 			++failed;
 		}
-		if (ok)
-			payload_of.set(mode, wasm.payload_length());
 	}
 	/* every valid mode up to 32 symbols, the lowest and the highest valid index of the longer ones */
 	const modes = [];
-	for (let code = 0; code < 7; ++code) {
+	for (let code = 1; code < 8; ++code) {
 		const valid = [...payload_of.keys()].filter(mode => mode >> 5 == code);
-		modes.push(...(code < 4 ? valid : [valid[0], valid[valid.length - 1]]));
+		modes.push(...(code < 5 ? valid : [valid[0], valid[valid.length - 1]]));
 	}
 	for (const mode of modes) {
-		const name = `${rate} Hz mode ${mode} (${4 << (mode >> 5)} symbols, index ${mode & 31})`;
+		const name = `${rate} Hz mode ${mode} (${2 << (mode >> 5)} symbols, index ${mode & 31})`;
 		const length = payload_of.get(mode);
 		/* the most robust mode for exactly its payload is the mode itself */
 		if (wasm.pick_mode(seconds[mode >> 5], length) != mode) {
