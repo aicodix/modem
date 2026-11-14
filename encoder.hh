@@ -254,7 +254,7 @@ struct Encoder : public Common
 			if (i % block_length == seed_off) {
 				tone[i] = nrz(seq1());
 			} else if (j) {
-				int bits = bits_at(tone_index);
+				int bits = mod_bits;
 				tone[i] = map_bits(perm+tone_index, bits);
 				tone_index += bits;
 			} else {

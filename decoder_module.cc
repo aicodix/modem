@@ -66,8 +66,8 @@ int feed(int offset, int count)
 	// the views of the baseband need it also while waiting for a sync
 	decoder.keep_baseband = analyzer.spectrum_on || analyzer.scope_on;
 	for (int i = 0; i < count; ++i) {
-		/* the symbol and bit index of the next symbol, unless it follows a sync */
-		int symbol = decoder.symbol_index, start = decoder.bit_index;
+		/* the index of the next symbol, unless it follows a sync */
+		int symbol = decoder.symbol_index;
 		int events = decoder.feed(samples[offset+i]);
 		analyzer(decoder.input_hist()[decoder_type::buffer_len-1]);
 		/* only for the analyzer, the page doesn't need to stop for it */
@@ -77,7 +77,7 @@ int feed(int offset, int count)
 			int j = events & decoder_type::found_sync ? 0 : symbol;
 			analyzer.channel_estimate(decoder.chan);
 			analyzer.tone_precision(decoder, j);
-			analyzer.constellation_symbol(decoder, j, start);
+			analyzer.constellation_symbol(decoder, j);
 		}
 		if (events & decoder_type::real_snr)
 			analyzer.tone_snr(decoder.real_tone_snr);

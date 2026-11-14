@@ -201,7 +201,7 @@ struct Decoder : Common
 			value sp = 0, np = 0;
 			for (int i = 0; i < tone_count; ++i) {
 				if (i % block_length != seed_off) {
-					int bits = bits_at(k);
+					int bits = mod_bits;
 					cmplx hard = map_bits(perm+k, bits);
 					k += bits;
 					value s = norm(hard), e = norm(values[n++] - hard);
@@ -332,7 +332,7 @@ struct Decoder : Common
 		for (int i = 0, l = bit_index; !erased && i < tone_count; ++i) {
 			cmplx hard(1, 0);
 			if (i % block_length != seed_off) {
-				int bits = bits_at(l);
+				int bits = mod_bits;
 				demap_hard(perm+l, demod[i], bits);
 				hard = map_bits(perm+l, bits);
 				l += bits;
@@ -374,7 +374,7 @@ struct Decoder : Common
 			if (i % block_length != seed_off) {
 				if (j)
 					values[n++] = demod[i];
-				int bits = bits_at(bit_index);
+				int bits = mod_bits;
 				// more resolution after rounding, quantize() caps the slope
 				demap_soft(perm+bit_index, demod[i], value(300) * tone_precision[i], bits);
 				bit_index += bits;

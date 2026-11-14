@@ -256,10 +256,9 @@ struct Analyzer
 			return;
 		constellation[constellation_size * y + x] = -1;
 	}
-	// takes the equalized symbol j from the decoder and draws a new picture of it,
-	// the BPSK tones of the preamble symbol, of the payload symbols only the tones with all bits
+	// takes the equalized symbol j from the decoder and draws a new picture of all its tones but the seed tones
 	template <typename DECODER>
-	void constellation_symbol(DECODER &dec, int j, int start)
+	void constellation_symbol(DECODER &dec, int j)
 	{
 		if (!constellation_on)
 			return;
@@ -267,18 +266,9 @@ struct Analyzer
 			constellation[i] = 0;
 		if (dec.lost[j])
 			return;
-		for (int i = 0, l = start; i < Common::tone_count; ++i) {
-			if (i % Common::block_length == dec.seed_off)
-				continue;
-			if (!j) {
+		for (int i = 0; i < Common::tone_count; ++i)
+			if (i % Common::block_length != dec.seed_off)
 				point(dec.demod[i]);
-			} else {
-				int bits = dec.bits_at(l);
-				l += bits;
-				if (bits == dec.mod_bits)
-					point(dec.demod[i]);
-			}
-		}
 	}
 	// takes one sample of the baseband, does nothing while turned off
 	void operator()(cmplx sample)

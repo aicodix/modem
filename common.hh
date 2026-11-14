@@ -84,13 +84,6 @@ struct Common
 		return 2;
 	}
 
-	// some tones carry fewer bits, so the code length fits
-	int bits_at(int k)
-	{
-		if (mod_bits == 6 && k % 64 == 60)
-			return 4;
-		return mod_bits;
-	}
 
 	template <typename SEQ, typename TYPE>
 	static void permute(TYPE *dest, const TYPE *src, int size, bool forward)
@@ -143,13 +136,14 @@ struct Common
 			permute<CODE::XorShiftMask<int, 19, 7, 8, 1, 1>>(dest, src, bits, forward);
 	}
 
-	// the bits per tone and k of the code rate k / 16 of each efficiency index, rates below 1 / 2 only with BPSK,
-	// the highest rates only with QAM256, spaced from 1 / 16 to 7.5 bits per tone as evenly as the rates allow
+	// the bits per tone and k of the code rate k / 16 of each efficiency index. Each modulation starts at
+	// rate 1 / 2 and ends below where the next one starts, rates below 1 / 2 only with BPSK, spaced from
+	// 1 / 16 to 7.5 bits per tone as evenly as the rates allow
 	static constexpr int efficiency[32][2] = {
 		{ 1, 1 }, { 1, 2 }, { 1, 3 }, { 1, 4 }, { 1, 5 }, { 1, 6 }, { 1, 7 }, { 1, 8 },
 		{ 1, 9 }, { 1, 10 }, { 1, 11 }, { 1, 12 }, { 1, 14 }, { 2, 8 }, { 2, 9 }, { 2, 10 },
-		{ 2, 11 }, { 2, 12 }, { 2, 14 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 4, 12 },
-		{ 4, 14 }, { 8, 8 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 12 }, { 8, 13 }, { 8, 15 },
+		{ 2, 11 }, { 2, 12 }, { 2, 14 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 6, 8 },
+		{ 6, 9 }, { 6, 10 }, { 8, 8 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 13 }, { 8, 15 },
 	};
 	// the mode carries 4 << (mode >> 5) payload symbols, up to 256, and the efficiency index mode & 31.
 	// The code bits of a frame are a power of two, or three times one, and longer frames have several
