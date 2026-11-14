@@ -221,7 +221,8 @@ struct Encoder : public Common
 		for (int i = 0; i < data_bytes; ++i)
 			data[i] ^= scrambler();
 		// each codeword carries its part of the payload with its own CRC
-		int code_bits = 1 << code_order, part_bits = data_bits / codewords, part_bytes = part_bits / 8;
+		// a ping has no codewords
+		int code_bits = 1 << code_order, part_bits = codewords ? data_bits / codewords : 0, part_bytes = part_bits / 8;
 		for (int c = 0; c < codewords; ++c) {
 			const uint8_t *part = data + c * part_bytes;
 			for (int i = 0; i < part_bits; ++i)

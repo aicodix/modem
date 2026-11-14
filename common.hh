@@ -145,15 +145,27 @@ struct Common
 		{ 2, 11 }, { 2, 12 }, { 2, 14 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 6, 8 },
 		{ 6, 9 }, { 6, 10 }, { 8, 8 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 13 }, { 8, 15 },
 	};
-	// the mode carries 4 << (mode >> 5) payload symbols, up to 256, and the efficiency index mode & 31.
+	// the mode carries 2 << (mode >> 5) payload symbols, from 4 to 256, and the efficiency index mode & 31,
+	// or no payload symbols at all for mode >> 5 == 0, a ping with the value mode & 31.
 	// The code bits of a frame are a power of two, or three times one, and longer frames have several
 	// codewords of the longest code, interleaved across the whole frame
 	bool setup(int mode)
 	{
-		if (mode < 0 || mode >= 7 << 5)
+		if (mode < 0 || mode > 255)
 			return false;
+		if (!(mode >> 5)) {
+			mod_bits = 1;
+			symbol_count = 0;
+			frame_bits = 0;
+			codewords = 0;
+			code_order = 0;
+			data_bits = 0;
+			oper_mode = mode;
+			data_bytes = 0;
+			return true;
+		}
 		mod_bits = efficiency[mode & 31][0];
-		symbol_count = 4 << (mode >> 5);
+		symbol_count = 2 << (mode >> 5);
 		frame_bits = symbol_count * data_tones * mod_bits;
 		code_order = 0;
 		while (code_order < code_max && !((frame_bits >> code_order) & 1))
@@ -199,12 +211,12 @@ struct Common
 		return true;
 	}
 	// the duration of a frame in seconds is 41 / 300 times the payload symbols plus three,
-	// pick the symbols, as 4 << code, whose frame lasts closest to the given seconds
+	// pick the payload symbols, as 2 << code, whose frame lasts closest to the given seconds
 	static int symbols_code(int seconds)
 	{
-		auto off = [seconds](int code){ int d = 41 * (3 + (4 << code)) - 300 * seconds; return d < 0 ? -d : d; };
-		int best = 0;
-		for (int code = 1; code < 7; ++code)
+		auto off = [seconds](int code){ int d = 41 * (3 + (2 << code)) - 300 * seconds; return d < 0 ? -d : d; };
+		int best = 1;
+		for (int code = 2; code < 8; ++code)
 			if (off(code) < off(best))
 				best = code;
 		return best;

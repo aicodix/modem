@@ -63,6 +63,8 @@ struct Decoder : Common
 	static const int real_snr = 1 << 10;
 	static const int decoded_frame = 1 << 11;
 	static const int new_symbol = 1 << 12;
+	// a frame without payload symbols, its value is oper_mode & 31
+	static const int ping = 1 << 13;
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::DownConversion<cmplx, filter_len> ddc;
 	DSP::BipBuffer<cmplx, buffer_len> input_hist;
@@ -397,6 +399,10 @@ struct Decoder : Common
 			if (!setup(mode))
 				return;
 			events |= known_mode;
+			if (!symbol_count) {
+				events |= ping;
+				return;
+			}
 			bit_index = 0;
 			CODE::MLS seq(mls2_poly, seed_value);
 			for (int i = 0, m = 0; i < tone_count; ++i) {

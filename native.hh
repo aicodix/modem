@@ -19,6 +19,11 @@ static void print_setup(const Common &common, int mode)
 		std::cerr << "oper mode: unsupported" << std::endl;
 		return;
 	}
+	if (!common.symbol_count) {
+		std::cerr << "ping: " << (mode & 31) << std::endl;
+		std::cerr << "duration: " << 41. / 300. * 3 << "s" << std::endl;
+		return;
+	}
 	const char *modulation = common.mod_bits == 1 ? "BPSK" : common.mod_bits == 2 ? "QPSK" : common.mod_bits == 4 ? "QAM16" : common.mod_bits == 6 ? "QAM64" : "QAM256";
 	std::cerr << "symbols: " << common.symbol_count << std::endl;
 	std::cerr << "efficiency index: " << (mode & 31) << std::endl;

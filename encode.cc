@@ -59,6 +59,23 @@ void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input
 	delete encoder;
 }
 
+template <typename value, typename cmplx, int rate>
+void ping(DSP::WritePCM<value> *pcm, int64_t call_sign, int ping_value)
+{
+	auto *encoder = new Encoder<value, cmplx, rate>();
+	// a frame without payload symbols carries the value in its mode
+	if (encoder->start(ping_value)) {
+		pcm->write(encoder->audio, encoder->audio_len);
+		print_setup(*encoder, ping_value);
+		encoder->begin(nullptr, 0, call_sign);
+		while (encoder->next())
+			pcm->write(encoder->audio, encoder->audio_len);
+		encoder->stop();
+		pcm->write(encoder->audio, encoder->audio_len);
+	}
+	delete encoder;
+}
+
 int64_t base40_encoder(const char *str)
 {
 	int64_t acc = 0;
@@ -82,6 +99,7 @@ int main(int argc, char **argv)
 {
 	if (argc < 7) {
 		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CALLSIGN SECONDS INPUT.." << std::endl;
+		std::cerr << "       " << argv[0] << " OUTPUT RATE BITS CALLSIGN 0 PING" << std::endl;
 		return 1;
 	}
 
@@ -95,10 +113,15 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported call sign." << std::endl;
 		return 1;
 	}
-	// how long a frame may take, the encoder picks the closest number of symbols
+	// how long a frame may take, the encoder picks the closest number of symbols, or a ping without any
 	int seconds = std::atoi(argv[5]);
-	if (seconds < 1 || seconds > 60) {
+	if (seconds < 0 || seconds > 60) {
 		std::cerr << "Unsupported number of seconds." << std::endl;
+		return 1;
+	}
+	int ping_value = std::atoi(argv[6]);
+	if (!seconds && (argc != 7 || ping_value < 0 || ping_value > 31)) {
+		std::cerr << "A ping takes a single value from 0 to 31." << std::endl;
 		return 1;
 	}
 	int input_index = 6;
@@ -110,10 +133,16 @@ int main(int argc, char **argv)
 	int input_count = argc - input_index;
 	switch (output_rate) {
 	case 44100:
-		encode<value, cmplx, 44100>(&output_file, argv + input_index, input_count, call_sign, seconds);
+		if (seconds)
+			encode<value, cmplx, 44100>(&output_file, argv + input_index, input_count, call_sign, seconds);
+		else
+			ping<value, cmplx, 44100>(&output_file, call_sign, ping_value);
 		break;
 	case 48000:
-		encode<value, cmplx, 48000>(&output_file, argv + input_index, input_count, call_sign, seconds);
+		if (seconds)
+			encode<value, cmplx, 48000>(&output_file, argv + input_index, input_count, call_sign, seconds);
+		else
+			ping<value, cmplx, 48000>(&output_file, call_sign, ping_value);
 		break;
 	default:
 		std::cerr << "Unsupported sample rate." << std::endl;

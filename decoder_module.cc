@@ -149,6 +149,8 @@ int mod_bits()
 __attribute__((visibility("default")))
 int code_rate()
 {
+	if (!decoder.codewords)
+		return 0;
 	return decoder.data_bits / decoder.codewords >> (decoder.code_order - 4);
 }
 

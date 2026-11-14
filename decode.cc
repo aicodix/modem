@@ -39,6 +39,8 @@ void report(Decoder<value, cmplx, rate> *decoder, int events)
 	}
 	if (events & decoder_type::known_mode)
 		std::cerr << "oper mode: " << decoder->oper_mode << std::endl;
+	if (events & decoder_type::ping)
+		std::cerr << "ping " << (decoder->oper_mode & 31) << " received" << std::endl;
 	if (events & decoder_type::erased_symbol)
 		std::cerr << "seed value damaged, erasing symbol " << decoder->erased_index << std::endl;
 	if (events & decoder_type::frame_end)
