@@ -186,7 +186,7 @@ struct Decoder : Common
 		for (int i = 0; i < code_bits; ++i)
 			bit_flips += code[i] * reenc[i] <= 0;
 		events |= reencoded;
-		shuffle(perm, reenc, code_order, true);
+		shuffle(perm, reenc, 1 << code_order, true);
 		int count = 0;
 		for (int i = 0; i < tone_count; ++i)
 			tone_sp[i] = tone_np[i] = 0;
@@ -223,7 +223,7 @@ struct Decoder : Common
 	}
 	int64_t meta_data()
 	{
-		shuffle(code, perm, 8, false);
+		shuffle(code, perm, 256, false);
 		polar_decoder(nullptr, mesg, code, frozen_256_72, 8);
 		int best = -1;
 		for (int k = 0; k < mesg_type::SIZE; ++k) {
@@ -240,7 +240,7 @@ struct Decoder : Common
 		for (int i = 0; i < 72; ++i)
 			perm[i] = mesg[i].v[best] < 0 ? -1 : 1;
 		polar_encoder(code, perm, frozen_256_72, 8);
-		shuffle(meta, code, 8, true);
+		shuffle(meta, code, 256, true);
 		uint64_t md = 0;
 		for (int i = 0; i < 56; ++i)
 			md |= uint64_t(mesg[i].v[best] < 0) << i;
@@ -458,7 +458,7 @@ struct Decoder : Common
 		es_n0[2] = DSP::decibel(snr[snr_count-1]);
 		events |= frame_end;
 		crc_bits = data_bits + 32;
-		shuffle(code, perm, code_order, false);
+		shuffle(code, perm, 1 << code_order, false);
 		polar_decoder(nullptr, mesg, code, frozen_bits, code_order);
 		int best = -1;
 		for (int k = 0; k < mesg_type::SIZE; ++k) {

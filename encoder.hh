@@ -163,7 +163,7 @@ struct Encoder : public Common
 		for (int i = 0; i < 16; ++i)
 			mesg[i+56] = nrz((crc0() >> i) & 1);
 		polar_encoder(code, mesg, frozen_256_72, 8);
-		shuffle(meta, code, 8, true);
+		shuffle(meta, code, 256, true);
 	}
 	cmplx map_bits(code_type *b, int bits)
 	{
@@ -228,7 +228,7 @@ struct Encoder : public Common
 		for (int i = 0; i < 32; ++i)
 			mesg[i+data_bits] = nrz((crc1()>>i)&1);
 		polar_encoder(code, mesg, frozen_bits, code_order);
-		shuffle(perm, code, code_order, true);
+		shuffle(perm, code, 1 << code_order, true);
 		prepare(call_sign);
 		return true;
 	}

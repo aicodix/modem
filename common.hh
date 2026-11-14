@@ -93,7 +93,11 @@ struct Common
 		SEQ seq;
 		dest[0] = src[0];
 		for (int i = 1; i < size; ++i) {
-			int j = seq();
+			// below a power of two, skip the indices beyond the size
+			int j;
+			do
+				j = seq();
+			while (j >= size);
 			if (forward)
 				dest[i] = src[j];
 			else
@@ -101,34 +105,37 @@ struct Common
 		}
 	}
 
-	// forward interleaves the code bits like the encoder, backward undoes it like the decoder
+	// forward interleaves the given number of code bits like the encoder, backward undoes it like the decoder
 	// the xorshift triples have the fewest linear dependencies between the low bits, and between the top bits,
 	// of an index and of the indices up to eight steps later, as ranked by tools/rank.cc of code
 	template <typename TYPE>
-	static void shuffle(TYPE *dest, const TYPE *src, int order, bool forward)
+	static void shuffle(TYPE *dest, const TYPE *src, int bits, bool forward)
 	{
+		int order = 0;
+		while (1 << order < bits)
+			++order;
 		if (order == 8)
-			permute<CODE::XorShiftMask<int, 8, 3, 5, 5, 1>>(dest, src, 256, forward);
+			permute<CODE::XorShiftMask<int, 8, 3, 5, 5, 1>>(dest, src, bits, forward);
 		else if (order == 10)
-			permute<CODE::XorShiftMask<int, 10, 3, 7, 8, 1>>(dest, src, 1024, forward);
+			permute<CODE::XorShiftMask<int, 10, 3, 7, 8, 1>>(dest, src, bits, forward);
 		else if (order == 11)
-			permute<CODE::XorShiftMask<int, 11, 7, 5, 3, 1>>(dest, src, 2048, forward);
+			permute<CODE::XorShiftMask<int, 11, 7, 5, 3, 1>>(dest, src, bits, forward);
 		else if (order == 12)
-			permute<CODE::XorShiftMask<int, 12, 5, 7, 11, 1>>(dest, src, 4096, forward);
+			permute<CODE::XorShiftMask<int, 12, 5, 7, 11, 1>>(dest, src, bits, forward);
 		else if (order == 13)
-			permute<CODE::XorShiftMask<int, 13, 4, 7, 5, 1>>(dest, src, 8192, forward);
+			permute<CODE::XorShiftMask<int, 13, 4, 7, 5, 1>>(dest, src, bits, forward);
 		else if (order == 14)
-			permute<CODE::XorShiftMask<int, 14, 3, 7, 9, 1>>(dest, src, 16384, forward);
+			permute<CODE::XorShiftMask<int, 14, 3, 7, 9, 1>>(dest, src, bits, forward);
 		else if (order == 15)
-			permute<CODE::XorShiftMask<int, 15, 13, 8, 5, 1>>(dest, src, 32768, forward);
+			permute<CODE::XorShiftMask<int, 15, 13, 8, 5, 1>>(dest, src, bits, forward);
 		else if (order == 16)
-			permute<CODE::XorShiftMask<int, 16, 9, 7, 13, 1>>(dest, src, 65536, forward);
+			permute<CODE::XorShiftMask<int, 16, 9, 7, 13, 1>>(dest, src, bits, forward);
 		else if (order == 17)
-			permute<CODE::XorShiftMask<int, 17, 8, 9, 14, 1>>(dest, src, 131072, forward);
+			permute<CODE::XorShiftMask<int, 17, 8, 9, 14, 1>>(dest, src, bits, forward);
 		else if (order == 18)
-			permute<CODE::XorShiftMask<int, 18, 3, 7, 4, 1>>(dest, src, 262144, forward);
+			permute<CODE::XorShiftMask<int, 18, 3, 7, 4, 1>>(dest, src, bits, forward);
 		else if (order == 19)
-			permute<CODE::XorShiftMask<int, 19, 7, 8, 1, 1>>(dest, src, 524288, forward);
+			permute<CODE::XorShiftMask<int, 19, 7, 8, 1, 1>>(dest, src, bits, forward);
 	}
 
 	// the bits per tone and k of the code rate k / 16 of each efficiency index, rates below 1 / 2 only with BPSK,
