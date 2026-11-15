@@ -50,7 +50,7 @@ struct Common
 	CODE::CRC<uint16_t> crc0;
 	CODE::CRC<uint32_t> crc1;
 	CODE::HadamardEncoder<7> hadamard_encoder;
-	int8_t seed[seed_tones];
+	int8_t seed[seed_tones], seed_code[seed_tones];
 	uint8_t data[data_max];
 	uint32_t frozen_bits[bits_max / 32];
 	int mod_bits;
@@ -134,6 +134,22 @@ struct Common
 			permute<CODE::XorShiftMask<int, 18, 3, 7, 4, 1>>(dest, src, bits, forward);
 		else if (order == 19)
 			permute<CODE::XorShiftMask<int, 19, 7, 8, 1, 1>>(dest, src, bits, forward);
+	}
+
+	// forward spreads the bits of a seed codeword across the seed tones like the encoder, backward undoes it like the decoder.
+	// Of all xorshift triples with full period, this one keeps the most Hamming distance between the seed codewords
+	// on the seed tones left over, when a burst of adjacent seed tones is lost
+	template <typename TYPE>
+	static void seed_shuffle(TYPE *dest, const TYPE *src, bool forward)
+	{
+		permute<CODE::XorShiftMask<int, 6, 1, 3, 3, 1>>(dest, src, seed_tones, forward);
+	}
+
+	// the seed codeword of the given value, as it goes onto the seed tones
+	void seed_encode(int seed_value)
+	{
+		hadamard_encoder(seed_code, seed_value);
+		seed_shuffle(seed, seed_code, true);
 	}
 
 	// the bits per tone and k of the code rate k / 16 of each efficiency index. Each modulation starts at

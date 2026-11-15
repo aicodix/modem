@@ -273,7 +273,8 @@ struct Decoder : Common
 			demod[i] = demod_or_erase(tone[i], chan[i]);
 		for (int i = 0; i < seed_tones; ++i)
 			seed[i] = clamp(std::nearbyint(127 * demod[i*block_length+seed_off].real()));
-		int seed_value = hadamard_decoder(seed);
+		seed_shuffle(seed_code, seed, false);
+		int seed_value = hadamard_decoder(seed_code);
 		bool erased = seed_value < 0;
 		lost[j] = erased;
 		if (erased && !j) {
@@ -287,7 +288,7 @@ struct Decoder : Common
 			for (int i = 0; i < tone_count; ++i)
 				demod[i] = 0;
 		} else {
-			hadamard_encoder(seed, seed_value);
+			seed_encode(seed_value);
 			for (int i = 0; i < seed_tones; ++i) {
 				tone[block_length*i+seed_off] *= seed[i];
 				demod[block_length*i+seed_off] *= seed[i];

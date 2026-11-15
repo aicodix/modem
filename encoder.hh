@@ -87,7 +87,7 @@ struct Encoder : public Common
 			for (int seed_value = 0; seed_value < 128; ++seed_value) {
 				for (int i = 0; i < tone_count; ++i)
 					temp[i] = tone[i];
-				hadamard_encoder(seed, seed_value);
+				seed_encode(seed_value);
 				for (int i = 0; i < seed_tones; ++i)
 					temp[i*block_length+seed_off] *= seed[i];
 				if (seed_value) {
