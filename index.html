@@ -54,6 +54,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </p>
 <p>
 <label>about <input id="seconds" type="number" min="1" max="60" value="5"> seconds</label>
+<label><input type="checkbox" id="bpsk"> BPSK only</label>
 <span id="mode-info"></span>
 </p>
 <p id="message-input"><textarea id="message" rows="8">Hello World!</textarea></p>
@@ -270,9 +271,10 @@ function base40(str) {
 function seconds() {
 	return Number(document.getElementById("seconds").value);
 }
-/* the most robust mode that carries the message in about the given seconds, or -1 */
+/* the most robust mode that carries the message in about the given seconds, or -1,
+   only from the BPSK modes for bad channels if asked for */
 function oper_mode() {
-	return wasm.pick_mode(seconds(), message().length);
+	return wasm.pick_mode(seconds(), message().length, document.getElementById("bpsk").checked ? 1 : 0);
 }
 /* the mode a module is set up for */
 function mode_name(module) {
@@ -791,6 +793,7 @@ async function main() {
 		return;
 	}
 	document.getElementById("seconds").addEventListener("input", update);
+	document.getElementById("bpsk").addEventListener("change", update);
 	document.getElementById("message").addEventListener("input", edit_message);
 	document.getElementById("send-file").addEventListener("change", load_send_file);
 	document.getElementById("download").addEventListener("click", () => download(received));

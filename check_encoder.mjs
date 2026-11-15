@@ -75,15 +75,16 @@ for (const rate of [44100, 48000]) {
 	const wasm = new WebAssembly.Instance(module).exports;
 	wasm.__wasm_call_ctors();
 	/* the payload of every mode with payload symbols, their count in the top three bits, the efficiency index in the low five */
-	const payload_of = new Map();
+	/* and which of them are BPSK modes, picked only on request */
+	const payload_of = new Map(), bpsk = new Set();
 	for (let mode = 0; mode < 256; ++mode) {
-		/* the efficiency indices from 27 on are reserved */
-		const reserved = (mode >> 5) && (mode & 31) >= 27;
-		if ((wasm.start(mode) < 0) != reserved) {
-			console.log(`FAILED ${rate} Hz mode ${mode}: ${reserved ? "reserved but accepted" : "not accepted"}`);
+		if (wasm.start(mode) < 0) {
+			console.log(`FAILED ${rate} Hz mode ${mode}: not accepted`);
 			++failed;
-		} else if (mode >> 5 && !reserved) {
+		} else if (mode >> 5) {
 			payload_of.set(mode, wasm.payload_length());
+			if (wasm.mod_bits() == 1)
+				bpsk.add(mode);
 		}
 	}
 	/* pings carry their value in the mode and nothing else */
@@ -107,8 +108,8 @@ for (const rate of [44100, 48000]) {
 	for (const mode of modes) {
 		const name = `${rate} Hz mode ${mode} (${2 << (mode >> 5)} symbols, index ${mode & 31})`;
 		const length = payload_of.get(mode);
-		/* the most robust mode for exactly its payload is the mode itself */
-		if (wasm.pick_mode(seconds[mode >> 5], length) != mode) {
+		/* the most robust mode of its kind for exactly its payload is the mode itself */
+		if (wasm.pick_mode(seconds[mode >> 5], length, bpsk.has(mode) ? 1 : 0) != mode) {
 			console.log(`FAILED ${name}: pick_mode`);
 			++failed;
 			continue;
@@ -137,12 +138,14 @@ for (const rate of [44100, 48000]) {
 			++failed;
 		}
 	}
-	/* no mode carries more than the largest payload */
-	const largest = Math.max(...payload_of.values());
-	for (const s of seconds) {
-		if (wasm.pick_mode(s, largest + 1) != -1) {
-			console.log(`FAILED ${rate} Hz ${s} seconds: payload too long accepted`);
-			++failed;
+	/* no mode carries more than the largest payload of its kind */
+	for (const only_bpsk of [0, 1]) {
+		const largest = Math.max(...[...payload_of].filter(([m]) => bpsk.has(m) == !!only_bpsk).map(([, p]) => p));
+		for (const s of seconds) {
+			if (wasm.pick_mode(s, largest + 1, only_bpsk) != -1) {
+				console.log(`FAILED ${rate} Hz ${s} seconds${only_bpsk ? " BPSK" : ""}: payload too long accepted`);
+				++failed;
+			}
 		}
 	}
 }

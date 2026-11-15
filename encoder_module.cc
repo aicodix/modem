@@ -35,13 +35,14 @@ int start(int oper_mode)
 	return copy_audio();
 }
 
-/* the most robust mode that carries length bytes in about the given seconds, or -1 if none does */
+/* the most robust mode that carries length bytes in about the given seconds, or -1 if none does,
+   only from the BPSK modes if bpsk is not zero */
 __attribute__((visibility("default")))
-int pick_mode(int seconds, int length)
+int pick_mode(int seconds, int length, int bpsk)
 {
 	if (seconds < 1 || seconds > 60 || length < 0 || length > Common::data_max)
 		return -1;
-	return encoder.pick_mode(seconds, length);
+	return encoder.pick_mode(seconds, length, bpsk != 0);
 }
 
 __attribute__((visibility("default")))

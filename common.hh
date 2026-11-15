@@ -132,14 +132,16 @@ struct Common
 		seed_shuffle(seed, seed_code, true);
 	}
 
-	// the bits per tone and k of the code rate k / 16 of each efficiency index, the measured pairs that no
-	// other pair beats in both bits per tone and threshold, from the most robust to the least. It starts at
-	// BPSK 4 / 16, where the preamble already fails, and the indices from 27 on are reserved, with 0 bits
+	// the bits per tone and k of the code rate k / 16 of each efficiency index, each set from the most robust
+	// to the least. First the measured pairs from QPSK 3 / 16 to QAM256 15 / 16 that no other pair beats in
+	// both bits per tone and threshold, then the BPSK modes for bad channels, picked only on request:
+	// the low rates for fast fading, 6 / 16 and 8 / 16 for phase noise
+	static const int bpsk_first = 26;
 	static constexpr int efficiency[32][2] = {
-		{ 1, 4 }, { 2, 3 }, { 2, 4 }, { 2, 5 }, { 2, 6 }, { 2, 7 }, { 2, 8 }, { 2, 9 },
-		{ 2, 10 }, { 2, 11 }, { 4, 6 }, { 4, 7 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 },
-		{ 4, 12 }, { 6, 9 }, { 6, 10 }, { 6, 11 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 12 },
-		{ 8, 13 }, { 8, 14 }, { 8, 15 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
+		{ 2, 3 }, { 2, 4 }, { 2, 5 }, { 2, 6 }, { 2, 7 }, { 2, 8 }, { 2, 9 }, { 2, 10 },
+		{ 2, 11 }, { 4, 6 }, { 4, 7 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 4, 12 },
+		{ 6, 9 }, { 6, 10 }, { 6, 11 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 12 }, { 8, 13 },
+		{ 8, 14 }, { 8, 15 }, { 1, 1 }, { 1, 2 }, { 1, 3 }, { 1, 4 }, { 1, 6 }, { 1, 8 },
 	};
 	// the mode carries 2 << (mode >> 5) payload symbols, from 4 to 256, and the efficiency index mode & 31,
 	// or no payload symbols at all for mode >> 5 == 0, a ping with the value mode & 31.
@@ -160,8 +162,6 @@ struct Common
 			data_bytes = 0;
 			return true;
 		}
-		if (!efficiency[mode & 31][0])
-			return false;
 		mod_bits = efficiency[mode & 31][0];
 		symbol_count = 2 << (mode >> 5);
 		frame_bits = symbol_count * data_tones * mod_bits;
@@ -220,11 +220,11 @@ struct Common
 		return best;
 	}
 	// the most robust mode, the lowest efficiency index, that carries length bytes in about the given seconds,
-	// set up for it, or -1 if none does
-	int pick_mode(int seconds, int length)
+	// set up for it, or -1 if none does. Only BPSK modes if asked for, and never otherwise
+	int pick_mode(int seconds, int length, bool bpsk = false)
 	{
 		int code = symbols_code(seconds);
-		for (int index = 0; index < 32; ++index) {
+		for (int index = bpsk ? bpsk_first : 0; index < (bpsk ? 32 : bpsk_first); ++index) {
 			int mode = code << 5 | index;
 			if (setup(mode) && data_bytes >= length)
 				return mode;

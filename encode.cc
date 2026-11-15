@@ -21,7 +21,7 @@ int read_digital(uint8_t *payload, int length, const char *input_name)
 }
 
 template <typename value, typename cmplx, int rate>
-void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int64_t call_sign, int seconds)
+void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input_count, int64_t call_sign, int seconds, bool bpsk)
 {
 	auto *encoder = new Encoder<value, cmplx, rate>();
 	uint8_t payload[Common::data_max];
@@ -34,7 +34,7 @@ void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input
 		if (length < 0)
 			continue;
 		// the most robust mode that carries all of the input in about the given seconds
-		int oper_mode = encoder->pick_mode(seconds, length);
+		int oper_mode = encoder->pick_mode(seconds, length, bpsk);
 		if (oper_mode < 0) {
 			std::cerr << "Input \"" << input_name << "\" too long for about " << seconds << " seconds." << std::endl;
 			continue;
@@ -99,6 +99,7 @@ int main(int argc, char **argv)
 {
 	if (argc < 7) {
 		std::cerr << "usage: " << argv[0] << " OUTPUT RATE BITS CALLSIGN SECONDS INPUT.." << std::endl;
+		std::cerr << "       " << argv[0] << " OUTPUT RATE BITS CALLSIGN -SECONDS INPUT.." << std::endl;
 		std::cerr << "       " << argv[0] << " OUTPUT RATE BITS CALLSIGN 0 PING" << std::endl;
 		return 1;
 	}
@@ -113,9 +114,13 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported call sign." << std::endl;
 		return 1;
 	}
-	// how long a frame may take, the encoder picks the closest number of symbols, or a ping without any
+	// how long a frame may take, the encoder picks the closest number of symbols, or a ping without any.
+	// Negative seconds pick from the BPSK modes for bad channels
 	int seconds = std::atoi(argv[5]);
-	if (seconds < 0 || seconds > 60) {
+	bool bpsk = seconds < 0;
+	if (bpsk)
+		seconds = -seconds;
+	if (seconds > 60) {
 		std::cerr << "Unsupported number of seconds." << std::endl;
 		return 1;
 	}
@@ -134,13 +139,13 @@ int main(int argc, char **argv)
 	switch (output_rate) {
 	case 44100:
 		if (seconds)
-			encode<value, cmplx, 44100>(&output_file, argv + input_index, input_count, call_sign, seconds);
+			encode<value, cmplx, 44100>(&output_file, argv + input_index, input_count, call_sign, seconds, bpsk);
 		else
 			ping<value, cmplx, 44100>(&output_file, call_sign, ping_value);
 		break;
 	case 48000:
 		if (seconds)
-			encode<value, cmplx, 48000>(&output_file, argv + input_index, input_count, call_sign, seconds);
+			encode<value, cmplx, 48000>(&output_file, argv + input_index, input_count, call_sign, seconds, bpsk);
 		else
 			ping<value, cmplx, 48000>(&output_file, call_sign, ping_value);
 		break;

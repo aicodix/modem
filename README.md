@@ -58,7 +58,7 @@ Stream audio out of the encoder:
 ### Supported Modes
 
 All modes need a bandwidth of 2400 Hz.
-The encoder picks the mode from SECONDS and the length of the input: first the number of payload symbols whose frame lasts closest to SECONDS, then the lowest efficiency index, the most robust mode, that carries all of the input.
+The encoder picks the mode from SECONDS and the length of the input: first the number of payload symbols whose frame lasts closest to SECONDS, then the lowest efficiency index, the most robust mode, that carries all of the input, from the BPSK modes only for a negative SECONDS.
 An input that no mode carries in about SECONDS is refused.
 The decoder writes the whole payload of the mode, so a shorter input comes back padded with zeros.
 The code bits of a frame are split into polar codewords of up to 65536 bits, each with its own 32 bit CRC, and interleaved across the whole frame.
@@ -77,38 +77,54 @@ These are the frames for each number of payload symbols:
 |     256 |    35.4s | 27 .. 60 |
 
 These are the efficiencies, the payload grows with the number of symbols.
-The threshold is the noise level of `awgn` from [disorders](https://github.com/aicodix/disorders) at which half of the frames of 32 symbols decode on AWGN with CFO and SFO, a higher level is more noise. BPSK is meant for fading channels and has no AWGN threshold.
-The indices from 27 to 31 are reserved.
+The threshold is the noise level of `awgn` from [disorders](https://github.com/aicodix/disorders) at which half of the frames of 32 symbols decode on AWGN with CFO and SFO, a higher level is more noise.
 
 | Index | Modulation | Code rate | Bits per tone | Payload per symbol | Threshold |
 | ----- | ---------- | --------- | ------------- | ------------------ | --------- |
-|     0 | BPSK       |      4/16 |          0.25 |                 8B |         - |
-|     1 | QPSK       |      3/16 |         0.375 |                12B |      -1.0 |
-|     2 | QPSK       |      4/16 |           0.5 |                16B |      -2.0 |
-|     3 | QPSK       |      5/16 |         0.625 |                20B |      -2.8 |
-|     4 | QPSK       |      6/16 |          0.75 |                24B |      -3.6 |
-|     5 | QPSK       |      7/16 |         0.875 |                28B |      -4.2 |
-|     6 | QPSK       |      8/16 |             1 |                32B |      -4.8 |
-|     7 | QPSK       |      9/16 |         1.125 |                36B |      -5.5 |
-|     8 | QPSK       |     10/16 |          1.25 |                40B |      -6.2 |
-|     9 | QPSK       |     11/16 |         1.375 |                44B |      -6.8 |
-|    10 | QAM16      |      6/16 |           1.5 |                48B |      -8.0 |
-|    11 | QAM16      |      7/16 |          1.75 |                56B |      -9.0 |
-|    12 | QAM16      |      8/16 |             2 |                64B |      -9.9 |
-|    13 | QAM16      |      9/16 |          2.25 |                72B |     -10.8 |
-|    14 | QAM16      |     10/16 |           2.5 |                80B |     -11.7 |
-|    15 | QAM16      |     11/16 |          2.75 |                88B |     -12.5 |
-|    16 | QAM16      |     12/16 |             3 |                96B |     -13.6 |
-|    17 | QAM64      |      9/16 |         3.375 |               108B |     -15.2 |
-|    18 | QAM64      |     10/16 |          3.75 |               120B |     -16.3 |
-|    19 | QAM64      |     11/16 |         4.125 |               132B |     -17.6 |
-|    20 | QAM256     |      9/16 |           4.5 |               144B |     -19.3 |
-|    21 | QAM256     |     10/16 |             5 |               160B |     -20.8 |
-|    22 | QAM256     |     11/16 |           5.5 |               176B |     -22.2 |
-|    23 | QAM256     |     12/16 |             6 |               192B |     -23.6 |
-|    24 | QAM256     |     13/16 |           6.5 |               208B |     -25.2 |
-|    25 | QAM256     |     14/16 |             7 |               224B |     -26.8 |
-|    26 | QAM256     |     15/16 |           7.5 |               240B |     -29.0 |
+|     0 | QPSK       |      3/16 |         0.375 |                12B |      -1.0 |
+|     1 | QPSK       |      4/16 |           0.5 |                16B |      -2.0 |
+|     2 | QPSK       |      5/16 |         0.625 |                20B |      -2.8 |
+|     3 | QPSK       |      6/16 |          0.75 |                24B |      -3.6 |
+|     4 | QPSK       |      7/16 |         0.875 |                28B |      -4.2 |
+|     5 | QPSK       |      8/16 |             1 |                32B |      -4.8 |
+|     6 | QPSK       |      9/16 |         1.125 |                36B |      -5.5 |
+|     7 | QPSK       |     10/16 |          1.25 |                40B |      -6.2 |
+|     8 | QPSK       |     11/16 |         1.375 |                44B |      -6.8 |
+|     9 | QAM16      |      6/16 |           1.5 |                48B |      -8.0 |
+|    10 | QAM16      |      7/16 |          1.75 |                56B |      -9.0 |
+|    11 | QAM16      |      8/16 |             2 |                64B |      -9.9 |
+|    12 | QAM16      |      9/16 |          2.25 |                72B |     -10.8 |
+|    13 | QAM16      |     10/16 |           2.5 |                80B |     -11.7 |
+|    14 | QAM16      |     11/16 |          2.75 |                88B |     -12.5 |
+|    15 | QAM16      |     12/16 |             3 |                96B |     -13.6 |
+|    16 | QAM64      |      9/16 |         3.375 |               108B |     -15.2 |
+|    17 | QAM64      |     10/16 |          3.75 |               120B |     -16.3 |
+|    18 | QAM64      |     11/16 |         4.125 |               132B |     -17.6 |
+|    19 | QAM256     |      9/16 |           4.5 |               144B |     -19.3 |
+|    20 | QAM256     |     10/16 |             5 |               160B |     -20.8 |
+|    21 | QAM256     |     11/16 |           5.5 |               176B |     -22.2 |
+|    22 | QAM256     |     12/16 |             6 |               192B |     -23.6 |
+|    23 | QAM256     |     13/16 |           6.5 |               208B |     -25.2 |
+|    24 | QAM256     |     14/16 |             7 |               224B |     -26.8 |
+|    25 | QAM256     |     15/16 |           7.5 |               240B |     -29.0 |
+
+The BPSK modes are for bad channels and only picked on request, with a negative SECONDS for the encoder, or with "BPSK only" on the page:
+
+```
+./encode encoded.wav 48000 32 ANONYMOUS -5 uncoded.dat
+```
+
+Their low rates survive fast fading, 6/16 and 8/16 are for phase noise.
+Decoded are the frames of 32 symbols out of 64 on a [Watterson](https://github.com/aicodix/disorders) channel with a delay of 2 ms and a spread of 0.5 or 1 Hz, without noise:
+
+| Index | Code rate | Bits per tone | Payload per symbol | Decoded at 0.5 Hz | Decoded at 1 Hz |
+| ----- | --------- | ------------- | ------------------ | ----------------- | --------------- |
+|    26 |      1/16 |        0.0625 |                 2B |               86% |             48% |
+|    27 |      2/16 |         0.125 |                 4B |               81% |             36% |
+|    28 |      3/16 |        0.1875 |                 6B |               78% |             25% |
+|    29 |      4/16 |          0.25 |                 8B |               77% |             19% |
+|    30 |      6/16 |         0.375 |                12B |               73% |             17% |
+|    31 |      8/16 |           0.5 |                16B |               72% |             19% |
 
 ### Pings
 

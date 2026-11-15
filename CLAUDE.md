@@ -26,20 +26,24 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   interleaver (`shuffle()`) and the operation mode in `Common::setup()`.
   The mode byte carries the number of payload symbols, 2 << (mode >> 5)
   from 4 to 256, and an index into the table `efficiency` of 32 pairs of
-  bits per tone and code rate k / 16. The table holds the 27 measured pairs
-  that no other pair beats in both bits per tone and threshold, listed under
-  "Design decisions", from the most robust to the least, starting at BPSK
-  4 / 16, where the preamble already fails. Of the tie at 4.5 bits per tone
-  it keeps QAM256 9/16, 1 dB better than QAM64 12/16 on the Watterson
-  channel. The indices from 27 on are reserved: `setup()` refuses them.
+  bits per tone and code rate k / 16, each set from the most robust to the
+  least. Indices 0 to 25 hold the measured pairs from QPSK 3/16 to QAM256
+  15/16 that no other pair beats in both bits per tone and threshold,
+  listed under "Design decisions". Of the tie at 4.5 bits per tone it keeps
+  QAM256 9/16, 1 dB better than QAM64 12/16 on the Watterson channel. From
+  `bpsk_first`, 26 to 31 hold BPSK 1/16, 2/16, 3/16, 4/16, 6/16 and 8/16
+  for bad channels, which `pick_mode()` only picks when asked for, for a
+  negative SECONDS of `encode` or "BPSK only" on the page, and never
+  otherwise.
   The code bits of a frame are a power of two, or three times one for
   QAM64, split into codewords of up to order 16 with a 32 bit CRC each,
   and the interleaver spreads them across
   the whole frame, skipping the indices beyond its size below a power of
   two. A frame only decodes if all its codewords do. `pick_mode()` picks
   the symbols whose frame lasts closest to the given seconds and the lowest
-  index that carries the payload. A mode with mode >> 5 of zero is a ping,
-  a frame without payload symbols, that only carries the value mode & 31.
+  index of the asked for set that carries the payload. A mode with
+  mode >> 5 of zero is a ping, a frame without payload symbols, that only
+  carries the value mode & 31.
   The xorshift
   triples of the interleaver were chosen from all with full period by the
   rank of the low and of the top bits of an index together with those of
@@ -364,7 +368,18 @@ channel, also near threshold:
   14/16 -26.8, 15/16 -29.0.
   Every curve falls from all to none of the frames without an error floor.
   Multipath is left out, as that of a room depends too much on the room.
-  BPSK is left for a Watterson channel, where fading, not noise, decides.
+  BPSK is measured on a Watterson channel, where fading, not noise, decides.
+- BPSK and QPSK from 1/16 and 3/16 to 15/16 and 8/16 on a Watterson channel
+  with 2 ms delay, 64 seeds of fading and noise, at 32 symbols with CFO and
+  SFO: at 1 Hz spread without noise, BPSK 1/16, 2/16, 3/16 and 4/16 decode
+  31, 23, 16 and 12 frames, so lower rates pay off where the fading
+  limits, and only BPSK goes that low. At 0.5 Hz they decode 55 to 49, at
+  0.1 Hz all of them, where noise again decides. At the same bits per tone
+  QPSK decodes as many frames as BPSK or more, also on fading, as QPSK 3/16
+  against BPSK 6/16 and QPSK 4/16 against BPSK 8/16. So BPSK above 4/16
+  only pays off for phase noise, which the disorders tools don't simulate,
+  and from 10/16 on it falls off quickly even at 0.1 Hz. The BPSK set keeps
+  1/16 to 4/16 for fading and 6/16 and 8/16 for phase noise.
 - Earlier thresholds of 54 pairs of modulation and rate k / 16, from BPSK
   1/16 to QAM256 15/16, with the mode forced, at 32 symbols, as the `awgn`
   level of the disorders tools at which half of the frames decode,
