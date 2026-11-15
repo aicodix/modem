@@ -32,8 +32,9 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   4 / 16, where the preamble already fails. Of the tie at 4.5 bits per tone
   it keeps QAM256 9/16, 1 dB better than QAM64 12/16 on the Watterson
   channel. The indices from 27 on are reserved: `setup()` refuses them.
-  The code bits of a frame are a power of two, or three times one for QAM64, split into codewords of up to
-  order 16 with a 32 bit CRC each, and the interleaver spreads them across
+  The code bits of a frame are a power of two, or three times one for
+  QAM64, split into codewords of up to order 16 with a 32 bit CRC each,
+  and the interleaver spreads them across
   the whole frame, skipping the indices beyond its size below a power of
   two. A frame only decodes if all its codewords do. `pick_mode()` picks
   the symbols whose frame lasts closest to the given seconds and the lowest
@@ -349,12 +350,27 @@ channel, also near threshold:
   permutations. Near threshold on static multipath and the Watterson
   channel, 336 paired trials decoded 23 frames only with the new and 27 only
   with the old interleavers: no measurable difference.
-- Thresholds of 54 pairs of modulation and rate k / 16, from BPSK 1/16 to
-  QAM256 15/16, with the mode forced, at 32 symbols, as the `awgn` level of
-  the disorders tools at which half of the frames decode, interpolated from
-  16 seeds per 1 dB step on static multipath with CFO and SFO. A higher
-  level is more noise. Those that no other pair beats in both bits per tone
-  and threshold:
+- Thresholds of the 26 pairs of the table from QPSK 3/16 on, measured again
+  on the current robusto, with the mode forced by a payload of exactly its
+  size, at 32 symbols, as the `awgn` level at which half of the frames
+  decode, interpolated from 32 seeds per 0.5 dB step on AWGN with a CFO of
+  234.567 Hz and an SFO of 147 ppm. A higher level is more noise:
+  QPSK 3/16 -1.0, 4/16 -2.0, 5/16 -2.8, 6/16 -3.6, 7/16 -4.2, 8/16 -4.8,
+  9/16 -5.5, 10/16 -6.2, 11/16 -6.8;
+  QAM16 6/16 -8.0, 7/16 -9.0, 8/16 -9.9, 9/16 -10.8, 10/16 -11.7,
+  11/16 -12.5, 12/16 -13.6;
+  QAM64 9/16 -15.2, 10/16 -16.3, 11/16 -17.6;
+  QAM256 9/16 -19.3, 10/16 -20.8, 11/16 -22.2, 12/16 -23.6, 13/16 -25.2,
+  14/16 -26.8, 15/16 -29.0.
+  Every curve falls from all to none of the frames without an error floor.
+  Multipath is left out, as that of a room depends too much on the room.
+  BPSK is left for a Watterson channel, where fading, not noise, decides.
+- Earlier thresholds of 54 pairs of modulation and rate k / 16, from BPSK
+  1/16 to QAM256 15/16, with the mode forced, at 32 symbols, as the `awgn`
+  level of the disorders tools at which half of the frames decode,
+  interpolated from 16 seeds per 1 dB step on static multipath with CFO and
+  SFO, before the changes since. A higher level is more noise. Those that
+  no other pair beats in both bits per tone and threshold:
   BPSK 1/16 -0.7, 2/16 -0.8, 4/16 -1.0;
   QPSK 3/16 -1.5, 4/16 -2.5, 5/16 -3.5, 6/16 -4.5, 7/16 -5.3, 8/16 -5.6,
   9/16 -6.5, 10/16 -7.5, 11/16 -8.5;
