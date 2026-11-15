@@ -33,7 +33,7 @@ struct Encoder : public Common
 	value papr[symbols_max];
 	value audio[audio_max];
 	int audio_len;
-	int symbol_index, tone_index, meta_index;
+	int symbol_index, tone_index, meta_index, seed_start;
 
 	static int bin(int carrier)
 	{
@@ -82,8 +82,11 @@ struct Encoder : public Common
 			for (int i = 0; i < symbol_len; ++i)
 				tdom[i] *= scale;
 		} else {
+			// start after the seed of the symbol before, so consecutive symbols rarely get the same seed
 			value best_papr = 1000;
-			for (int seed_value = 0; seed_value < 128; ++seed_value) {
+			int best_seed = seed_start;
+			for (int k = 0; k < 128; ++k) {
+				int seed_value = (seed_start + k) & 127;
 				for (int i = 0; i < tone_count; ++i)
 					temp[i] = tone[i];
 				seed_encode(seed_value);
@@ -112,6 +115,7 @@ struct Encoder : public Common
 				value test_papr(peak / mean);
 				if (test_papr < best_papr) {
 					best_papr = test_papr;
+					best_seed = seed_value;
 					papr[symbol_number] = test_papr;
 					for (int i = 0; i < symbol_len; ++i)
 						tdom[i] = test[i];
@@ -119,6 +123,7 @@ struct Encoder : public Common
 						break;
 				}
 			}
+			seed_start = (best_seed + 1) & 127;
 		}
 		clipping_and_filtering(scale);
 		if (symbol_number != -1) {
@@ -204,6 +209,7 @@ struct Encoder : public Common
 	void prepare(int64_t call_sign)
 	{
 		meta_data((call_sign << 8) | oper_mode);
+		seed_start = 0;
 		symbol_index = -2;
 		tone_index = 0;
 		meta_index = 0;

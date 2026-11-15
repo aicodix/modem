@@ -334,6 +334,14 @@ channel, also near threshold:
   instead of 96 seed values. Other MLS of degree 6 to 11 did the same, apart
   from 0x6d, which only turns codewords into codewords. Worst cases stayed
   at about 7.5 to 7.7 dB either way.
+- The search of SLM starts after the seed value of the symbol before, from 0
+  at each frame, and ends at the first seed value below 7 dB. Starting from
+  0 at each symbol, BPSK, which ends early, used only about 84 of the 126
+  seed values that SLM picks, one of them for 7 percent of the symbols, and
+  gave a symbol the seed value of the one before 3.4 percent of the time.
+  Now it uses all 126 about evenly and never repeats one, with the same
+  PAPR. Denser modulations mostly search all 128 seed values, so where they
+  start doesn't matter. The decoder doesn't change.
 - The interleaver triples ranked by `tools/rank.cc` replaced hand-picked
   ones whose pairs of indices clustered far beyond those of random
   permutations. Near threshold on static multipath and the Watterson
