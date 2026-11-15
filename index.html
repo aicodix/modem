@@ -17,6 +17,7 @@ p { margin: 0.75em 0; }
 #status, #log { font-family: monospace; white-space: pre-wrap; }
 .failed { color: red; }
 #seconds { width: 4em; }
+#bpsk-only { margin: 0 1em; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
 canvas[hidden] { display: none; }
 #channel-power, #channel-phase, #channel-snr, #channel-precision { margin: 0.5em auto; }
@@ -54,7 +55,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </p>
 <p>
 <label>about <input id="seconds" type="number" min="1" max="60" value="5"> seconds</label>
-<label><input type="checkbox" id="bpsk"> BPSK only</label>
+<label id="bpsk-only"><input type="checkbox" id="bpsk"> BPSK only</label>
 <span id="mode-info"></span>
 </p>
 <p id="message-input"><textarea id="message" rows="8">Hello World!</textarea></p>
