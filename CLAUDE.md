@@ -318,6 +318,22 @@ channel, also near threshold:
 - The decoder doesn't trust the channel estimate of the sync for the whole
   frame. It tracks the channel with the seed tones of every symbol and
   weights the soft bits of each tone by its own channel power and noise.
+  - Each symbol moves the estimate halfway to the seed tones and a third of
+    the way to the spline between them, an average over a few symbols. On a
+    Watterson channel with 1 Hz spread that lags behind the fading, which
+    left a real Es/N0 of about 0 dB even without noise. Only BPSK is meant
+    for such skywave channels, so only BPSK follows each symbol more: all
+    the way to the seed tones and two thirds to the spline. At 32 symbols,
+    64 seeds, CFO and SFO, at 1 Hz without noise BPSK 1/16, 2/16, 3/16,
+    4/16, 6/16 and 8/16 decoded 42, 37, 33, 32, 27 and 27 frames instead of
+    25, 21, 18, 14, 12 and 13, at 1 Hz and an `awgn` level of -10 27 to 17
+    instead of 20 to 6, and at 0.5 Hz and -3, where noise decides, about as
+    many as before. On AWGN it cost at most 0.2 dB for 1/16 to 4/16, which
+    the preamble limits anyway, and 0.5 to 0.6 dB for 6/16 and 8/16.
+    Following only the current symbol gained more without noise, but cost
+    up to 1.3 dB on AWGN and lost frames where noise decides. The other
+    modes keep the averaging: no averaging would have cost them 1.3 to
+    1.9 dB on AWGN, and they aren't meant for such channels.
 - The noise of each tone is measured on known symbols only: the difference
   of the two sync symbols, then the seed tones, which take turns over all
   tones. Hard decisions on the payload get the noise of faded
@@ -388,17 +404,18 @@ channel, also near threshold:
   - Multipath is left out, as that of a room depends too much on the room.
     BPSK is measured on a Watterson channel, where fading, not noise,
     decides.
-- BPSK and QPSK from 1/16 and 3/16 to 15/16 and 8/16 on a Watterson channel
-  with 2 ms delay, 64 seeds of fading and noise, at 32 symbols with CFO and
-  SFO: at 1 Hz spread without noise, BPSK 1/16, 2/16, 3/16 and 4/16 decode
-  31, 23, 16 and 12 frames, so lower rates pay off where the fading
-  limits, and only BPSK goes that low. At 0.5 Hz they decode 55 to 49, at
-  0.1 Hz all of them, where noise again decides. At the same bits per tone
-  QPSK decodes as many frames as BPSK or more, also on fading, as QPSK 3/16
-  against BPSK 6/16 and QPSK 4/16 against BPSK 8/16. So BPSK above 4/16
-  only pays off for phase noise, which the disorders tools don't simulate,
-  and from 10/16 on it falls off quickly even at 0.1 Hz. The BPSK set keeps
-  1/16 to 4/16 for fading and 6/16 and 8/16 for phase noise.
+- BPSK and QPSK from 1/16 and 3/16 to 15/16 and 8/16 on a Watterson channel,
+  before BPSK tracked the channel faster (see above), with 2 ms delay, 64
+  seeds of fading and noise, at 32 symbols with CFO and SFO: at 1 Hz spread
+  without noise, BPSK 1/16, 2/16, 3/16 and 4/16 decode 31, 23, 16 and 12
+  frames, so lower rates pay off where the fading limits, and only BPSK goes
+  that low. At 0.5 Hz they decode 55 to 49, at 0.1 Hz all of them, where
+  noise again decides. At the same bits per tone QPSK decodes as many frames
+  as BPSK or more, also on fading, as QPSK 3/16 against BPSK 6/16 and QPSK
+  4/16 against BPSK 8/16. So BPSK above 4/16 only pays off for phase noise,
+  which the disorders tools don't simulate, and from 10/16 on it falls off
+  quickly even at 0.1 Hz. The BPSK set keeps 1/16 to 4/16 for fading and
+  6/16 and 8/16 for phase noise.
   - Unlike on AWGN, the payload, not the preamble, limits there: without
     noise, sync never failed, and the preamble lost the same 5 of 64 frames
     at 1 Hz in every mode and none at 0.5 Hz, so it would let about 92

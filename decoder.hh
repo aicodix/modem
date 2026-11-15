@@ -305,7 +305,10 @@ struct Decoder : Common
 			phase_rad += tse.yint();
 			if (j) {
 				// update all tones with the seed tones of this symbol, interpolated values with a lower weight
-				// keep the estimate where a seed tone changed far more than the median, as with a carrier
+				// keep the estimate where a seed tone changed far more than the median, as with a carrier.
+				// BPSK is for skywave, whose fading is faster, so it follows the seed tones of each symbol more
+				value seed_weight = mod_bits == 1 ? value(1) : value(0.5);
+				value data_weight = mod_bits == 1 ? value(2) / value(3) : value(1) / value(3);
 				for (int i = 0; i < seed_tones; ++i)
 					sorted[i] = innov[i] = norm(tone[block_length*i+seed_off] - chan[block_length*i+seed_off]);
 				value limit = 10 * DSP::quick_select(sorted, seed_tones / 2, seed_tones);
@@ -314,9 +317,9 @@ struct Decoder : Common
 				DSP::UniformNaturalCubicSpline<seed_tones, cmplx, value> spline(knots, seed_off, block_length);
 				for (int i = 0; i < tone_count; ++i) {
 					if (i % block_length == seed_off) {
-						chan[i] = DSP::lerp(chan[i], knots[i/block_length], value(0.5));
+						chan[i] = DSP::lerp(chan[i], knots[i/block_length], seed_weight);
 					} else {
-						chan[i] = DSP::lerp(chan[i], spline(i), value(1) / value(3));
+						chan[i] = DSP::lerp(chan[i], spline(i), data_weight);
 						demod[i] = demod_or_erase(tone[i], chan[i]);
 					}
 				}
