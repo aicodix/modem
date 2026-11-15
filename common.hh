@@ -133,16 +133,17 @@ struct Common
 	}
 
 	// the bits per tone and k of the code rate k / 16 of each efficiency index, each set from the most robust
-	// to the least. First the measured pairs from QPSK 3 / 16 to QAM256 15 / 16 that no other pair beats in
-	// both bits per tone and threshold, then the BPSK modes for bad channels, picked only on request:
-	// the low rates for fast fading, 6 / 16 and 8 / 16 for phase noise
+	// to the least. First the pairs from QPSK 3 / 16 to QAM256 15 / 16 that no other pair beats in both bits
+	// per tone and threshold on AWGN, without those that add less than about 0.6 dB, then the BPSK modes for
+	// bad channels, picked only on request: the low rates for fast fading, 6 / 16 and 8 / 16 for phase noise
 	static const int bpsk_first = 26;
 	static constexpr int efficiency[32][2] = {
-		{ 2, 3 }, { 2, 4 }, { 2, 5 }, { 2, 6 }, { 2, 7 }, { 2, 8 }, { 2, 9 }, { 2, 10 },
-		{ 2, 11 }, { 4, 6 }, { 4, 7 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 4, 12 },
-		{ 6, 9 }, { 6, 10 }, { 6, 11 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 12 }, { 8, 13 },
+		{ 2, 3 }, { 2, 4 }, { 2, 5 }, { 2, 6 }, { 2, 8 }, { 2, 9 }, { 2, 10 }, { 2, 12 },
+		{ 2, 13 }, { 4, 7 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 4, 12 }, { 4, 13 },
+		{ 4, 14 }, { 6, 11 }, { 6, 12 }, { 6, 13 }, { 6, 14 }, { 8, 11 }, { 8, 12 }, { 8, 13 },
 		{ 8, 14 }, { 8, 15 }, { 1, 1 }, { 1, 2 }, { 1, 3 }, { 1, 4 }, { 1, 6 }, { 1, 8 },
 	};
+
 	// the mode carries 2 << (mode >> 5) payload symbols, from 4 to 256, and the efficiency index mode & 31,
 	// or no payload symbols at all for mode >> 5 == 0, a ping with the value mode & 31.
 	// The code bits of a frame are a power of two, or three times one, and longer frames have several

@@ -27,14 +27,13 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   The mode byte carries the number of payload symbols, 2 << (mode >> 5)
   from 4 to 256, and an index into the table `efficiency` of 32 pairs of
   bits per tone and code rate k / 16, each set from the most robust to the
-  least. Indices 0 to 25 hold the measured pairs from QPSK 3/16 to QAM256
-  15/16 that no other pair beats in both bits per tone and threshold,
-  listed under "Design decisions". Of the tie at 4.5 bits per tone it keeps
-  QAM256 9/16, 1 dB better than QAM64 12/16 on the Watterson channel. From
-  `bpsk_first`, 26 to 31 hold BPSK 1/16, 2/16, 3/16, 4/16, 6/16 and 8/16
-  for bad channels, which `pick_mode()` only picks when asked for, for a
-  negative SECONDS of `encode` or "BPSK only" on the page, and never
-  otherwise.
+  least. Indices 0 to 25 hold the pairs from QPSK 3/16 to QAM256 15/16
+  that no other pair beats in both bits per tone and threshold on AWGN,
+  without those that add less than about 0.6 dB, listed under "Design
+  decisions". From `bpsk_first`, 26 to 31 hold BPSK 1/16, 2/16, 3/16,
+  4/16, 6/16 and 8/16 for bad channels, which `pick_mode()` only picks
+  when asked for, for a negative SECONDS of `encode` or "BPSK only" on the
+  page, and never otherwise.
   The code bits of a frame are a power of two, or three times one for
   QAM64, split into codewords of up to order 16 with a 32 bit CRC each,
   and the interleaver spreads them across
@@ -354,21 +353,40 @@ channel, also near threshold:
   permutations. Near threshold on static multipath and the Watterson
   channel, 336 paired trials decoded 23 frames only with the new and 27 only
   with the old interleavers: no measurable difference.
-- Thresholds of the 26 pairs of the table from QPSK 3/16 on, measured again
-  on the current robusto, with the mode forced by a payload of exactly its
-  size, at 32 symbols, as the `awgn` level at which half of the frames
-  decode, interpolated from 32 seeds per 0.5 dB step on AWGN with a CFO of
-  234.567 Hz and an SFO of 147 ppm. A higher level is more noise:
-  QPSK 3/16 -1.0, 4/16 -2.0, 5/16 -2.8, 6/16 -3.6, 7/16 -4.2, 8/16 -4.8,
-  9/16 -5.5, 10/16 -6.2, 11/16 -6.8;
-  QAM16 6/16 -8.0, 7/16 -9.0, 8/16 -9.9, 9/16 -10.8, 10/16 -11.7,
-  11/16 -12.5, 12/16 -13.6;
-  QAM64 9/16 -15.2, 10/16 -16.3, 11/16 -17.6;
-  QAM256 9/16 -19.3, 10/16 -20.8, 11/16 -22.2, 12/16 -23.6, 13/16 -25.2,
-  14/16 -26.8, 15/16 -29.0.
-  Every curve falls from all to none of the frames without an error floor.
-  Multipath is left out, as that of a room depends too much on the room.
-  BPSK is measured on a Watterson channel, where fading, not noise, decides.
+- Thresholds of all 60 pairs of QPSK, QAM16, QAM64 and QAM256 with rates
+  from 1/16 to 15/16, measured on the current robusto with the mode forced,
+  at 32 symbols, as the `awgn` level at which half of the frames decode,
+  bisected to 0.5 dB steps of 32 seeds each and interpolated, on AWGN with a
+  CFO of 234.567 Hz and an SFO of 147 ppm. A higher level is more noise.
+  Those that no other pair beats in both bits per tone and threshold:
+  QPSK 1/16 -0.2, 2/16 -0.5, 3/16 -1.0, 4/16 -1.9, 5/16 -2.8, 6/16 -3.6,
+  7/16 -4.2, 8/16 -4.8, 9/16 -5.5, 10/16 -6.2, 11/16 -6.8, 12/16 -7.6,
+  13/16 -8.3;
+  QAM16 7/16 -9.1, 8/16 -9.8, 9/16 -10.8, 10/16 -11.7, 11/16 -12.6,
+  12/16 -13.4, 13/16 -14.6, 14/16 -15.8;
+  QAM64 9/16 -15.3, 10/16 -16.3, 11/16 -17.7, 12/16 -18.8, 13/16 -20.1,
+  14/16 -21.5, 15/16 -23.4;
+  QAM256 10/16 -20.7, 11/16 -22.2, 12/16 -23.7, 13/16 -25.2, 14/16 -26.8,
+  15/16 -28.9.
+  - Unlike the earlier measurement, the highest rates of each modulation now
+    beat the next modulation at the same bits per tone: QPSK 12/16 beats
+    QAM16 6/16 by 0.6 dB, QAM16 13/16 and 14/16 beat QAM64 at the same bits
+    per tone by about 0.5 dB, and QAM64 12/16 beats QAM256 9/16 by 0.5 dB.
+    Every curve falls from all to none of the frames without an error floor,
+    and the 26 pairs of the table before came out within 0.1 dB of the run
+    before this one.
+  - The table leaves out QPSK 1/16 and 2/16, only 0.6 to 0.8 dB beyond QPSK
+    3/16 where the preamble limits, as the BPSK modes cover bad channels,
+    and QPSK 7/16 and 11/16, QAM64 9/16, 10/16 and 15/16 and QAM256 10/16,
+    as each adds less than about 0.6 dB to its neighbours. Its steps are 0.7
+    to 1.5 dB, 1.9 dB from QAM16 14/16 to QAM64 11/16 and 2.1 dB to QAM256
+    15/16. Where two modulations came close, it keeps the lower one, which
+    suffers less from phase noise. Code lengths differ between the
+    modulations, so the order may shift a little at other numbers of
+    symbols.
+  - Multipath is left out, as that of a room depends too much on the room.
+    BPSK is measured on a Watterson channel, where fading, not noise,
+    decides.
 - BPSK and QPSK from 1/16 and 3/16 to 15/16 and 8/16 on a Watterson channel
   with 2 ms delay, 64 seeds of fading and noise, at 32 symbols with CFO and
   SFO: at 1 Hz spread without noise, BPSK 1/16, 2/16, 3/16 and 4/16 decode
