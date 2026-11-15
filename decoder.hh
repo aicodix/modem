@@ -107,7 +107,6 @@ struct Decoder : Common
 	int symbol_pos;
 	int crc_bits;
 	DSP::Phasor<cmplx> osc;
-	CODE::MLS seq1;
 	int sample_count, countdown, pending;
 	// how many samples the preamble waited after the sync delay for the frame before to end
 	int late;
@@ -267,8 +266,6 @@ struct Decoder : Common
 		}
 		for (int i = 0; i < tone_count; ++i)
 			tone[i] = fdom[bin(i+tone_off)];
-		for (int i = seed_off; i < tone_count; i += block_length)
-			tone[i] *= nrz(seq1());
 		for (int i = 0; i < tone_count; ++i)
 			demod[i] = demod_or_erase(tone[i], chan[i]);
 		for (int i = 0; i < seed_tones; ++i)
@@ -581,7 +578,6 @@ struct Decoder : Common
 		window(buf, middle + (symbol_len + extended_len) * step);
 		for (int i = 0; i < guard_len; ++i)
 			osc();
-		seq1.reset();
 		mod_bits = 1;
 		oper_mode = -1;
 		symbol_count = 0;
@@ -594,7 +590,7 @@ struct Decoder : Common
 		frac = offset + (symbol_len + extended_len) * (step - 1);
 		process(buf);
 	}
-	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), seq1(mls1_poly), sample_count(0), countdown(0), pending(0), late(0), keep_baseband(false)
+	Decoder() : ddc(-1500, rate, DSP::LowPass<value>(value(1275) / value(rate)), DSP::Kaiser<value>(2)), sample_count(0), countdown(0), pending(0), late(0), keep_baseband(false)
 	{
 	}
 	// mixes and filters the whole raw input again, as nothing did while waiting for a sync

@@ -21,7 +21,6 @@ struct Encoder : public Common
 	DSP::FastFourierTransform<symbol_len, cmplx, -1> fwd;
 	DSP::FastFourierTransform<symbol_len, cmplx, 1> bwd;
 	CODE::PolarEncoder<code_type> polar_encoder;
-	CODE::MLS seq1;
 	code_type code[frame_max], perm[frame_max], mesg[bits_max], meta[data_tones];
 	cmplx fdom[symbol_len];
 	cmplx tdom[symbol_len];
@@ -190,7 +189,7 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
-	Encoder() : seq1(mls1_poly), audio_len(0), symbol_index(-3)
+	Encoder() : audio_len(0), symbol_index(-3)
 	{
 		guard_interval_weights();
 	}
@@ -205,7 +204,6 @@ struct Encoder : public Common
 	void prepare(int64_t call_sign)
 	{
 		meta_data((call_sign << 8) | oper_mode);
-		seq1.reset();
 		symbol_index = -2;
 		tone_index = 0;
 		meta_index = 0;
@@ -253,7 +251,7 @@ struct Encoder : public Common
 		seed_off = (block_skew * j + first_seed) % block_length;
 		for (int i = 0; i < tone_count; ++i) {
 			if (i % block_length == seed_off) {
-				tone[i] = nrz(seq1());
+				tone[i] = 1;
 			} else if (j) {
 				int bits = mod_bits;
 				tone[i] = map_bits(perm+tone_index, bits);

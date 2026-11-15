@@ -320,6 +320,20 @@ channel, also near threshold:
   more than twice the median, as with interference in part of the band,
   and white noise keeps the weights of the channel power alone.
 
+- The seed tones carry the codeword of the seed without a scrambler. As the
+  xorshift of `seed_shuffle()` is linear, every permuted codeword on the
+  seed tones after the first is a shift of the MLS of poly 0x6d or its
+  complement, apart from the all equal ones of seed values 0 and 64, which
+  SLM avoids. Without the permutation, the Walsh codes on the evenly spaced
+  seed tones are peaky and needed scrambling by the MLS of poly 0x43,
+  running across the symbols of a frame: without it, the median PAPR after
+  SLM over 256 symbols of QPSK to QAM256 rose from 7.06 to 7.88 dB, and all
+  128 seed values were tried. With the permutation, that scrambler raised it
+  from 7.01 to 7.08 dB, 68 instead of 55 percent of the symbols stayed above
+  the 7 dB that ends the search early, and each symbol tried about 106
+  instead of 96 seed values. Other MLS of degree 6 to 11 did the same, apart
+  from 0x6d, which only turns codewords into codewords. Worst cases stayed
+  at about 7.5 to 7.7 dB either way.
 - The interleaver triples ranked by `tools/rank.cc` replaced hand-picked
   ones whose pairs of indices clustered far beyond those of random
   permutations. Near threshold on static multipath and the Watterson
