@@ -132,14 +132,14 @@ struct Common
 		seed_shuffle(seed, seed_code, true);
 	}
 
-	// the bits per tone and k of the code rate k / 16 of each efficiency index. Each modulation starts at
-	// rate 1 / 2 and ends below where the next one starts, rates below 1 / 2 only with BPSK, spaced from
-	// 1 / 16 to 7.5 bits per tone as evenly as the rates allow
+	// the bits per tone and k of the code rate k / 16 of each efficiency index, the measured pairs that no
+	// other pair beats in both bits per tone and threshold, from the most robust to the least. It starts at
+	// BPSK 4 / 16, where the preamble already fails, and the indices from 27 on are reserved, with 0 bits
 	static constexpr int efficiency[32][2] = {
-		{ 1, 1 }, { 1, 2 }, { 1, 3 }, { 1, 4 }, { 1, 5 }, { 1, 6 }, { 1, 7 }, { 1, 8 },
-		{ 1, 9 }, { 1, 10 }, { 1, 11 }, { 1, 12 }, { 1, 14 }, { 2, 8 }, { 2, 9 }, { 2, 10 },
-		{ 2, 11 }, { 2, 12 }, { 2, 14 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 }, { 6, 8 },
-		{ 6, 9 }, { 6, 10 }, { 8, 8 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 13 }, { 8, 15 },
+		{ 1, 4 }, { 2, 3 }, { 2, 4 }, { 2, 5 }, { 2, 6 }, { 2, 7 }, { 2, 8 }, { 2, 9 },
+		{ 2, 10 }, { 2, 11 }, { 4, 6 }, { 4, 7 }, { 4, 8 }, { 4, 9 }, { 4, 10 }, { 4, 11 },
+		{ 4, 12 }, { 6, 9 }, { 6, 10 }, { 6, 11 }, { 8, 9 }, { 8, 10 }, { 8, 11 }, { 8, 12 },
+		{ 8, 13 }, { 8, 14 }, { 8, 15 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
 	};
 	// the mode carries 2 << (mode >> 5) payload symbols, from 4 to 256, and the efficiency index mode & 31,
 	// or no payload symbols at all for mode >> 5 == 0, a ping with the value mode & 31.
@@ -160,6 +160,8 @@ struct Common
 			data_bytes = 0;
 			return true;
 		}
+		if (!efficiency[mode & 31][0])
+			return false;
 		mod_bits = efficiency[mode & 31][0];
 		symbol_count = 2 << (mode >> 5);
 		frame_bits = symbol_count * data_tones * mod_bits;

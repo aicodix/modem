@@ -77,10 +77,12 @@ for (const rate of [44100, 48000]) {
 	/* the payload of every mode with payload symbols, their count in the top three bits, the efficiency index in the low five */
 	const payload_of = new Map();
 	for (let mode = 0; mode < 256; ++mode) {
-		if (wasm.start(mode) < 0) {
-			console.log(`FAILED ${rate} Hz mode ${mode}: not accepted`);
+		/* the efficiency indices from 27 on are reserved */
+		const reserved = (mode >> 5) && (mode & 31) >= 27;
+		if ((wasm.start(mode) < 0) != reserved) {
+			console.log(`FAILED ${rate} Hz mode ${mode}: ${reserved ? "reserved but accepted" : "not accepted"}`);
 			++failed;
-		} else if (mode >> 5) {
+		} else if (mode >> 5 && !reserved) {
 			payload_of.set(mode, wasm.payload_length());
 		}
 	}

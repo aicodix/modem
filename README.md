@@ -76,42 +76,39 @@ These are the frames for each number of payload symbols:
 |     128 |    17.9s | 14 .. 26 |
 |     256 |    35.4s | 27 .. 60 |
 
-These are the efficiencies, the payload grows with the number of symbols:
+These are the efficiencies, the payload grows with the number of symbols.
+The threshold is the noise level of `awgn` from [disorders](https://github.com/aicodix/disorders) at which half of the frames of 32 symbols decode on static multipath with CFO and SFO, a higher level is more noise.
+The indices from 27 to 31 are reserved.
 
-| Index | Modulation | Code rate | Bits per tone | Payload per symbol |
-| ----- | ---------- | --------- | ------------- | ------------------ |
-|     0 | BPSK       |      1/16 |        0.0625 |                 2B |
-|     1 | BPSK       |      2/16 |         0.125 |                 4B |
-|     2 | BPSK       |      3/16 |        0.1875 |                 6B |
-|     3 | BPSK       |      4/16 |          0.25 |                 8B |
-|     4 | BPSK       |      5/16 |        0.3125 |                10B |
-|     5 | BPSK       |      6/16 |         0.375 |                12B |
-|     6 | BPSK       |      7/16 |        0.4375 |                14B |
-|     7 | BPSK       |      8/16 |           0.5 |                16B |
-|     8 | BPSK       |      9/16 |        0.5625 |                18B |
-|     9 | BPSK       |     10/16 |         0.625 |                20B |
-|    10 | BPSK       |     11/16 |        0.6875 |                22B |
-|    11 | BPSK       |     12/16 |          0.75 |                24B |
-|    12 | BPSK       |     14/16 |         0.875 |                28B |
-|    13 | QPSK       |      8/16 |             1 |                32B |
-|    14 | QPSK       |      9/16 |         1.125 |                36B |
-|    15 | QPSK       |     10/16 |          1.25 |                40B |
-|    16 | QPSK       |     11/16 |         1.375 |                44B |
-|    17 | QPSK       |     12/16 |           1.5 |                48B |
-|    18 | QPSK       |     14/16 |          1.75 |                56B |
-|    19 | QAM16      |      8/16 |             2 |                64B |
-|    20 | QAM16      |      9/16 |          2.25 |                72B |
-|    21 | QAM16      |     10/16 |           2.5 |                80B |
-|    22 | QAM16      |     11/16 |          2.75 |                88B |
-|    23 | QAM64      |      8/16 |             3 |                96B |
-|    24 | QAM64      |      9/16 |         3.375 |               108B |
-|    25 | QAM64      |     10/16 |          3.75 |               120B |
-|    26 | QAM256     |      8/16 |             4 |               128B |
-|    27 | QAM256     |      9/16 |           4.5 |               144B |
-|    28 | QAM256     |     10/16 |             5 |               160B |
-|    29 | QAM256     |     11/16 |           5.5 |               176B |
-|    30 | QAM256     |     13/16 |           6.5 |               208B |
-|    31 | QAM256     |     15/16 |           7.5 |               240B |
+| Index | Modulation | Code rate | Bits per tone | Payload per symbol | Threshold |
+| ----- | ---------- | --------- | ------------- | ------------------ | --------- |
+|     0 | BPSK       |      4/16 |          0.25 |                 8B |      -1.0 |
+|     1 | QPSK       |      3/16 |         0.375 |                12B |      -1.5 |
+|     2 | QPSK       |      4/16 |           0.5 |                16B |      -2.5 |
+|     3 | QPSK       |      5/16 |         0.625 |                20B |      -3.5 |
+|     4 | QPSK       |      6/16 |          0.75 |                24B |      -4.5 |
+|     5 | QPSK       |      7/16 |         0.875 |                28B |      -5.3 |
+|     6 | QPSK       |      8/16 |             1 |                32B |      -5.6 |
+|     7 | QPSK       |      9/16 |         1.125 |                36B |      -6.5 |
+|     8 | QPSK       |     10/16 |          1.25 |                40B |      -7.5 |
+|     9 | QPSK       |     11/16 |         1.375 |                44B |      -8.5 |
+|    10 | QAM16      |      6/16 |           1.5 |                48B |      -8.7 |
+|    11 | QAM16      |      7/16 |          1.75 |                56B |      -9.8 |
+|    12 | QAM16      |      8/16 |             2 |                64B |     -10.6 |
+|    13 | QAM16      |      9/16 |          2.25 |                72B |     -11.6 |
+|    14 | QAM16      |     10/16 |           2.5 |                80B |     -12.5 |
+|    15 | QAM16      |     11/16 |          2.75 |                88B |     -13.5 |
+|    16 | QAM16      |     12/16 |             3 |                96B |     -14.9 |
+|    17 | QAM64      |      9/16 |         3.375 |               108B |     -16.4 |
+|    18 | QAM64      |     10/16 |          3.75 |               120B |     -17.5 |
+|    19 | QAM64      |     11/16 |         4.125 |               132B |     -18.7 |
+|    20 | QAM256     |      9/16 |           4.5 |               144B |     -20.5 |
+|    21 | QAM256     |     10/16 |             5 |               160B |     -22.5 |
+|    22 | QAM256     |     11/16 |           5.5 |               176B |     -24.4 |
+|    23 | QAM256     |     12/16 |             6 |               192B |     -26.3 |
+|    24 | QAM256     |     13/16 |           6.5 |               208B |     -28.5 |
+|    25 | QAM256     |     14/16 |             7 |               224B |     -31.5 |
+|    26 | QAM256     |     15/16 |           7.5 |               240B |     -38.2 |
 
 ### Pings
 

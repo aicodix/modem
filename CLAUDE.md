@@ -26,11 +26,13 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   interleaver (`shuffle()`) and the operation mode in `Common::setup()`.
   The mode byte carries the number of payload symbols, 2 << (mode >> 5)
   from 4 to 256, and an index into the table `efficiency` of 32 pairs of
-  bits per tone and code rate k / 16. The table is a draft spaced from
-  1 / 16 to 7.5 bits per tone, each modulation from rate 1 / 2 to below
-  where the next one starts, rates below 1 / 2 only for BPSK, and waits for
-  measured thresholds. The code bits of a frame are a
-  power of two, or three times one for QAM64, split into codewords of up to
+  bits per tone and code rate k / 16. The table holds the 27 measured pairs
+  that no other pair beats in both bits per tone and threshold, listed under
+  "Design decisions", from the most robust to the least, starting at BPSK
+  4 / 16, where the preamble already fails. Of the tie at 4.5 bits per tone
+  it keeps QAM256 9/16, 1 dB better than QAM64 12/16 on the Watterson
+  channel. The indices from 27 on are reserved: `setup()` refuses them.
+  The code bits of a frame are a power of two, or three times one for QAM64, split into codewords of up to
   order 16 with a 32 bit CRC each, and the interleaver spreads them across
   the whole frame, skipping the indices beyond its size below a power of
   two. A frame only decodes if all its codewords do. `pick_mode()` picks
