@@ -380,6 +380,17 @@ channel, also near threshold:
   only pays off for phase noise, which the disorders tools don't simulate,
   and from 10/16 on it falls off quickly even at 0.1 Hz. The BPSK set keeps
   1/16 to 4/16 for fading and 6/16 and 8/16 for phase noise.
+  - Unlike on AWGN, the payload, not the preamble, limits there: without
+    noise, sync never failed, and the preamble lost the same 5 of 64 frames
+    at 1 Hz in every mode and none at 0.5 Hz, so it would let about 92
+    percent through at 1 Hz, where BPSK 1/16 decodes 48. All other frames
+    failed in the payload, which is why each lower rate still gains.
+  - The gain of 1/16 and 2/16 holds with some noise: at 1 Hz and an `awgn`
+    level of -15, BPSK 1/16 to 4/16 decode 30, 20, 16 and 14 frames, at -10
+    17, 17, 13 and 13, and at 0.5 Hz and -3, near where noise decides, 22,
+    14, 14 and 10. Their flatter FER curves keep them from the error rates
+    of the higher rates on good channels, but where fading limits they get
+    the most frames through.
 - Earlier thresholds of 54 pairs of modulation and rate k / 16, from BPSK
   1/16 to QAM256 15/16, with the mode forced, at 32 symbols, as the `awgn`
   level of the disorders tools at which half of the frames decode,
