@@ -185,6 +185,56 @@ so code must:
 - Sizes are fixed at compile time with fixed-size member arrays. Avoid heap
   allocation in the signal path.
 
+## Frozen air interface
+
+The scheme is in use by a BBS and is frozen: frames sent today have to decode
+with every later decoder. Don't change anything on the air. A change that
+can't be avoided needs a different sync sequence, as `next` and `robusto`
+have, so neither finds the frames of the other: the sync is the version.
+
+On the air, and frozen:
+
+- The signal: real audio at 44100 or 48000 Hz, 320 tones 7.5 Hz apart
+  centered at 1500 Hz, symbols of `guard_len * 40` samples with a guard
+  interval of `guard_len = rate / 300`, so a symbol and its guard last
+  41 / 300 seconds, and the shape of the guard interval from
+  `guard_interval_weights()`.
+- The frame: one symbol of leading noise from the MLS of `mls2_poly`, two
+  identical sync symbols of BPSK from the MLS of `mls0_poly` 0x2d1 from
+  `mls0_seed` 214, the preamble symbol, 2 << (mode >> 5) payload symbols,
+  none for a ping, and the closing guard interval.
+- The preamble: 48 bits of the base 40 call sign and 8 bits of the mode,
+  with the CRC-16 of poly 0xA8F4, polar coded with `frozen_256_72`,
+  interleaved by `shuffle()` over 256 bits and sent as BPSK on its data
+  tones.
+- The mode: the meaning of the mode byte and the table `efficiency`, its
+  32 pairs of modulation and rate in their order, and `setup()`, which
+  derives the code length, the number of codewords and the frozen bits.
+- The seed tones: every fifth tone from `seed_off`, which moves by
+  `block_skew` from `first_seed` each symbol, carrying the codeword of
+  `HadamardEncoder<7>` of the seed value, spread by `seed_shuffle()`, and
+  the scrambling of the other tones of a symbol by the MLS of `mls2_poly`
+  0x163 from the seed value, none for seed value 0.
+- The payload: zero padding to the payload of the mode, the `Xorshift32`
+  scrambler from its default state, the split into codewords of
+  `data_bits / codewords` bits, each with its CRC-32 of poly 0x8F6E37A0,
+  the bits of each byte from the lowest, the nested polar tables and the
+  polar encoder of `code`, `shuffle()` with its xorshift triples over the
+  whole frame, and the order of the code bits over the data tones and
+  symbols.
+- The constellations of `psk.hh` and `qam.hh`, with their bit mapping.
+- The tables in `polar_tables.hh`, even if `freezer.cc` or `tools/nested.cc`
+  in `code` change: regenerating them must not change them.
+
+Not on the air, and free to change:
+
+- Which seed value SLM picks and how it searches, and the clipping and
+  filtering of the encoder, as long as the tones stay those of the frame.
+- Which mode `pick_mode()` picks, and with it the options of `encode` and
+  the page.
+- Everything in the decoder: sync detection, timing, tracking, demapping,
+  the polar list decoder.
+
 ## Design decisions
 
 The signal is made for audio channels such as room acoustics, audio equipment
@@ -466,10 +516,10 @@ channel, also near threshold:
 
 ## Conventions worth knowing
 
-- Encoder and decoder must stay in step. A change to anything on the air, such
-  as the mode table, preamble, sequences, scrambler, frozen bits or constellation
-  mapping, changes both sides, and the README tables when durations, payloads
-  or bitrates change.
+- Encoder and decoder must stay in step, and the air interface is frozen,
+  see "Frozen air interface". A change to anything on the air, such as the
+  mode table, preamble, sequences, scrambler, frozen bits or constellation
+  mapping, would break every frame already sent.
 - Soft demapping produces int16 LLRs for a min-sum polar list decoder, which
   ignores their overall scale. What matters is resolution after rounding and
   headroom against saturation. `quantize()` caps the slope `DIST * precision`
@@ -533,8 +583,10 @@ channel, also near threshold:
 
 ## Workflow
 
-- Work on the `robusto` branch, the successor of `next`. Larger redesigns
-  belong here; `next` only gets minimal changes.
+- Work on the `robusto` branch, the successor of `next`, whose air
+  interface is now frozen (see "Frozen air interface"); `next` only gets
+  minimal changes. A redesign of the air interface needs a new branch with
+  its own sync sequence.
 - Commit messages are a single short lowercase line, such as
   "moved common header includes to common.hh". There is no body and
   no trailers: no `Co-Authored-By`, no session links.
