@@ -64,49 +64,50 @@ The decoder writes the whole payload of the mode, so a shorter input comes back 
 The code bits of a frame are split into polar codewords of up to 65536 bits, each with its own 32 bit CRC, and interleaved across the whole frame.
 QAM64 frames always have three codewords, or six in the longest frames, the others a power of two of them.
 
-These are the frames for each number of payload symbols, and the SECONDS from which they are allowed:
+These are the frames for each number of payload symbols, and the SECONDS for which they are the longest allowed:
 
 | Symbols | Duration |  SECONDS |
 | ------- | -------- | -------- |
-|       4 |     1.0s |    1 ..  |
-|       8 |     1.5s |    2 ..  |
-|      16 |     2.6s |    3 ..  |
-|      32 |     4.8s |    5 ..  |
-|      64 |     9.2s |   10 ..  |
-|     128 |    17.9s |   18 ..  |
-|     256 |    35.4s |   36 ..  |
+|       4 |     1.0s |        1 |
+|       8 |     1.5s |        2 |
+|      16 |     2.6s |   3 .. 4 |
+|      32 |     4.8s |   5 .. 9 |
+|      64 |     9.2s | 10 .. 17 |
+|     128 |    17.9s | 18 .. 35 |
+|     256 |    35.4s | 36 .. 60 |
 
 These are the efficiencies, the payload grows with the number of symbols.
+The bitrate is that of the payload symbols, each 41/300 seconds long, without the three symbols of sync and preamble before them.
 The threshold is the noise level of `awgn` from [disorders](https://github.com/aicodix/disorders) at which half of the frames of 32 symbols decode on AWGN with CFO and SFO, a higher level is more noise.
 
-| Index | Modulation | Code rate | Bits per tone | Payload per symbol | Threshold |
-| ----- | ---------- | --------- | ------------- | ------------------ | --------- |
-|     0 | QPSK       |      3/16 |         0.375 |                12B |      -1.0 |
-|     1 | QPSK       |      4/16 |           0.5 |                16B |      -1.9 |
-|     2 | QPSK       |      5/16 |         0.625 |                20B |      -2.8 |
-|     3 | QPSK       |      6/16 |          0.75 |                24B |      -3.6 |
-|     4 | QPSK       |      8/16 |             1 |                32B |      -4.8 |
-|     5 | QPSK       |      9/16 |         1.125 |                36B |      -5.5 |
-|     6 | QPSK       |     10/16 |          1.25 |                40B |      -6.2 |
-|     7 | QPSK       |     12/16 |           1.5 |                48B |      -7.6 |
-|     8 | QPSK       |     13/16 |         1.625 |                52B |      -8.3 |
-|     9 | QAM16      |      7/16 |          1.75 |                56B |      -9.1 |
-|    10 | QAM16      |      8/16 |             2 |                64B |      -9.8 |
-|    11 | QAM16      |      9/16 |          2.25 |                72B |     -10.8 |
-|    12 | QAM16      |     10/16 |           2.5 |                80B |     -11.7 |
-|    13 | QAM16      |     11/16 |          2.75 |                88B |     -12.6 |
-|    14 | QAM16      |     12/16 |             3 |                96B |     -13.4 |
-|    15 | QAM16      |     13/16 |          3.25 |               104B |     -14.6 |
-|    16 | QAM16      |     14/16 |           3.5 |               112B |     -15.8 |
-|    17 | QAM64      |     11/16 |         4.125 |               132B |     -17.7 |
-|    18 | QAM64      |     12/16 |           4.5 |               144B |     -18.8 |
-|    19 | QAM64      |     13/16 |         4.875 |               156B |     -20.1 |
-|    20 | QAM64      |     14/16 |          5.25 |               168B |     -21.5 |
-|    21 | QAM256     |     11/16 |           5.5 |               176B |     -22.2 |
-|    22 | QAM256     |     12/16 |             6 |               192B |     -23.7 |
-|    23 | QAM256     |     13/16 |           6.5 |               208B |     -25.2 |
-|    24 | QAM256     |     14/16 |             7 |               224B |     -26.8 |
-|    25 | QAM256     |     15/16 |           7.5 |               240B |     -28.9 |
+| Index | Modulation | Code rate | Bits per tone | Payload per symbol |  Bitrate | Threshold |
+| ----- | ---------- | --------- | ------------- | ------------------ | -------- | --------- |
+|     0 | QPSK       |      3/16 |         0.375 |                12B |  0.7kb/s |      -1.0 |
+|     1 | QPSK       |      4/16 |           0.5 |                16B |  0.9kb/s |      -1.9 |
+|     2 | QPSK       |      5/16 |         0.625 |                20B |  1.2kb/s |      -2.8 |
+|     3 | QPSK       |      6/16 |          0.75 |                24B |  1.4kb/s |      -3.6 |
+|     4 | QPSK       |      8/16 |             1 |                32B |  1.9kb/s |      -4.8 |
+|     5 | QPSK       |      9/16 |         1.125 |                36B |  2.1kb/s |      -5.5 |
+|     6 | QPSK       |     10/16 |          1.25 |                40B |  2.3kb/s |      -6.2 |
+|     7 | QPSK       |     12/16 |           1.5 |                48B |  2.8kb/s |      -7.6 |
+|     8 | QPSK       |     13/16 |         1.625 |                52B |  3.0kb/s |      -8.3 |
+|     9 | QAM16      |      7/16 |          1.75 |                56B |  3.3kb/s |      -9.1 |
+|    10 | QAM16      |      8/16 |             2 |                64B |  3.7kb/s |      -9.8 |
+|    11 | QAM16      |      9/16 |          2.25 |                72B |  4.2kb/s |     -10.8 |
+|    12 | QAM16      |     10/16 |           2.5 |                80B |  4.7kb/s |     -11.7 |
+|    13 | QAM16      |     11/16 |          2.75 |                88B |  5.2kb/s |     -12.6 |
+|    14 | QAM16      |     12/16 |             3 |                96B |  5.6kb/s |     -13.4 |
+|    15 | QAM16      |     13/16 |          3.25 |               104B |  6.1kb/s |     -14.6 |
+|    16 | QAM16      |     14/16 |           3.5 |               112B |  6.6kb/s |     -15.8 |
+|    17 | QAM64      |     11/16 |         4.125 |               132B |  7.7kb/s |     -17.7 |
+|    18 | QAM64      |     12/16 |           4.5 |               144B |  8.4kb/s |     -18.8 |
+|    19 | QAM64      |     13/16 |         4.875 |               156B |  9.1kb/s |     -20.1 |
+|    20 | QAM64      |     14/16 |          5.25 |               168B |  9.8kb/s |     -21.5 |
+|    21 | QAM256     |     11/16 |           5.5 |               176B | 10.3kb/s |     -22.2 |
+|    22 | QAM256     |     12/16 |             6 |               192B | 11.2kb/s |     -23.7 |
+|    23 | QAM256     |     13/16 |           6.5 |               208B | 12.2kb/s |     -25.2 |
+|    24 | QAM256     |     14/16 |             7 |               224B | 13.1kb/s |     -26.8 |
+|    25 | QAM256     |     15/16 |           7.5 |               240B | 14.0kb/s |     -28.9 |
 
 The BPSK modes are for bad channels and only picked on request, with a negative SECONDS for the encoder, or with "BPSK only" on the page:
 
@@ -117,14 +118,14 @@ The BPSK modes are for bad channels and only picked on request, with a negative 
 Their low rates survive fast fading, 6/16 and 8/16 are for phase noise.
 Decoded are the frames of 32 symbols out of 64 on a [Watterson](https://github.com/aicodix/disorders) channel with a delay of 2 ms and a spread of 0.5 or 1 Hz, without noise:
 
-| Index | Code rate | Bits per tone | Payload per symbol | Decoded at 0.5 Hz | Decoded at 1 Hz |
-| ----- | --------- | ------------- | ------------------ | ----------------- | --------------- |
-|    26 |      1/16 |        0.0625 |                 2B |               95% |             66% |
-|    27 |      2/16 |         0.125 |                 4B |               92% |             58% |
-|    28 |      3/16 |        0.1875 |                 6B |               89% |             52% |
-|    29 |      4/16 |          0.25 |                 8B |               89% |             50% |
-|    30 |      6/16 |         0.375 |                12B |               88% |             42% |
-|    31 |      8/16 |           0.5 |                16B |               89% |             42% |
+| Index | Code rate | Bits per tone | Payload per symbol |  Bitrate | Decoded at 0.5 Hz | Decoded at 1 Hz |
+| ----- | --------- | ------------- | ------------------ | -------- | ----------------- | --------------- |
+|    26 |      1/16 |        0.0625 |                 2B |  0.1kb/s |               95% |             66% |
+|    27 |      2/16 |         0.125 |                 4B |  0.2kb/s |               92% |             58% |
+|    28 |      3/16 |        0.1875 |                 6B |  0.4kb/s |               89% |             52% |
+|    29 |      4/16 |          0.25 |                 8B |  0.5kb/s |               89% |             50% |
+|    30 |      6/16 |         0.375 |                12B |  0.7kb/s |               88% |             42% |
+|    31 |      8/16 |           0.5 |                16B |  0.9kb/s |               89% |             42% |
 
 ### Pings
 
