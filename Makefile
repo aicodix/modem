@@ -49,6 +49,7 @@ temp/decoder_%.wasm: decoder_module.cc decoder.hh analyzer.hh common.hh raw_sync
 check-wasm: temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm encode decode
 	node check_encoder.mjs
 	node check_decoder.mjs
+	node check_frozen.mjs
 
 .PHONY: pages
 

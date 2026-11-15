@@ -5,3 +5,5 @@
 encode
 decode
 freezer
+!frozen/*.wav
+!frozen/*.txt

@@ -14,14 +14,16 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
 - `encoder_module.cc`, `decoder_module.cc`, `quirks/`: the WebAssembly
   modules and the stand-ins for standard headers they are built with (see
   "WebAssembly module").
-- `check_encoder.mjs`, `check_decoder.mjs`, `index.html`: the Node.js checks
-  of the modules and the browser page that sends text and receives it from
-  the microphone or a WAV file. Its meters show the CFO and SFO the decoder
-  tracks after each symbol, from the module's `tracking` buffer, on symmetric
-  logarithmic scales, dimmed between frames, and the RMS and peak level of
-  the microphone, which the page measures itself. Like the views of the
-  analyzer, the meters are off until the page turns them on and take no time
-  while off, and the page only redraws while at least one of them is on.
+- `check_encoder.mjs`, `check_decoder.mjs`, `check_frozen.mjs`, `frozen/`,
+  `index.html`: the Node.js checks of the modules, the recordings of the
+  frozen air interface (see "Frozen air interface") and the browser page
+  that sends text and receives it from the microphone or a WAV file. Its
+  meters show the CFO and SFO the decoder tracks after each symbol, from the
+  module's `tracking` buffer, on symmetric logarithmic scales, dimmed
+  between frames, and the RMS and peak level of the microphone, which the
+  page measures itself. Like the views of the analyzer, the meters are off
+  until the page turns them on and take no time while off, and the page only
+  redraws while at least one of them is on.
 - `common.hh`: what both sides share, such as tone layout, sequences, the
   interleaver (`shuffle()`) and the operation mode in `Common::setup()`.
   The mode byte carries the number of payload symbols, 2 << (mode >> 5)
@@ -156,7 +158,10 @@ When a header joins the build, add it to the dependencies of `encode` and
 `check_encoder.mjs` and `check_decoder.mjs` with Node.js: they encode random
 data in all modes and both rates with the encoder modules and decode it with
 the native `decode`, and the other way around with the native `encode` and
-the decoder modules. To try `index.html`, run `make webserver`, which builds
+the decoder modules. `check_frozen.mjs` decodes the recordings in `frozen/`
+with the decoder modules and the native `decode` and compares them with
+`frozen/frames.json` and the texts next to them, padded with zeros. To try
+`index.html`, run `make webserver`, which builds
 the modules and serves the repository on http://127.0.0.1:8080/ only, and
 open `index.html` there. Any other static web server works too, as long as it
 sends `.wasm` as `application/wasm`.
@@ -191,6 +196,13 @@ The scheme is in use by a BBS and is frozen: frames sent today have to decode
 with every later decoder. Don't change anything on the air. A change that
 can't be avoided needs a different sync sequence, as `next` and `robusto`
 have, so neither finds the frames of the other: the sync is the version.
+`frozen/` holds recordings that the encoder of the frozen scheme made, 16
+bit and with a quarter second of silence before and after, of memes from the
+call signs RICK, CATS and DOGE, that every decoder has to get: a ping, BPSK
+1/16 and 8/16, QPSK 3/16 and 8/16, QAM64 11/16 and QAM256 15/16, at 44100
+and 48000 Hz, with codes from 1024 to 8192 bits. `make check-wasm` decodes
+them with every decoder, and every later decoder has to decode them. Never
+replace them with new ones.
 
 On the air, and frozen:
 

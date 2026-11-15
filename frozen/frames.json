@@ -1,0 +1,62 @@
+[
+ {
+  "wav": "ping_7.wav",
+  "rate": 48000,
+  "call_sign": "DOGE",
+  "ping": 7
+ },
+ {
+  "wav": "bpsk_1_16.wav",
+  "rate": 48000,
+  "call_sign": "RICK",
+  "payload": "bpsk_1_16.txt",
+  "modulation": "BPSK",
+  "code_rate": "1/16",
+  "symbols": 4
+ },
+ {
+  "wav": "bpsk_8_16.wav",
+  "rate": 44100,
+  "call_sign": "RICK",
+  "payload": "bpsk_8_16.txt",
+  "modulation": "BPSK",
+  "code_rate": "8/16",
+  "symbols": 4
+ },
+ {
+  "wav": "qpsk_3_16.wav",
+  "rate": 44100,
+  "call_sign": "RICK",
+  "payload": "qpsk_3_16.txt",
+  "modulation": "QPSK",
+  "code_rate": "3/16",
+  "symbols": 4
+ },
+ {
+  "wav": "qpsk_8_16.wav",
+  "rate": 48000,
+  "call_sign": "CATS",
+  "payload": "qpsk_8_16.txt",
+  "modulation": "QPSK",
+  "code_rate": "8/16",
+  "symbols": 8
+ },
+ {
+  "wav": "qam64_11_16.wav",
+  "rate": 48000,
+  "call_sign": "RICK",
+  "payload": "qam64_11_16.txt",
+  "modulation": "QAM64",
+  "code_rate": "11/16",
+  "symbols": 4
+ },
+ {
+  "wav": "qam256_15_16.wav",
+  "rate": 48000,
+  "call_sign": "RICK",
+  "payload": "qam256_15_16.txt",
+  "modulation": "QAM256",
+  "code_rate": "15/16",
+  "symbols": 4
+ }
+]
