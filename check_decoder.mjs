@@ -8,8 +8,8 @@ import fs from "fs";
 import crypto from "crypto";
 import { spawnSync } from "child_process";
 
-/* the seconds whose frame lasts closest to 2 << code payload symbols, zero for the pings of code zero */
-const seconds = [0, 1, 2, 3, 5, 9, 18, 35];
+/* the fewest seconds that allow a frame of 2 << code payload symbols, zero for the pings of code zero */
+const seconds = [0, 1, 2, 3, 5, 10, 18, 36];
 const decoded_frame = 1 << 11, ping = 1 << 13;
 
 function wav_samples(buffer) {
@@ -78,9 +78,10 @@ for (const rate of [44100, 48000]) {
 	}
 	for (const mode of modes) {
 		const name = `${rate} Hz mode ${mode} (${2 << (mode >> 5)} symbols, index ${mode & 31})`;
-		/* one byte more than the next lower index of its kind carries, so the native encoder picks this mode */
+		/* one byte more than the next lower index of its kind and the next fewer symbols carry, so the native encoder picks this mode */
 		const lower = [...payload_of.keys()].filter(m => m >> 5 == mode >> 5 && m < mode && bpsk.has(m) == bpsk.has(mode));
-		const payload = crypto.randomBytes(lower.length ? payload_of.get(lower[lower.length - 1]) + 1 : 1);
+		const most = Math.max(lower.length ? payload_of.get(lower[lower.length - 1]) : 0, mode >> 5 > 1 ? payload_of.get(mode - 32) : 0);
+		const payload = crypto.randomBytes(most + 1);
 		fs.writeFileSync("temp/check.dat", payload);
 		const secs = bpsk.has(mode) ? -seconds[mode >> 5] : seconds[mode >> 5];
 		spawnSync("./encode", ["temp/check.wav", String(rate), "32", "ANONYMOUS", String(secs), "temp/check.dat"], { stdio: "ignore" });

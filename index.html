@@ -54,7 +54,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <button id="ping">ping</button>
 </p>
 <p>
-<label>about <input id="seconds" type="number" min="1" max="60" value="5"> seconds</label>
+<label>at most <input id="seconds" type="number" min="1" max="60" value="5"> seconds</label>
 <label id="bpsk-only"><input type="checkbox" id="bpsk"> BPSK only</label>
 <span id="mode-info"></span>
 </p>
@@ -272,7 +272,7 @@ function base40(str) {
 function seconds() {
 	return Number(document.getElementById("seconds").value);
 }
-/* the most robust mode that carries the message in about the given seconds, or -1,
+/* the most robust mode that carries the message in at most the given seconds, the shortest of those, or -1,
    only from the BPSK modes for bad channels if asked for */
 function oper_mode() {
 	return wasm.pick_mode(seconds(), message().length, document.getElementById("bpsk").checked ? 1 : 0);
@@ -693,7 +693,7 @@ function update() {
 	const usage = document.getElementById("usage"), info = document.getElementById("mode-info");
 	const used = message().length;
 	if (wasm.start(oper_mode()) < 0) {
-		usage.textContent = used + " bytes, too long for about " + seconds() + " seconds";
+		usage.textContent = used + " bytes, too long for at most " + seconds() + " seconds";
 		usage.className = "failed";
 		info.textContent = "";
 		return;
@@ -714,7 +714,7 @@ function encode(silence, mode, payload) {
 	const take = len => chunks.push(new Float32Array(wasm.memory.buffer, wasm.audio.value, len).slice());
 	let len = wasm.start(mode);
 	if (len < 0)
-		throw new Error("message too long for about " + seconds() + " seconds: " + payload.length + " bytes");
+		throw new Error("message too long for at most " + seconds() + " seconds: " + payload.length + " bytes");
 	take(len);
 	new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
 	if (wasm.begin(payload.length, call_sign) < 0)

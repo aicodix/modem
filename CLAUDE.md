@@ -39,8 +39,9 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   and the interleaver spreads them across
   the whole frame, skipping the indices beyond its size below a power of
   two. A frame only decodes if all its codewords do. `pick_mode()` picks
-  the symbols whose frame lasts closest to the given seconds and the lowest
-  index of the asked for set that carries the payload. A mode with
+  the lowest index of the asked for set that carries the payload in a frame
+  of at most the given seconds, and of those the fewest symbols, as fewer
+  symbols give about the same thresholds. A mode with
   mode >> 5 of zero is a ping, a frame without payload symbols, that only
   carries the value mode & 31.
   The xorshift

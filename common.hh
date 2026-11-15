@@ -210,25 +210,27 @@ struct Common
 		return true;
 	}
 	// the duration of a frame in seconds is 41 / 300 times the payload symbols plus three,
-	// pick the payload symbols, as 2 << code, whose frame lasts closest to the given seconds
+	// the most payload symbols, as 2 << code, whose frame lasts at most the given seconds, or 0 if none
 	static int symbols_code(int seconds)
 	{
-		auto off = [seconds](int code){ int d = 41 * (3 + (2 << code)) - 300 * seconds; return d < 0 ? -d : d; };
-		int best = 1;
-		for (int code = 2; code < 8; ++code)
-			if (off(code) < off(best))
-				best = code;
-		return best;
+		int longest = 0;
+		for (int code = 1; code < 8; ++code)
+			if (41 * (3 + (2 << code)) <= 300 * seconds)
+				longest = code;
+		return longest;
 	}
-	// the most robust mode, the lowest efficiency index, that carries length bytes in about the given seconds,
-	// set up for it, or -1 if none does. Only BPSK modes if asked for, and never otherwise
+	// the most robust mode, the lowest efficiency index, that carries length bytes in at most the given seconds,
+	// with the fewest payload symbols that do, set up for it, or -1 if none does.
+	// Only BPSK modes if asked for, and never otherwise
 	int pick_mode(int seconds, int length, bool bpsk = false)
 	{
-		int code = symbols_code(seconds);
+		int longest = symbols_code(seconds);
 		for (int index = bpsk ? bpsk_first : 0; index < (bpsk ? 32 : bpsk_first); ++index) {
-			int mode = code << 5 | index;
-			if (setup(mode) && data_bytes >= length)
-				return mode;
+			for (int code = 1; code <= longest; ++code) {
+				int mode = code << 5 | index;
+				if (setup(mode) && data_bytes >= length)
+					return mode;
+			}
 		}
 		return -1;
 	}

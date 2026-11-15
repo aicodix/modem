@@ -33,10 +33,10 @@ void encode(DSP::WritePCM<value> *pcm, const char *const *input_names, int input
 		int length = read_digital(payload, Common::data_max, input_name);
 		if (length < 0)
 			continue;
-		// the most robust mode that carries all of the input in about the given seconds
+		// the most robust mode that carries all of the input in at most the given seconds, and the shortest of those
 		int oper_mode = encoder->pick_mode(seconds, length, bpsk);
 		if (oper_mode < 0) {
-			std::cerr << "Input \"" << input_name << "\" too long for about " << seconds << " seconds." << std::endl;
+			std::cerr << "Input \"" << input_name << "\" too long for at most " << seconds << " seconds." << std::endl;
 			continue;
 		}
 		if (!started) {
@@ -114,7 +114,7 @@ int main(int argc, char **argv)
 		std::cerr << "Unsupported call sign." << std::endl;
 		return 1;
 	}
-	// how long a frame may take, the encoder picks the closest number of symbols, or a ping without any.
+	// how long a frame may take at most, or a ping without any payload symbols.
 	// Negative seconds pick from the BPSK modes for bad channels
 	int seconds = std::atoi(argv[5]);
 	bool bpsk = seconds < 0;

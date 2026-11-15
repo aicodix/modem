@@ -9,7 +9,7 @@ Create file ```uncoded.dat``` with ```2048``` bits of random data:
 dd if=/dev/urandom of=uncoded.dat bs=1 count=256
 ```
 
-Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 48000 Hz sample rate and 32 bit float samples, in a frame of about 2 seconds:
+Encode file ```uncoded.dat``` to ```encoded.wav``` [WAV](https://en.wikipedia.org/wiki/WAV) audio file with 48000 Hz sample rate and 32 bit float samples, in a frame of at most 2 seconds:
 
 ```
 ./encode encoded.wav 48000 32 ANONYMOUS 2 uncoded.dat
@@ -58,23 +58,23 @@ Stream audio out of the encoder:
 ### Supported Modes
 
 All modes need a bandwidth of 2400 Hz.
-The encoder picks the mode from SECONDS and the length of the input: first the number of payload symbols whose frame lasts closest to SECONDS, then the lowest efficiency index, the most robust mode, that carries all of the input, from the BPSK modes only for a negative SECONDS.
-An input that no mode carries in about SECONDS is refused.
+The encoder picks the mode from SECONDS and the length of the input: the lowest efficiency index, the most robust mode, that carries all of the input in a frame of at most SECONDS, and of those the shortest frame, from the BPSK modes only for a negative SECONDS.
+An input that no mode carries in at most SECONDS is refused.
 The decoder writes the whole payload of the mode, so a shorter input comes back padded with zeros.
 The code bits of a frame are split into polar codewords of up to 65536 bits, each with its own 32 bit CRC, and interleaved across the whole frame.
 QAM64 frames always have three codewords, or six in the longest frames, the others a power of two of them.
 
-These are the frames for each number of payload symbols:
+These are the frames for each number of payload symbols, and the SECONDS from which they are allowed:
 
 | Symbols | Duration |  SECONDS |
 | ------- | -------- | -------- |
-|       4 |     1.0s |        1 |
-|       8 |     1.5s |        2 |
-|      16 |     2.6s |        3 |
-|      32 |     4.8s |   4 .. 6 |
-|      64 |     9.2s |  7 .. 13 |
-|     128 |    17.9s | 14 .. 26 |
-|     256 |    35.4s | 27 .. 60 |
+|       4 |     1.0s |    1 ..  |
+|       8 |     1.5s |    2 ..  |
+|      16 |     2.6s |    3 ..  |
+|      32 |     4.8s |    5 ..  |
+|      64 |     9.2s |   10 ..  |
+|     128 |    17.9s |   18 ..  |
+|     256 |    35.4s |   36 ..  |
 
 These are the efficiencies, the payload grows with the number of symbols.
 The threshold is the noise level of `awgn` from [disorders](https://github.com/aicodix/disorders) at which half of the frames of 32 symbols decode on AWGN with CFO and SFO, a higher level is more noise.

@@ -8,8 +8,8 @@ import fs from "fs";
 import crypto from "crypto";
 import { spawnSync } from "child_process";
 
-/* the seconds whose frame lasts closest to 2 << code payload symbols, zero for the pings of code zero */
-const seconds = [0, 1, 2, 3, 5, 9, 18, 35];
+/* the fewest seconds that allow a frame of 2 << code payload symbols, zero for the pings of code zero */
+const seconds = [0, 1, 2, 3, 5, 10, 18, 36];
 
 function base40(str) {
 	let acc = 0n;
