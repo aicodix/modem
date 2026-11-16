@@ -132,9 +132,11 @@ make test
 ```
 
 `make test` encodes random data to `audio.wav` and decodes it. `make play-modes`
-plays frames of every number of payload symbols, each with a small payload
-and with one close to the largest, with sox `play`, each saying its seconds
-and size, for testing the decoder over the air. There is no test
+plays frames of every number of payload symbols, each at the fewest seconds
+that allow it and with the payload of the most and of the least robust mode
+at that many symbols, as the encoder picks the fewest symbols that carry a
+payload, with sox `play`, each saying its seconds and size, for testing the
+decoder over the air. There is no test
 suite; check a change by encoding, decoding and comparing, for example with the
 simulation pipeline in the README ("Simulating"), which adds multipath, CFO,
 SFO and AWGN with the disorders tools and ends with `diff -s`.

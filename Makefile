@@ -31,8 +31,10 @@ decode: decode.cc decoder.hh native.hh common.hh raw_sync.hh psk.hh qam.hh quant
 
 .PHONY: play-modes
 
+# a frame of each number of payload symbols, at the fewest seconds that allow it, with the payload of the most and of the
+# least robust mode at that many symbols, 12 and 240 bytes per symbol, so the encoder can't pick fewer symbols
 play-modes: encode
-	for p in "1 100" "1 900" "2 100" "2 1800" "3 100" "3 3600" "5 100" "5 7600" "9 100" "9 7000" "18 100" "18 7000" "35 100" "35 7000"; do set -- $$p; echo "$$1 s $$2 B"; (echo "$$1 s $$2 B"; head -c $$2 /dev/zero) | head -c $$2 | $(QEMU) ./encode - 48000 16 ANONYMOUS $$1 - 2>/dev/null | play -q -; done
+	for p in "1 4" "2 8" "3 16" "5 32" "10 64" "18 128" "36 256"; do set -- $$p; for b in 12 240; do n=$$(($$2 * $$b)); echo "$$1 s $$n B"; (echo "$$1 s $$n B"; head -c $$n /dev/zero) | head -c $$n | $(QEMU) ./encode - 48000 16 ANONYMOUS $$1 - 2>/dev/null | play -q -; done; done
 
 .PHONY: wasm
 
