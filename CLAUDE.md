@@ -217,7 +217,10 @@ On the air, and frozen:
   identical sync symbols of BPSK from the MLS of `mls0_poly` 0x2d1 from
   `mls0_seed` 214, the preamble symbol, 2 << (mode >> 5) payload symbols,
   none for a ping, and the closing guard interval.
-- The preamble: 48 bits of the base 40 call sign and 8 bits of the mode,
+- The preamble: 48 bits of the base 40 call sign, at most 9 characters,
+  the first in the highest digit, with the digits 0 for a space, 2 for
+  "-", 3 for "/", 4 to 13 for "0" to "9" and 14 to 39 for "A" to "Z", 1
+  still unused, and 8 bits of the mode,
   with the CRC-16 of poly 0xA8F4, polar coded with `frozen_256_72`,
   interleaved by `shuffle()` over 256 bits and sent as BPSK on its data
   tones.

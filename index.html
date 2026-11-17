@@ -258,7 +258,9 @@ function base40(str) {
 	let acc = 0n;
 	for (const c of str.toUpperCase()) {
 		acc *= 40n;
-		if (c == "/")
+		if (c == "-")
+			acc += 2n;
+		else if (c == "/")
 			acc += 3n;
 		else if (c >= "0" && c <= "9")
 			acc += BigInt(c.charCodeAt(0) - 48 + 4);

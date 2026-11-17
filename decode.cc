@@ -10,7 +10,7 @@ Copyright 2021 Ahmet Inan <inan@aicodix.de>
 void base40_decoder(char *str, int64_t val, int len)
 {
 	for (int i = len-1; i >= 0; --i, val /= 40)
-		str[i] = "   /0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%40];
+		str[i] = "  -/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%40];
 }
 
 template <typename value, typename cmplx, int rate>

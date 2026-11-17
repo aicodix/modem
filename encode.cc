@@ -81,7 +81,9 @@ int64_t base40_encoder(const char *str)
 	int64_t acc = 0;
 	for (char c = *str++; c; c = *str++) {
 		acc *= 40;
-		if (c == '/')
+		if (c == '-')
+			acc += 2;
+		else if (c == '/')
 			acc += 3;
 		else if (c >= '0' && c <= '9')
 			acc += c - '0' + 4;

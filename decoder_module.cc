@@ -42,7 +42,7 @@ static void update(int events)
 	if (events & decoder_type::read_meta) {
 		int64_t val = decoder.call_sign;
 		for (int i = 8; i >= 0; --i, val /= 40)
-			call_sign[i] = "   /0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%40];
+			call_sign[i] = "  -/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val%40];
 		call_sign[9] = 0;
 	}
 	if (events & decoder_type::frame_end)
