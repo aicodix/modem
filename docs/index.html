@@ -12,9 +12,12 @@
 body { color: white; background-color: black; font-family: sans-serif; max-width: 40em; margin: 1em auto; padding: 0 1em; }
 textarea, input, select, button { font-size: 1em; }
 textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+textarea[readonly] { color: white; background-color: #222; }
 p { margin: 0.75em 0; }
 #status, #log { font-family: monospace; white-space: pre-wrap; }
 .failed { color: red; }
+#seconds { width: 4em; }
+#bpsk-only { margin: 0 1em; }
 canvas { display: block; width: 100%; margin: 0.5em 0; }
 canvas[hidden] { display: none; }
 #channel-power, #channel-phase, #channel-snr, #channel-precision { margin: 0.5em auto; }
@@ -47,31 +50,18 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <h1>OFDM Modem</h1>
 <p>
 <label>call sign <input id="call-sign" value="ANONYMOUS" size="9" maxlength="9"></label>
-<select id="modulation">
-<option value="0">BPSK</option>
-<option value="1">QPSK</option>
-<option value="2">8PSK</option>
-<option value="3" selected>QAM16</option>
-<option value="4">QAM64</option>
-<option value="5">QAM256</option>
-<option value="6">QAM1024</option>
-<option value="7">QAM4096</option>
-<option value="8">analog</option>
-</select>
-<select id="code-rate">
-<option value="0" selected>1/2</option>
-<option value="1">2/3</option>
-<option value="2">3/4</option>
-<option value="3">5/6</option>
-</select>
-<select id="frame-size">
-<option value="0" selected>short</option>
-<option value="1">normal</option>
-</select>
+<label>ping value <select id="ping-value"></select></label>
+<button id="ping">ping</button>
+</p>
+<p>
+<label>at most <input id="seconds" type="number" min="1" max="60" value="5"> seconds</label>
+<label id="bpsk-only"><input type="checkbox" id="bpsk"> BPSK only</label>
 <span id="mode-info"></span>
 </p>
 <p id="message-input"><textarea id="message" rows="8">Hello World!</textarea></p>
-<p id="analog-input" hidden><label>complex values from a stereo WAV <input type="file" id="analog-file" accept=".wav,audio/wav"></label></p>
+<p>
+<label>send file <input type="file" id="send-file"></label>
+</p>
 <p>
 <button id="play">play</button>
 <button id="save">save WAV</button>
@@ -85,6 +75,11 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 <label>decode WAV <input type="file" id="wav-file" accept=".wav,audio/wav"></label>
 </p>
 <p>Please allow the audio to settle for a few seconds before trying to decode.</p>
+<p><textarea id="received" rows="8" readonly placeholder="the latest received message"></textarea></p>
+<p>
+<button id="download" disabled>download</button>
+<span id="received-info"></span>
+</p>
 <fieldset>
 <legend><label><input type="checkbox" id="meters-on"> tracking and level</label></legend>
 <div class="meters" id="meters" hidden>
@@ -127,7 +122,7 @@ footer { color: silver; font-size: 0.8em; border-top: 1px solid gray; margin-top
 </fieldset>
 <div id="log"></div>
 <footer>
-<p>Copyright (C) 2021 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/e756208">e756208</a></p>
+<p>Copyright (C) 2026 by Ahmet Inan &lt;<a href="mailto:inan@aicodix.de">inan@aicodix.de</a>&gt;, <a href="https://github.com/aicodix/modem">source code</a>, version <a id="version" href="https://github.com/aicodix/modem/tree/0413495">0413495</a></p>
 <p>Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.</p>
 <p>DISCLAIMER: THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.</p>
 </footer>
@@ -136,9 +131,14 @@ const encoders = {}, decoders = {};
 const images = new Map();
 /* the spectrum and spectrogram always show this many dB below the top set by the slider */
 const spectrum_dB = 100;
-let context, wasm, decoder, listening, playing, analog_values, shown, tap_module;
-const modulations = ["BPSK", "QPSK", "8PSK", "QAM16", "QAM64", "QAM256", "QAM1024", "QAM4096"];
-const code_rates = ["1/2", "2/3", "3/4", "5/6"];
+let context, wasm, decoder, listening, playing, shown, tap_module;
+/* the content of the file to send instead of the text, until the text is edited */
+let send_file = null;
+/* the latest received message */
+let received = null;
+/* messages longer than this or not valid UTF-8 are not printed in the log */
+const print_max = 80;
+const modulations = { 1: "BPSK", 2: "QPSK", 4: "QAM16", 6: "QAM64", 8: "QAM256" };
 /* events reported by the decoder module, see Decoder in decoder.hh */
 const found_sync = 1 << 0, damaged_seed = 1 << 1, preamble_error = 1 << 2, unsupported_call = 1 << 3;
 const read_meta = 1 << 4, known_mode = 1 << 5, erased_symbol = 1 << 6, frame_end = 1 << 7;
@@ -258,7 +258,9 @@ function base40(str) {
 	let acc = 0n;
 	for (const c of str.toUpperCase()) {
 		acc *= 40n;
-		if (c == "/")
+		if (c == "-")
+			acc += 2n;
+		else if (c == "/")
 			acc += 3n;
 		else if (c >= "0" && c <= "9")
 			acc += BigInt(c.charCodeAt(0) - 48 + 4);
@@ -269,18 +271,71 @@ function base40(str) {
 	}
 	return acc;
 }
+function seconds() {
+	return Number(document.getElementById("seconds").value);
+}
+/* the most robust mode that carries the message in at most the given seconds, the shortest of those, or -1,
+   only from the BPSK modes for bad channels if asked for */
 function oper_mode() {
-	const value = id => Number(document.getElementById(id).value);
-	if (value("modulation") == 8)
-		return 128;
-	return (value("modulation") << 4) | (value("code-rate") << 1) | value("frame-size");
+	return wasm.pick_mode(seconds(), message().length, document.getElementById("bpsk").checked ? 1 : 0);
+}
+/* the mode a module is set up for */
+function mode_name(module) {
+	return module.symbol_count() + " symbols, " + modulations[module.mod_bits()] + " " + module.code_rate() + "/16";
 }
 /* the same as print_setup() in native.hh, symbols after the sync and preamble symbols */
 function duration(symbols) {
 	return 41 / 300 * (3 + symbols);
 }
 function message() {
+	if (send_file)
+		return send_file;
 	return new TextEncoder().encode(document.getElementById("message").value);
+}
+/* the text of the bytes, or null if they aren't valid UTF-8 */
+function utf8(bytes) {
+	try {
+		return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+	} catch {
+		return null;
+	}
+}
+function file_name(bytes) {
+	return utf8(bytes) === null ? "received.bin" : "received.txt";
+}
+function download(bytes) {
+	const link = document.createElement("a");
+	link.href = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+	link.download = file_name(bytes);
+	link.click();
+	URL.revokeObjectURL(link.href);
+}
+async function load_send_file(event) {
+	const file = event.target.files[0];
+	if (!file)
+		return;
+	const text = document.getElementById("message");
+	send_file = new Uint8Array(await file.arrayBuffer());
+	text.value = "";
+	text.placeholder = "sending " + file.name + ", " + send_file.length + " bytes, type here to send text instead";
+	event.target.value = "";
+	update();
+}
+function edit_message() {
+	if (send_file) {
+		send_file = null;
+		document.getElementById("message").placeholder = "";
+	}
+	update();
+}
+function show_received(bytes) {
+	received = bytes;
+	const text = utf8(bytes);
+	const area = document.getElementById("received");
+	area.value = text === null ? "" : text;
+	area.placeholder = text === null ? "binary, use download" : "";
+	document.getElementById("received-info").textContent = bytes.length + " bytes";
+	document.getElementById("download").disabled = false;
 }
 function log(str, failed) {
 	const div = document.createElement("div");
@@ -403,9 +458,8 @@ function report(dec) {
 		log("call sign unsupported", true);
 	if (events & read_meta) {
 		const call = new TextDecoder().decode(new Uint8Array(dec.memory.buffer, dec.call_sign.value, 9)).trim();
-		const mode = dec.meta_mode();
-		const name = mode & 128 ? "analog" : modulations[(mode >> 4) & 7] + " " + (code_rates[(mode >> 1) & 7] || "?") + " " + (mode & 1 ? "normal" : "short");
-		log("from " + call + ", " + name + (events & known_mode ? "" : " unsupported"), !(events & known_mode));
+		const name = !(events & known_mode) ? "mode " + dec.meta_mode() + " unsupported" : dec.symbol_count() ? mode_name(dec) : "ping " + (dec.oper_mode() & 31);
+		log("from " + call + ", " + name, !(events & known_mode));
 	}
 	if (events & erased_symbol)
 		log("seed value damaged, erasing symbol " + dec.erased_symbol(), true);
@@ -413,23 +467,23 @@ function report(dec) {
 		log("payload decoding error, Es/N0 " + db(3) + " .. " + db(4) + " .. " + db(5) + " dB", true);
 	if (events & decoded_frame) {
 		const length = dec.payload_length();
-		if (length < 0) {
-			const count = dec.values_length();
-			const values = new Float32Array(dec.memory.buffer, dec.values.value, 2 * count);
-			const div = log("analog frame, " + count + " complex values, Es/N0 " + db(3) + " .. " + db(4) + " .. " + db(5) + " dB ");
-			const link = document.createElement("a");
-			link.href = URL.createObjectURL(wav_file(values, dec.analog_rate(), 2));
-			link.download = "analog.wav";
-			link.textContent = "download";
-			div.appendChild(link);
-			return;
-		}
 		let bytes = new Uint8Array(dec.memory.buffer, dec.payload.value, length);
 		let end = length;
 		while (end > 0 && !bytes[end - 1])
 			--end;
-		const text = new TextDecoder().decode(bytes.subarray(0, end));
-		log("decoded, Es/N0 " + db(6) + " .. " + db(7) + " .. " + db(8) + " dB, " + dec.bit_flips() + " of " + dec.code_bits() + " bits flipped:\n" + text);
+		bytes = bytes.slice(0, end);
+		show_received(bytes);
+		const head = "decoded, Es/N0 " + db(6) + " .. " + db(7) + " .. " + db(8) + " dB, " + dec.bit_flips() + " of " + dec.code_bits() + " bits flipped";
+		const text = utf8(bytes);
+		if (text !== null && bytes.length <= print_max) {
+			log(head + ":\n" + text);
+		} else {
+			const div = log(head + ", " + end + " bytes ");
+			const button = document.createElement("button");
+			button.textContent = "download";
+			button.addEventListener("click", () => download(bytes));
+			div.appendChild(button);
+		}
 	}
 }
 function receive(dec, samples) {
@@ -607,24 +661,6 @@ function parse_wav(buffer) {
 	}
 	return { channels, rate, samples };
 }
-async function load_analog(event) {
-	const file = event.target.files[0];
-	analog_values = null;
-	if (file) {
-		try {
-			const { channels, samples } = parse_wav(await file.arrayBuffer());
-			if (channels != 2)
-				throw new Error("need a two channel WAV file with the real and imaginary parts");
-			if (!samples.length)
-				throw new Error("no complex values in WAV file");
-			analog_values = samples;
-			status("loaded " + samples.length / 2 + " complex values from " + file.name);
-		} catch (error) {
-			status("couldn't load " + file.name + ": " + error.message, true);
-		}
-	}
-	update();
-}
 async function decode_file(event) {
 	const file = event.target.files[0];
 	if (!file)
@@ -654,61 +690,37 @@ async function load(rate) {
 	return encoders[rate];
 }
 function update() {
-	const analog = oper_mode() == 128;
-	document.getElementById("message-input").hidden = analog;
-	document.getElementById("analog-input").hidden = !analog;
-	document.getElementById("code-rate").disabled = analog;
-	document.getElementById("frame-size").disabled = analog;
 	if (!wasm)
 		return;
 	const usage = document.getElementById("usage"), info = document.getElementById("mode-info");
-	if (analog) {
-		const used = analog_values ? analog_values.length / 2 : 0, capacity = wasm.values_length();
-		usage.textContent = used + " of " + capacity + " complex values";
-		usage.className = !used || used > capacity ? "failed" : "";
-		/* the encoder pads the values to whole symbols */
-		info.textContent = used && used <= capacity ? duration(Math.ceil(used / 256)).toFixed(1) + "s" : "";
-		return;
-	}
+	const used = message().length;
 	if (wasm.start(oper_mode()) < 0) {
-		usage.textContent = info.textContent = "";
+		usage.textContent = used + " bytes, too long for at most " + seconds() + " seconds";
+		usage.className = "failed";
+		info.textContent = "";
 		return;
 	}
-	const used = message().length, capacity = wasm.payload_length();
+	const capacity = wasm.payload_length();
 	usage.textContent = used + " of " + capacity + " bytes";
-	usage.className = used > capacity ? "failed" : "";
-	const seconds = duration(wasm.symbol_count());
-	info.textContent = seconds.toFixed(1) + "s, " + (8 * capacity / seconds / 1000).toFixed(1) + "kb/s";
+	usage.className = "";
+	const time = duration(wasm.symbol_count());
+	info.textContent = mode_name(wasm) + ", " + time.toFixed(1) + "s, " + (8 * capacity / time / 1000).toFixed(1) + "kb/s";
 }
-function encode(silence) {
-	const payload = message();
+/* a frame of the mode with the payload, or a ping with its value as the mode and no payload */
+function encode(silence, mode, payload) {
 	const call_sign = base40(document.getElementById("call-sign").value.trim());
 	if (call_sign <= 0n || call_sign >= 262144000000000n)
 		throw new Error("unsupported call sign");
 	const rate = context.sampleRate;
 	const chunks = [new Float32Array(Math.round(silence * rate))];
 	const take = len => chunks.push(new Float32Array(wasm.memory.buffer, wasm.audio.value, len).slice());
-	let len = wasm.start(oper_mode());
+	let len = wasm.start(mode);
 	if (len < 0)
-		throw new Error("unsupported mode");
-	if (oper_mode() == 128) {
-		if (!analog_values)
-			throw new Error("no complex values loaded");
-		const count = analog_values.length / 2;
-		if (count > wasm.values_length())
-			throw new Error("too many complex values: " + count + " of " + wasm.values_length());
-		take(len);
-		new Float32Array(wasm.memory.buffer, wasm.values.value, analog_values.length).set(analog_values);
-		if (wasm.begin_analog(count, call_sign) < 0)
-			throw new Error("encoding failed");
-	} else {
-		if (payload.length > wasm.payload_length())
-			throw new Error("message too long: " + payload.length + " of " + wasm.payload_length() + " bytes");
-		take(len);
-		new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
-		if (wasm.begin(payload.length, call_sign) < 0)
-			throw new Error("encoding failed");
-	}
+		throw new Error("message too long for at most " + seconds() + " seconds: " + payload.length + " bytes");
+	take(len);
+	new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
+	if (wasm.begin(payload.length, call_sign) < 0)
+		throw new Error("encoding failed");
 	while ((len = wasm.next()) > 0)
 		take(len);
 	take(wasm.stop());
@@ -721,7 +733,7 @@ function encode(silence) {
 	}
 	return samples;
 }
-function wav_file(samples, rate, channels = 1) {
+function wav_file(samples, rate) {
 	const view = new DataView(new ArrayBuffer(44 + 4 * samples.length));
 	const text = (pos, str) => { for (let i = 0; i < str.length; ++i) view.setUint8(pos + i, str.charCodeAt(i)); };
 	text(0, "RIFF");
@@ -730,10 +742,10 @@ function wav_file(samples, rate, channels = 1) {
 	text(12, "fmt ");
 	view.setUint32(16, 16, true);
 	view.setUint16(20, 3, true);
-	view.setUint16(22, channels, true);
+	view.setUint16(22, 1, true);
 	view.setUint32(24, rate, true);
-	view.setUint32(28, 4 * rate * channels, true);
-	view.setUint16(32, 4 * channels, true);
+	view.setUint32(28, 4 * rate, true);
+	view.setUint16(32, 4, true);
 	view.setUint16(34, 32, true);
 	text(36, "data");
 	view.setUint32(40, 4 * samples.length, true);
@@ -741,10 +753,10 @@ function wav_file(samples, rate, channels = 1) {
 		view.setFloat32(44 + 4 * i, samples[i], true);
 	return new Blob([view.buffer], { type: "audio/wav" });
 }
-async function play() {
+async function play(ping) {
 	try {
 		await wake(!listening);
-		const samples = encode(0.1);
+		const samples = ping ? encode(0.1, Number(document.getElementById("ping-value").value), new Uint8Array(0)) : encode(0.1, oper_mode(), message());
 		const buffer = context.createBuffer(1, samples.length, context.sampleRate);
 		buffer.copyToChannel(samples, 0);
 		const source = context.createBufferSource();
@@ -763,7 +775,7 @@ async function play() {
 }
 function save() {
 	try {
-		const samples = encode(1);
+		const samples = encode(1, oper_mode(), message());
 		const link = document.createElement("a");
 		link.href = URL.createObjectURL(wav_file(samples, context.sampleRate));
 		link.download = "encoded.wav";
@@ -783,9 +795,13 @@ async function main() {
 		status("couldn't load modules: " + error.message, true);
 		return;
 	}
-	for (const id of ["modulation", "code-rate", "frame-size", "message"])
-		document.getElementById(id).addEventListener("input", update);
-	document.getElementById("play").addEventListener("click", play);
+	document.getElementById("seconds").addEventListener("input", update);
+	document.getElementById("bpsk").addEventListener("change", update);
+	document.getElementById("message").addEventListener("input", edit_message);
+	document.getElementById("send-file").addEventListener("change", load_send_file);
+	document.getElementById("download").addEventListener("click", () => download(received));
+	document.getElementById("play").addEventListener("click", () => play(false));
+	document.getElementById("ping").addEventListener("click", () => play(true));
 	document.getElementById("save").addEventListener("click", save);
 	document.getElementById("listen").addEventListener("click", listen);
 	document.getElementById("stop").addEventListener("click", () => {
@@ -793,9 +809,11 @@ async function main() {
 		status("stopped");
 	});
 	document.getElementById("wav-file").addEventListener("change", decode_file);
-	document.getElementById("analog-file").addEventListener("change", load_analog);
 	for (const id of ["meters-on", "spectrum-on", "rainbow", "spectrum-top", "scope-on", "gain", "intensity", "decay", "channel-on", "constellation-on"])
 		document.getElementById(id).addEventListener("input", analyzer_controls);
+	const ping_value = document.getElementById("ping-value");
+	for (let value = 0; value < 32; ++value)
+		ping_value.add(new Option(value, value));
 	make_meters();
 	analyzer_controls();
 	update();
