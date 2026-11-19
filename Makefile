@@ -61,8 +61,8 @@ pages: index.html manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png 
 	mkdir -p docs/temp
 	hash=$$(git rev-parse --short HEAD) && \
 	version=$$hash$$(git diff --quiet HEAD -- . ':!docs' || echo -dirty) && \
-	grep -q 'tree/next">next<' index.html && \
-	sed 's#tree/next">next<#tree/'$$hash'">'$$version'<#' index.html > docs/index.html
+	grep -q 'tree/robusto">robusto<' index.html && \
+	sed 's#tree/robusto">robusto<#tree/'$$hash'">'$$version'<#' index.html > docs/index.html
 	cp manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png docs/
 	cp temp/encoder_44100.wasm temp/encoder_48000.wasm temp/decoder_44100.wasm temp/decoder_48000.wasm docs/temp/
 	touch docs/.nojekyll
