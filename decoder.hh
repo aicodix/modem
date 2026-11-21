@@ -627,9 +627,11 @@ struct Decoder : Common
 			late = 0;
 		} else if (pending > 1) {
 			--pending;
-		} else if (pending && countdown) {
+		} else if (pending && (countdown || events & frame_end)) {
 			// the detection can fire up to a hop early, so the frame right before may not have ended yet.
-			// Wait up to a symbol for it, longer means the detection fired within that frame
+			// Wait up to a symbol for it, longer means the detection fired within that frame. A frame that
+			// ended with this sample gets it to itself, so its events don't share a sample with the preamble
+			// of the next, whose call sign and mode would then come with them
 			if (++late > symbol_len)
 				pending = 0;
 		} else if (pending) {

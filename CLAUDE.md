@@ -88,7 +88,11 @@ and a decoder that recovers it, with polar codes and PSK/QAM modulations in a
   it fires up to about half a symbol early or late, depending on the length
   of the frame before. If that frame hasn't ended when the waiting is over,
   the preamble waits for it up to a symbol and `refine()` searches that much
-  earlier in the buffer, but not before the windows.
+  earlier in the buffer, but not before the windows. It also waits a sample
+  for a frame that ends with the sample the waiting is over, so the events of
+  that frame never share a sample with the preamble of the next: the module
+  would report them with the call sign and mode of the next frame and copy its
+  payload with that frame's length.
 - `analyzer.hh`: spectrum, spectrogram and X-Y oscilloscope of the decoder's
   baseband for the page, fed by the decoder module and drawn as RGBA pixels.
   It takes FFTs as long as the decoder's symbols, so the bins are as wide as
