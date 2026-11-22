@@ -674,6 +674,11 @@ programs keep working and stay the reference:
   native driver in `encode.cc` reads the input, calls `start()`, `begin()`,
   `next()` once per symbol and `stop()`, writes each symbol's samples from
   `audio` and does the logging, including `print_setup()` and the PAPR line.
+  Between `start()` and `begin()`, each `noise()` adds one more symbol of
+  the leading noise, its sequence continuing so consecutive symbols differ,
+  for a VOX that needs longer to key; `start()`, `noise()` and `stop()`
+  alone give noise at the level of a frame, carrying nothing, for setting
+  a radio's input.
 - The decoder is a streaming state machine: `Decoder::feed()` takes one
   sample and returns a bit mask of events, such as a sync, the metadata, a
   damaged seed or a decoded frame, with their values in members. The native

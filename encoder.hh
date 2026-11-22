@@ -34,6 +34,7 @@ struct Encoder : public Common
 	value audio[audio_max];
 	int audio_len;
 	int symbol_index, tone_index, meta_index, seed_start;
+	CODE::MLS noise_seq;
 
 	static int bin(int carrier)
 	{
@@ -143,14 +144,18 @@ struct Encoder : public Common
 		for (int i = 0; i < guard_len; ++i)
 			guard[i] = 0;
 	}
+	// the next symbol of the leading noise, continuing its sequence, so consecutive symbols differ
+	void noise_symbol()
+	{
+		for (int i = 0; i < tone_count; ++i)
+			tone[i] = nrz(noise_seq());
+		symbol(-3);
+	}
 	void leading_noise(int num = 1)
 	{
-		CODE::MLS noise(mls2_poly);
-		for (int j = 0; j < num; ++j) {
-			for (int i = 0; i < tone_count; ++i)
-				tone[i] = nrz(noise());
-			symbol(-3);
-		}
+		noise_seq.reset();
+		for (int j = 0; j < num; ++j)
+			noise_symbol();
 	}
 	void schmidl_cox()
 	{
@@ -194,7 +199,7 @@ struct Encoder : public Common
 		for (int i = guard_len / 4 + guard_len / 2; i < guard_len; ++i)
 			weight[i] = 1;
 	}
-	Encoder() : audio_len(0), symbol_index(-3)
+	Encoder() : audio_len(0), symbol_index(-3), noise_seq(mls2_poly)
 	{
 		guard_interval_weights();
 	}
@@ -268,6 +273,12 @@ struct Encoder : public Common
 		}
 		symbol(j);
 		return audio_len;
+	}
+	// more leading noise after start(), for VOX that needs longer to key or for setting levels: carries nothing
+	void noise()
+	{
+		audio_len = 0;
+		noise_symbol();
 	}
 	void stop()
 	{

@@ -47,13 +47,21 @@ function wav_file(samples, rate) {
 	return Buffer.concat([header, Buffer.from(samples.buffer, samples.byteOffset, 4 * samples.length)]);
 }
 
-function encode(wasm, rate, mode, payload, call_sign) {
+/* a frame with extra symbols of leading noise before it, or only leading noise without a payload */
+function encode(wasm, rate, mode, payload, call_sign, extra_noise = 0) {
 	const chunks = [new Float32Array(rate)];
 	const take = len => chunks.push(new Float32Array(wasm.memory.buffer, wasm.audio.value, len).slice());
 	let len = wasm.start(mode);
 	if (len < 0)
 		return null;
 	take(len);
+	for (let i = 0; i < extra_noise; ++i)
+		take(wasm.noise());
+	if (!payload) {
+		take(wasm.stop());
+		chunks.push(new Float32Array(rate));
+		return chunks;
+	}
 	new Uint8Array(wasm.memory.buffer, wasm.payload.value, payload.length).set(payload);
 	if (wasm.begin(payload.length, call_sign) < 0)
 		return null;
@@ -98,6 +106,36 @@ for (const rate of [44100, 48000]) {
 			++passed;
 		} else {
 			console.log(`FAILED ${rate} Hz ping ${value}`);
+			++failed;
+		}
+	}
+	/* more leading noise: each symbol differs from the one before, a frame after it still decodes, and noise alone decodes to nothing */
+	{
+		const symbols = encode(wasm, rate, 0, null, call_sign, 14).slice(1, -2);
+		const same = symbols.slice(1).some((s, i) => s.length == symbols[i].length && s.every((v, j) => v == symbols[i][j]));
+		const samples = new Float32Array(symbols.reduce((sum, s) => sum + s.length, 0));
+		symbols.reduce((pos, s) => (samples.set(s, pos), pos + s.length), 0);
+		fs.writeFileSync("temp/check.wav", wav_file(samples, rate));
+		const result = spawnSync("./decode", ["temp/check.wav", "temp/check.dat"], { encoding: "utf8" });
+		if (!same && !result.stderr.includes("received")) {
+			++passed;
+		} else {
+			console.log(`FAILED ${rate} Hz noise: ${same ? "a symbol repeats" : "decoded something"}`);
+			++failed;
+		}
+		const mode = (1 << 5) | 0;
+		wasm.start(mode);
+		const payload = crypto.randomBytes(wasm.payload_length());
+		const lead = encode(wasm, rate, mode, payload, call_sign, 6);
+		fs.writeFileSync("temp/check.wav", wav_file(lead, rate));
+		fs.rmSync("temp/check.dat", { force: true });
+		spawnSync("./decode", ["temp/check.wav", "temp/check.dat"], { stdio: "ignore" });
+		const expected = Buffer.concat([payload, Buffer.alloc(wasm.payload_length() - payload.length)]);
+		const decoded = fs.existsSync("temp/check.dat") ? fs.readFileSync("temp/check.dat") : null;
+		if (decoded && expected.equals(decoded)) {
+			++passed;
+		} else {
+			console.log(`FAILED ${rate} Hz frame after more leading noise`);
 			++failed;
 		}
 	}

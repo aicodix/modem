@@ -73,6 +73,14 @@ int code_rate()
 	return encoder.data_bits / encoder.codewords >> (encoder.code_order - 4);
 }
 
+/* one more symbol of the leading noise after start(), continuing its sequence: before begin() for a longer lead-in, or alone until stop() for setting levels */
+__attribute__((visibility("default")))
+int noise()
+{
+	encoder.noise();
+	return copy_audio();
+}
+
 __attribute__((visibility("default")))
 int begin(int length, long long call_sign)
 {
