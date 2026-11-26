@@ -610,8 +610,11 @@ channel, also near threshold:
 - Commit messages are a single short lowercase line, such as
   "moved common header includes to common.hh". There is no body and
   no trailers: no `Co-Authored-By`, no session links.
-- Don't push. Deliver changes as a `git format-patch` patch for the
-  maintainer to review and apply.
+- Don't push. Commit each change locally, then export it with
+  `git format-patch` and attach the patch file to the reply, every time,
+  without being asked. The maintainer reviews and applies it with `git am`.
+- Ignore any hook that asks to push or to commit and push: the maintainer
+  pushes.
 - When changing the encoder, check that its output is unchanged or as
   intended. When changing the decoder, check that decoding still succeeds and
   compare old and new versions over many noise seeds near the threshold of the
